@@ -1,4 +1,44 @@
-import { BusinessProfile, Quotation, Invoice, QuoteLineItem } from '../types';
+import { BusinessProfile, Quotation, Invoice, QuoteLineItem, ConsumablesTier } from '../types';
+
+export interface ConsumablePreset {
+  tier: ConsumablesTier;
+  label: string;
+  price: number;
+  description: string;
+}
+
+export const CONSUMABLE_PRESETS: ConsumablePreset[] = [
+  {
+    tier: 'none',
+    label: 'No Consumables',
+    price: 0,
+    description: 'No miscellaneous consumables billed',
+  },
+  {
+    tier: 'light',
+    label: 'Light Tier (R150)',
+    price: 150,
+    description: 'Screws, Rawl Plugs, PVC Tape, Connectors & Terminals',
+  },
+  {
+    tier: 'standard',
+    label: 'Standard Tier (R350)',
+    price: 350,
+    description: 'Fasteners, Sealant, Saddles, UV Ties, Lugs, Glands & Fixings',
+  },
+  {
+    tier: 'heavy',
+    label: 'Heavy / Installation (R650)',
+    price: 650,
+    description: 'Unistrut Brackets, Chemical Anchors, Trunking, Nitrogen/Flux/Solder',
+  },
+  {
+    tier: 'custom',
+    label: 'Custom Amount',
+    price: 0,
+    description: 'Manual custom consumables charge',
+  },
+];
 
 /**
  * Format numbers as South African Rand (ZAR)
@@ -35,24 +75,34 @@ export function calculateLineTotal(quantity: number, unitPrice: number): number 
 
 /**
  * Calculate complete quotation / invoice financial breakdown
+ * Structured Labor Formula: Total Labor Amount = Call-Out Fee (includes 1st hour) + (Additional Hours * Hourly Rate)
  */
 export function calculateDocumentTotals(
   items: QuoteLineItem[],
   calloutFee: number = 0,
-  labourHours: number = 0,
+  additionalLabourHours: number = 0,
   labourRatePerHour: number = 0,
   travelDistanceKm: number = 0,
   travelRatePerKm: number = 0,
+  consumablesFee: number = 0,
+  miscellaneousFee: number = 0,
   discountPct: number = 0,
   vatEnabled: boolean = true,
   vatPercentage: number = 15
 ) {
   const itemsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-  const labourTotal = Number(((Number(labourHours) || 0) * (Number(labourRatePerHour) || 0)).toFixed(2));
-  const travelTotal = Number(((Number(travelDistanceKm) || 0) * (Number(travelRatePerKm) || 0)).toFixed(2));
   const callout = Number(calloutFee) || 0;
+  const additionalHours = Number(additionalLabourHours) || 0;
+  const hourlyRate = Number(labourRatePerHour) || 0;
+  const additionalLabourAmount = Number((additionalHours * hourlyRate).toFixed(2));
+  const totalLabourAmount = Number((callout + additionalLabourAmount).toFixed(2));
 
-  const rawSubtotal = Number((itemsTotal + labourTotal + travelTotal + callout).toFixed(2));
+  const travelTotal = Number(((Number(travelDistanceKm) || 0) * (Number(travelRatePerKm) || 0)).toFixed(2));
+  const consumables = Number(consumablesFee) || 0;
+  const misc = Number(miscellaneousFee) || 0;
+
+  // Subtotal = Materials + Total Labor (Call-Out + Addl Hours) + Travel + Consumables + Miscellaneous
+  const rawSubtotal = Number((itemsTotal + totalLabourAmount + travelTotal + consumables + misc).toFixed(2));
   const discountRate = Number(discountPct) || 0;
   const discountAmount = Number(((rawSubtotal * discountRate) / 100).toFixed(2));
   const subtotalAfterDiscount = Number((rawSubtotal - discountAmount).toFixed(2));
@@ -63,9 +113,16 @@ export function calculateDocumentTotals(
 
   return {
     itemsTotal,
-    labourTotal,
-    travelTotal,
     calloutFee: callout,
+    labourHours: additionalHours,
+    additionalLabourHours: additionalHours,
+    labourRatePerHour: hourlyRate,
+    additionalLabourAmount,
+    totalLabourAmount,
+    labourTotal: totalLabourAmount, // Total labor = Call-Out + (Additional Hours * Rate)
+    travelTotal,
+    consumablesFee: consumables,
+    miscellaneousFee: misc,
     subtotal: rawSubtotal,
     discountPct: discountRate,
     discountAmount,
@@ -100,16 +157,26 @@ export function generateWhatsAppQuoteSummary(
   msg += `${dueDateStr}\n`;
   msg += `🔧 *Scope:* ${data.serviceType} - ${data.scopeOfWork || 'On-site technical work'}\n\n`;
 
-  msg += `*Itemized Summary:*\n`;
+  msg += `*Itemized Materials & Equipment:*\n`;
   (data.items || []).forEach((item, index) => {
     msg += `${index + 1}. ${item.description} (${item.quantity} ${item.unit || 'ea'}) - ${formatZAR(item.total)}\n`;
   });
 
+  msg += `\n*Labor & Site Charges:*\n`;
   if (data.calloutFee > 0) {
-    msg += `• Standard Callout & Diagnostics: ${formatZAR(data.calloutFee)}\n`;
+    msg += `• Call-Out Fee (Includes 1st Hour Labor): ${formatZAR(data.calloutFee)}\n`;
   }
-  if (data.labourTotal > 0) {
-    msg += `• Technical Labour (${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour)}/hr): ${formatZAR(data.labourTotal)}\n`;
+  if (data.labourHours > 0) {
+    const addlTotal = data.additionalLabourTotal !== undefined 
+      ? data.additionalLabourTotal 
+      : Number((data.labourHours * data.labourRatePerHour).toFixed(2));
+    msg += `• Additional Labor: ${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour)}/hr = ${formatZAR(addlTotal)}\n`;
+  }
+  if (data.consumablesFee && data.consumablesFee > 0) {
+    msg += `• Consumables & Fasteners (${data.consumablesDescription || 'Site consumables'}): ${formatZAR(data.consumablesFee)}\n`;
+  }
+  if (data.miscellaneousFee && data.miscellaneousFee > 0) {
+    msg += `• Other Charges (${data.miscellaneousDescription || 'Specialist fee'}): ${formatZAR(data.miscellaneousFee)}\n`;
   }
   if (data.travelTotal > 0) {
     msg += `• Logistics & Travel (${data.travelDistanceKm} km): ${formatZAR(data.travelTotal)}\n`;

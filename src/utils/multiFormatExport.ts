@@ -144,13 +144,21 @@ export function buildJsPDFDocument(
   });
 
   if (data.calloutFee > 0) {
-    tableRows.push(['Standard Callout & Technical Diagnostics', '1 ea', formatZAR(data.calloutFee), formatZAR(data.calloutFee)]);
+    tableRows.push(['Call-Out Fee (Includes 1st Hour Technical Labor)', '1 ea', formatZAR(data.calloutFee), formatZAR(data.calloutFee)]);
   }
-  if (data.labourTotal > 0) {
-    tableRows.push([`Technical Labour & Installation Execution (${data.labourHours} hrs)`, '1 lot', formatZAR(data.labourTotal), formatZAR(data.labourTotal)]);
+  if (data.labourHours > 0) {
+    const addlRate = data.labourRatePerHour || 450;
+    const addlTotal = data.additionalLabourTotal ?? ((data.labourHours || 0) * addlRate);
+    tableRows.push([`Additional Technical Labour (${data.labourHours} hrs @ ${formatZAR(addlRate)}/hr)`, `${data.labourHours} hrs`, formatZAR(addlRate), formatZAR(addlTotal)]);
+  }
+  if (Boolean(data.consumablesFee && data.consumablesFee > 0)) {
+    tableRows.push([`Consumables & Fasteners (${data.consumablesTier || 'Standard'}) - ${data.consumablesDescription || 'Fixings, lugs, glands, tape'}`, '1 lot', formatZAR(data.consumablesFee || 0), formatZAR(data.consumablesFee || 0)]);
+  }
+  if (Boolean(data.miscellaneousFee && data.miscellaneousFee > 0)) {
+    tableRows.push([`Miscellaneous Surcharges - ${data.miscellaneousDescription || 'Site equipment / access fee'}`, '1 item', formatZAR(data.miscellaneousFee || 0), formatZAR(data.miscellaneousFee || 0)]);
   }
   if (data.travelTotal > 0) {
-    tableRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`, '1 trip', formatZAR(data.travelTotal), formatZAR(data.travelTotal)]);
+    tableRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km @ ${formatZAR(data.travelRatePerKm || 7.5)}/km)`, `${data.travelDistanceKm} km`, formatZAR(data.travelRatePerKm || 7.5), formatZAR(data.travelTotal)]);
   }
 
   // Smart Auto-Scaling Calculation:
@@ -384,30 +392,65 @@ export function generatePrintableHtml(
   const calloutRow =
     data.calloutFee > 0
       ? `<tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Standard Callout & Technical Diagnostics</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">
+            <div>Call-Out Fee (Includes 1st Hour Technical Labor)</div>
+            <div style="font-size: 11px; color: #64748B;">Site diagnostic inspection & primary labor</div>
+          </td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 ea</td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.calloutFee)}</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.calloutFee)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(data.calloutFee)}</td>
         </tr>`
       : '';
 
   const labourRow =
-    data.labourTotal > 0
+    data.labourHours > 0
       ? `<tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Technical Labour & Installation Execution</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">
+            <div>Additional Technical Labour (${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour || 450)}/hr)</div>
+            <div style="font-size: 11px; color: #64748B;">Labor worked after initial 1st hour</div>
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">${data.labourHours} hrs</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.labourRatePerHour || 450)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(data.additionalLabourTotal ?? ((data.labourHours || 0) * (data.labourRatePerHour || 450)))}</td>
+        </tr>`
+      : '';
+
+  const consumablesRow =
+    Boolean(data.consumablesFee && data.consumablesFee > 0)
+      ? `<tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">
+            <div>Consumables & Fasteners <span style="font-size: 10px; background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; text-transform: uppercase;">${data.consumablesTier || 'Standard'}</span></div>
+            <div style="font-size: 11px; color: #64748B;">${data.consumablesDescription || 'Fasteners, fixings, sealant, tape, lugs & glands'}</div>
+          </td>
           <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 lot</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.labourTotal)}</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.labourTotal)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.consumablesFee || 0)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(data.consumablesFee || 0)}</td>
+        </tr>`
+      : '';
+
+  const miscRow =
+    Boolean(data.miscellaneousFee && data.miscellaneousFee > 0)
+      ? `<tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">
+            <div>Miscellaneous Site Surcharges</div>
+            <div style="font-size: 11px; color: #64748B;">${data.miscellaneousDescription || 'Site equipment / specialized access fee'}</div>
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 item</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.miscellaneousFee || 0)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(data.miscellaneousFee || 0)}</td>
         </tr>`
       : '';
 
   const travelRow =
     data.travelTotal > 0
       ? `<tr>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Travel & Logistics Surcharge</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 trip</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.travelTotal)}</td>
-          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.travelTotal)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">
+            <div>Logistics & Travel Surcharge (${data.travelDistanceKm} km @ ${formatZAR(data.travelRatePerKm || 7.5)}/km)</div>
+            <div style="font-size: 11px; color: #64748B;">Round-trip site vehicle dispatch</div>
+          </td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">${data.travelDistanceKm} km</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.travelRatePerKm || 7.5)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(data.travelTotal)}</td>
         </tr>`
       : '';
 
@@ -574,6 +617,8 @@ export function generatePrintableHtml(
           ${rowsHtml}
           ${calloutRow}
           ${labourRow}
+          ${consumablesRow}
+          ${miscRow}
           ${travelRow}
         </tbody>
       </table>
@@ -746,7 +791,7 @@ export async function shareDocumentDirectly(
 }
 
 /**
- * Open PDF Directly in a New Browser Tab (Data URI / Blob)
+ * Open PDF Directly in Native Android Viewer or a New Browser Tab (Data URI / Blob)
  */
 export async function openPdfInNewTab(
   docType: 'quote' | 'invoice',
@@ -755,19 +800,40 @@ export async function openPdfInNewTab(
 ): Promise<void> {
   const doc = buildJsPDFDocument(docType, data, profile);
   const blob = doc.output('blob');
-  const dataUrl = await blobToBase64(blob);
+  const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const base64Data = await blobToBase64(blob);
 
-  const win = window.open(dataUrl, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (document.body.contains(a)) document.body.removeChild(a);
-    }, 500);
+  // 1. If executing in native Android APK, trigger native file viewer Intent
+  if (typeof window !== 'undefined' && window.AndroidInterface?.openFile) {
+    try {
+      window.AndroidInterface.openFile(base64Data, filename, 'application/pdf');
+      return;
+    } catch (openErr) {
+      console.warn('AndroidInterface.openFile error, falling back:', openErr);
+    }
+  }
+
+  // 2. Standard Web browser fallback
+  try {
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = base64Data;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 500);
+    }
+  } catch (e) {
+    const win = window.open(base64Data, '_blank');
+    if (!win) {
+      window.location.href = base64Data;
+    }
   }
 }
 
@@ -826,13 +892,21 @@ export async function exportToExcel(
   ]);
 
   if (data.calloutFee > 0) {
-    itemRows.push(['Standard Callout & Technical Diagnostics', 'Callout', 1, 'ea', data.calloutFee, data.calloutFee]);
+    itemRows.push(['Call-Out Fee (Includes 1st Hour Labor)', 'Labor/Callout', 1, 'ea', data.calloutFee, data.calloutFee]);
   }
-  if (data.labourTotal > 0) {
-    itemRows.push([`Technical Labour (${data.labourHours} hrs)`, 'Labour', 1, 'lot', data.labourTotal, data.labourTotal]);
+  if (data.labourHours > 0) {
+    const addlRate = data.labourRatePerHour || 450;
+    const addlTotal = data.additionalLabourTotal ?? ((data.labourHours || 0) * addlRate);
+    itemRows.push([`Additional Technical Labour (${data.labourHours} hrs @ R${addlRate}/hr)`, 'Labour', data.labourHours, 'hrs', addlRate, addlTotal]);
+  }
+  if (Boolean(data.consumablesFee && data.consumablesFee > 0)) {
+    itemRows.push([`Consumables & Fasteners (${data.consumablesTier || 'Standard'}) - ${data.consumablesDescription || 'Fasteners, tape, glands'}`, 'Consumables', 1, 'lot', data.consumablesFee || 0, data.consumablesFee || 0]);
+  }
+  if (Boolean(data.miscellaneousFee && data.miscellaneousFee > 0)) {
+    itemRows.push([`Miscellaneous Surcharges - ${data.miscellaneousDescription || 'Site equipment / access'}`, 'Misc', 1, 'item', data.miscellaneousFee || 0, data.miscellaneousFee || 0]);
   }
   if (data.travelTotal > 0) {
-    itemRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`, 'Travel', 1, 'trip', data.travelTotal, data.travelTotal]);
+    itemRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km @ R${data.travelRatePerKm || 7.5}/km)`, 'Travel', data.travelDistanceKm, 'km', data.travelRatePerKm || 7.5, data.travelTotal]);
   }
 
   const totalsRows = [
@@ -944,7 +1018,7 @@ export async function exportToWord(
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph('Standard Callout & Technical Diagnostics')] }),
+          new TableCell({ children: [new Paragraph('Call-Out Fee (Includes 1st Hour Labor)')] }),
           new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 ea' })] }),
           new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.calloutFee) })] }),
           new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.calloutFee), bold: true })] })] }),
@@ -953,14 +1027,42 @@ export async function exportToWord(
     );
   }
 
-  if (data.labourTotal > 0) {
+  if (data.labourHours > 0) {
+    const addlRate = data.labourRatePerHour || 450;
+    const addlTotal = data.additionalLabourTotal ?? ((data.labourHours || 0) * addlRate);
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph(`Technical Labour & Execution (${data.labourHours} hrs)`)] }),
+          new TableCell({ children: [new Paragraph(`Additional Technical Labour (${data.labourHours} hrs @ ${formatZAR(addlRate)}/hr)`)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: `${data.labourHours} hrs` })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(addlRate) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(addlTotal), bold: true })] })] }),
+        ],
+      })
+    );
+  }
+
+  if (Boolean(data.consumablesFee && data.consumablesFee > 0)) {
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(`Consumables & Fasteners (${data.consumablesTier || 'Standard'}) - ${data.consumablesDescription || 'Fasteners, tape, lugs & glands'}`)] }),
           new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 lot' })] }),
-          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.labourTotal) })] }),
-          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.labourTotal), bold: true })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.consumablesFee || 0) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.consumablesFee || 0), bold: true })] })] }),
+        ],
+      })
+    );
+  }
+
+  if (Boolean(data.miscellaneousFee && data.miscellaneousFee > 0)) {
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(`Miscellaneous Surcharges - ${data.miscellaneousDescription || 'Site equipment / access fee'}`)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 item' })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.miscellaneousFee || 0) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.miscellaneousFee || 0), bold: true })] })] }),
         ],
       })
     );
@@ -970,9 +1072,9 @@ export async function exportToWord(
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph(`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`)] }),
-          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 trip' })] }),
-          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.travelTotal) })] }),
+          new TableCell({ children: [new Paragraph(`Logistics & Travel Surcharge (${data.travelDistanceKm} km @ ${formatZAR(data.travelRatePerKm || 7.5)}/km)`)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: `${data.travelDistanceKm} km` })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.travelRatePerKm || 7.5) })] }),
           new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.travelTotal), bold: true })] })] }),
         ],
       })
@@ -1159,13 +1261,21 @@ export async function exportToPlainText(
   });
 
   if (data.calloutFee > 0) {
-    text += `• Standard Callout & Diagnostics: ${formatZAR(data.calloutFee)}\n`;
+    text += `• Call-Out Fee (Includes 1st Hour Labor): ${formatZAR(data.calloutFee)}\n`;
   }
-  if (data.labourTotal > 0) {
-    text += `• Technical Labour (${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour)}/hr): ${formatZAR(data.labourTotal)}\n`;
+  if (data.labourHours > 0) {
+    const addlRate = data.labourRatePerHour || 450;
+    const addlTotal = data.additionalLabourTotal ?? ((data.labourHours || 0) * addlRate);
+    text += `• Additional Technical Labour (${data.labourHours} hrs @ ${formatZAR(addlRate)}/hr): ${formatZAR(addlTotal)}\n`;
+  }
+  if (Boolean(data.consumablesFee && data.consumablesFee > 0)) {
+    text += `• Consumables & Fasteners (${data.consumablesTier || 'Standard'} - ${data.consumablesDescription || 'Fasteners, tape, lugs'}): ${formatZAR(data.consumablesFee || 0)}\n`;
+  }
+  if (Boolean(data.miscellaneousFee && data.miscellaneousFee > 0)) {
+    text += `• Miscellaneous Surcharges (${data.miscellaneousDescription || 'Site equipment / access'}): ${formatZAR(data.miscellaneousFee || 0)}\n`;
   }
   if (data.travelTotal > 0) {
-    text += `• Logistics & Travel (${data.travelDistanceKm} km): ${formatZAR(data.travelTotal)}\n`;
+    text += `• Logistics & Travel (${data.travelDistanceKm} km @ ${formatZAR(data.travelRatePerKm || 7.5)}/km): ${formatZAR(data.travelTotal)}\n`;
   }
 
   text += `--------------------------------------------------------------------------------\n`;

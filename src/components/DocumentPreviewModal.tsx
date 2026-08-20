@@ -249,38 +249,91 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
+                  {/* Materials & Stock Items */}
                   {(data.items || []).map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-2.5 font-medium text-slate-900">{item.description}</td>
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div>{item.description}</div>
+                        {item.category && (
+                          <div className="text-[10px] text-slate-400 font-mono">{item.category}</div>
+                        )}
+                      </td>
                       <td className="p-2.5 text-center font-mono text-slate-600">{item.quantity} {item.unit || 'ea'}</td>
                       <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(item.unitPrice)}</td>
                       <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(item.total)}</td>
                     </tr>
                   ))}
 
+                  {/* 1. Callout Fee */}
                   {data.calloutFee > 0 && (
                     <tr className="hover:bg-slate-50">
-                      <td className="p-2.5 font-medium text-slate-900">Standard Callout & Technical Diagnostics</td>
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div>Call-Out Fee (Includes 1st Hour Technical Labor)</div>
+                        <div className="text-[10px] text-slate-400">Site diagnostic inspection & primary labor</div>
+                      </td>
                       <td className="p-2.5 text-center font-mono text-slate-600">1 ea</td>
                       <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.calloutFee)}</td>
                       <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(data.calloutFee)}</td>
                     </tr>
                   )}
 
-                  {data.labourTotal > 0 && (
+                  {/* 2. Additional Labour Hours */}
+                  {data.labourHours > 0 && (
                     <tr className="hover:bg-slate-50">
-                      <td className="p-2.5 font-medium text-slate-900">Technical Labour & Execution ({data.labourHours} hrs)</td>
-                      <td className="p-2.5 text-center font-mono text-slate-600">1 lot</td>
-                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.labourTotal)}</td>
-                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(data.labourTotal)}</td>
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div>Additional Technical Labour ({data.labourHours} hrs @ {formatZAR(data.labourRatePerHour || 450)}/hr)</div>
+                        <div className="text-[10px] text-slate-400">Labor worked after the initial 1st hour</div>
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">{data.labourHours} hrs</td>
+                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.labourRatePerHour || 450)}</td>
+                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                        {formatZAR(data.additionalLabourTotal ?? ((data.labourHours || 0) * (data.labourRatePerHour || 450)))}
+                      </td>
                     </tr>
                   )}
 
+                  {/* 3. Consumables & Fasteners */}
+                  {Boolean(data.consumablesFee && data.consumablesFee > 0) && (
+                    <tr className="hover:bg-slate-50">
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div className="flex items-center space-x-1.5">
+                          <span>Consumables & Fasteners</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono uppercase font-bold">
+                            {data.consumablesTier || 'Standard'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {data.consumablesDescription || 'Fasteners, fixings, sealant, tape, lugs & glands'}
+                        </div>
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">1 lot</td>
+                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.consumablesFee || 0)}</td>
+                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(data.consumablesFee || 0)}</td>
+                    </tr>
+                  )}
+
+                  {/* 4. Miscellaneous Charges */}
+                  {Boolean(data.miscellaneousFee && data.miscellaneousFee > 0) && (
+                    <tr className="hover:bg-slate-50">
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div>Miscellaneous Site Surcharges</div>
+                        <div className="text-[10px] text-slate-500">{data.miscellaneousDescription || 'Site equipment / access fee'}</div>
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">1 item</td>
+                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.miscellaneousFee || 0)}</td>
+                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(data.miscellaneousFee || 0)}</td>
+                    </tr>
+                  )}
+
+                  {/* 5. Logistics & Travel */}
                   {data.travelTotal > 0 && (
                     <tr className="hover:bg-slate-50">
-                      <td className="p-2.5 font-medium text-slate-900">Logistics & Travel Surcharge ({data.travelDistanceKm} km)</td>
-                      <td className="p-2.5 text-center font-mono text-slate-600">1 trip</td>
-                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.travelTotal)}</td>
+                      <td className="p-2.5 font-medium text-slate-900">
+                        <div>Logistics & Travel Surcharge ({data.travelDistanceKm} km @ {formatZAR(data.travelRatePerKm || 7.5)}/km)</div>
+                        <div className="text-[10px] text-slate-400">Round-trip site vehicle dispatch</div>
+                      </td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">{data.travelDistanceKm} km</td>
+                      <td className="p-2.5 text-right font-mono text-slate-600">{formatZAR(data.travelRatePerKm || 7.5)}</td>
                       <td className="p-2.5 text-right font-mono font-bold text-slate-900">{formatZAR(data.travelTotal)}</td>
                     </tr>
                   )}

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Quotation, QuoteLineItem, ServiceCategory, QuoteStatus } from '../types';
+import { Quotation, QuoteLineItem, ServiceCategory, QuoteStatus, ConsumablesTier } from '../types';
 import {
   formatZAR,
   calculateSellingPrice,
   calculateDocumentTotals,
   getWhatsAppShareLink,
   generateWhatsAppQuoteSummary,
+  CONSUMABLE_PRESETS,
 } from '../utils/calculator';
 import {
   exportToPDF,
@@ -40,6 +41,9 @@ import {
   Send,
   ArrowRight,
   MoreHorizontal,
+  Wrench,
+  Package,
+  Layers,
 } from 'lucide-react';
 
 export const QuotationEngine: React.FC = () => {
@@ -72,10 +76,17 @@ export const QuotationEngine: React.FC = () => {
   });
   const [items, setItems] = useState<QuoteLineItem[]>([]);
   const [calloutFee, setCalloutFee] = useState(profile.defaultCalloutFee || 650);
-  const [labourHours, setLabourHours] = useState(4);
+  const [labourHours, setLabourHours] = useState(2); // Additional hours after 1st hr
   const [labourRatePerHour, setLabourRatePerHour] = useState(profile.defaultLabourRate || 450);
   const [travelDistanceKm, setTravelDistanceKm] = useState(20);
   const [travelRatePerKm, setTravelRatePerKm] = useState(profile.defaultTravelRate || 7.5);
+  const [consumablesTier, setConsumablesTier] = useState<ConsumablesTier>('standard');
+  const [consumablesFee, setConsumablesFee] = useState(350);
+  const [consumablesDescription, setConsumablesDescription] = useState(
+    'Fasteners, Sealant, Saddles, UV Ties, Lugs, Glands & Fixings'
+  );
+  const [miscellaneousDescription, setMiscellaneousDescription] = useState('');
+  const [miscellaneousFee, setMiscellaneousFee] = useState(0);
   const [discountPct, setDiscountPct] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(profile.vatEnabled ?? true);
   const [notes, setNotes] = useState('');
@@ -105,13 +116,15 @@ export const QuotationEngine: React.FC = () => {
 
     const newItem: QuoteLineItem = {
       id: 'item_' + Date.now() + Math.random().toString().slice(-4),
+      inventoryId: found.id,
       description: found.name,
-      category: (found.category as any) || 'Electrical',
+      category: (found.category as any) || 'Hardware & Site Materials',
       costPrice: found.costPrice,
       markupPct: found.defaultMarkup,
       unitPrice: found.sellingPrice,
       quantity: 1,
       unit: found.unit,
+      notes: found.sku,
       total: found.sellingPrice,
     };
     setItems((prev) => [...prev, newItem]);
@@ -121,7 +134,7 @@ export const QuotationEngine: React.FC = () => {
   const handleAddManualItem = () => {
     const newItem: QuoteLineItem = {
       id: 'item_' + Date.now(),
-      description: 'Labour / Material Line Item',
+      description: 'Site Material / Equipment Item',
       category: serviceType,
       costPrice: 500,
       markupPct: profile.defaultMarkup || 35,
@@ -156,6 +169,18 @@ export const QuotationEngine: React.FC = () => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  // Handle Consumables Tier Change
+  const handleTierSelect = (tier: ConsumablesTier) => {
+    setConsumablesTier(tier);
+    const preset = CONSUMABLE_PRESETS.find((p) => p.tier === tier);
+    if (preset) {
+      setConsumablesFee(preset.price);
+      if (tier !== 'custom') {
+        setConsumablesDescription(preset.description);
+      }
+    }
+  };
+
   // Calculated Totals
   const totals = calculateDocumentTotals(
     items,
@@ -164,6 +189,8 @@ export const QuotationEngine: React.FC = () => {
     labourRatePerHour,
     travelDistanceKm,
     travelRatePerKm,
+    consumablesFee,
+    miscellaneousFee,
     discountPct,
     vatEnabled,
     profile.vatPercentage || 15
@@ -181,10 +208,15 @@ export const QuotationEngine: React.FC = () => {
     setScopeOfWork('');
     setItems([]);
     setCalloutFee(profile.defaultCalloutFee || 650);
-    setLabourHours(4);
+    setLabourHours(2);
     setLabourRatePerHour(profile.defaultLabourRate || 450);
     setTravelDistanceKm(20);
     setTravelRatePerKm(profile.defaultTravelRate || 7.5);
+    setConsumablesTier('standard');
+    setConsumablesFee(350);
+    setConsumablesDescription('Fasteners, Sealant, Saddles, UV Ties, Lugs, Glands & Fixings');
+    setMiscellaneousDescription('');
+    setMiscellaneousFee(0);
     setDiscountPct(0);
     setVatEnabled(profile.vatEnabled ?? true);
     setNotes('');
@@ -218,9 +250,15 @@ export const QuotationEngine: React.FC = () => {
       labourHours,
       labourRatePerHour,
       labourTotal: totals.labourTotal,
+      additionalLabourTotal: totals.additionalLabourAmount,
       travelDistanceKm,
       travelRatePerKm,
       travelTotal: totals.travelTotal,
+      consumablesTier,
+      consumablesFee: totals.consumablesFee,
+      consumablesDescription,
+      miscellaneousDescription,
+      miscellaneousFee: totals.miscellaneousFee,
       subtotal: totals.subtotal,
       discountPct: totals.discountPct,
       discountAmount: totals.discountAmount,
@@ -252,13 +290,18 @@ export const QuotationEngine: React.FC = () => {
     setScopeOfWork(quote.scopeOfWork);
     setExpiryDate(quote.expiryDate);
     setItems(quote.items);
-    setCalloutFee(quote.calloutFee);
-    setLabourHours(quote.labourHours);
-    setLabourRatePerHour(quote.labourRatePerHour);
-    setTravelDistanceKm(quote.travelDistanceKm);
-    setTravelRatePerKm(quote.travelRatePerKm);
-    setDiscountPct(quote.discountPct);
-    setVatEnabled(quote.vatEnabled);
+    setCalloutFee(quote.calloutFee ?? profile.defaultCalloutFee ?? 650);
+    setLabourHours(quote.labourHours ?? 0);
+    setLabourRatePerHour(quote.labourRatePerHour ?? profile.defaultLabourRate ?? 450);
+    setTravelDistanceKm(quote.travelDistanceKm ?? 0);
+    setTravelRatePerKm(quote.travelRatePerKm ?? profile.defaultTravelRate ?? 7.5);
+    setConsumablesTier(quote.consumablesTier || 'standard');
+    setConsumablesFee(quote.consumablesFee ?? 350);
+    setConsumablesDescription(quote.consumablesDescription || 'Fasteners, Sealant, Saddles, UV Ties, Lugs, Glands & Fixings');
+    setMiscellaneousDescription(quote.miscellaneousDescription || '');
+    setMiscellaneousFee(quote.miscellaneousFee ?? 0);
+    setDiscountPct(quote.discountPct ?? 0);
+    setVatEnabled(quote.vatEnabled ?? true);
     setNotes(quote.notes || '');
     setIsCreating(true);
   };
@@ -540,133 +583,306 @@ export const QuotationEngine: React.FC = () => {
             </div>
           </div>
 
-          {/* Labour, Travel, Surcharges & Financial Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-[#282E3E]">
-            {/* Left: Labour & Logistics Inputs */}
-            <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3 text-xs">
-              <h5 className="font-bold text-sky-400 uppercase font-mono">Labour, Logistics & Surcharges</h5>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 mb-1">Standard Callout Fee (ZAR)</label>
-                  <input
-                    type="number"
-                    value={calloutFee}
-                    onChange={(e) => setCalloutFee(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono font-bold"
-                  />
+          {/* Labour, Travel, Consumables, Surcharges & Financial Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4 border-t border-[#282E3E]">
+            {/* Left 7 cols: Inputs */}
+            <div className="lg:col-span-7 space-y-4 text-xs">
+              {/* 1. Structured Labor & Call-Out Breakdown */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-sky-400 uppercase font-mono flex items-center space-x-1.5">
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>1. Structured Labor & Call-Out Fee</span>
+                  </h5>
+                  <span className="text-[10px] text-slate-400 font-mono">1st Hour Included in Call-Out</span>
                 </div>
 
-                <div>
-                  <label className="block text-slate-400 mb-1">Labour Hours</label>
-                  <input
-                    type="number"
-                    value={labourHours}
-                    onChange={(e) => setLabourHours(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono font-bold"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Call-Out (Incl 1st Hr)</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        value={calloutFee}
+                        onChange={(e) => setCalloutFee(Number(e.target.value) || 0)}
+                        className="w-full pl-7 pr-2.5 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Additional Hours</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={labourHours}
+                      onChange={(e) => setLabourHours(Number(e.target.value) || 0)}
+                      placeholder="After 1st hour"
+                      className="w-full px-2.5 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Hourly Rate (ZAR)</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        value={labourRatePerHour}
+                        onChange={(e) => setLabourRatePerHour(Number(e.target.value) || 0)}
+                        className="w-full pl-7 pr-2.5 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-400 mb-1">Labour Rate / Hr (ZAR)</label>
-                  <input
-                    type="number"
-                    value={labourRatePerHour}
-                    onChange={(e) => setLabourRatePerHour(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">Travel Distance (Km)</label>
-                  <input
-                    type="number"
-                    value={travelDistanceKm}
-                    onChange={(e) => setTravelDistanceKm(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">Travel Rate / Km (ZAR)</label>
-                  <input
-                    type="number"
-                    value={travelRatePerKm}
-                    onChange={(e) => setTravelRatePerKm(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">Client Discount (%)</label>
-                  <input
-                    type="number"
-                    value={discountPct}
-                    onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-amber-400 font-mono font-bold"
-                  />
+                {/* Auto-calculated Labor Formula Badge */}
+                <div className="p-2.5 rounded-lg bg-[#181B26] border border-[#2B3142] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 font-mono text-[11px]">
+                  <div className="text-slate-400">
+                    <span>Formula: </span>
+                    <span className="text-slate-300">
+                      {formatZAR(calloutFee)} (Call-Out) + {labourHours} hrs × {formatZAR(labourRatePerHour)} ({formatZAR(totals.additionalLabourAmount)})
+                    </span>
+                  </div>
+                  <div className="text-emerald-400 font-bold">
+                    Total Labor: {formatZAR(totals.totalLabourAmount)}
+                  </div>
                 </div>
               </div>
 
-              {/* VAT Toggle */}
-              <div className="pt-2 flex items-center justify-between">
-                <span className="text-slate-300 font-medium">Charge 15% South African VAT:</span>
-                <button
-                  type="button"
-                  onClick={() => setVatEnabled(!vatEnabled)}
-                  className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
-                    vatEnabled
-                      ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40'
-                      : 'bg-[#1B1E28] text-slate-400 border border-[#334155]'
-                  }`}
-                >
-                  {vatEnabled ? '15% VAT ACTIVE' : 'VAT EXEMPT'}
-                </button>
+              {/* 2. Consumables & Fasteners Section */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-amber-400 uppercase font-mono flex items-center space-x-1.5">
+                    <Package className="w-3.5 h-3.5" />
+                    <span>2. Consumables & Fasteners</span>
+                  </h5>
+                  <span className="text-[10px] text-amber-400 font-mono font-bold">{formatZAR(totals.consumablesFee)}</span>
+                </div>
+
+                {/* Preset Tier Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {CONSUMABLE_PRESETS.map((preset) => {
+                    const isSelected = consumablesTier === preset.tier;
+                    return (
+                      <button
+                        key={preset.tier}
+                        type="button"
+                        onClick={() => handleTierSelect(preset.tier)}
+                        className={`p-2 rounded-lg text-left transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-sm'
+                            : 'bg-[#1B1E28] border-[#334155] text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        <div className="font-bold text-[11px] truncate">{preset.label.split('(')[0]}</div>
+                        <div className="font-mono text-[10px] text-amber-400 mt-0.5">
+                          {preset.tier === 'custom' ? 'Custom' : formatZAR(preset.price)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom input or tier description */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-400 mb-1 text-[11px]">Consumables Description / Items Included</label>
+                    <input
+                      type="text"
+                      value={consumablesDescription}
+                      onChange={(e) => setConsumablesDescription(e.target.value)}
+                      placeholder="e.g. Screws, Rawl Plugs, PVC Tape, Saddles, UV Ties"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 text-[11px]">Consumables Fee (ZAR)</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        value={consumablesFee}
+                        onChange={(e) => {
+                          setConsumablesFee(Number(e.target.value) || 0);
+                          setConsumablesTier('custom');
+                        }}
+                        className="w-full pl-7 pr-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-amber-400 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Travel, Logistics & Miscellaneous Charges */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <h5 className="font-bold text-sky-400 uppercase font-mono flex items-center space-x-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>3. Logistics, Travel & Miscellaneous Surcharges</span>
+                </h5>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Travel Distance (Km round trip)</label>
+                    <input
+                      type="number"
+                      value={travelDistanceKm}
+                      onChange={(e) => setTravelDistanceKm(Number(e.target.value) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Travel Rate / Km (ZAR)</label>
+                    <input
+                      type="number"
+                      value={travelRatePerKm}
+                      onChange={(e) => setTravelRatePerKm(Number(e.target.value) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Miscellaneous / Extra line */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-[#282E3E]">
+                  <div className="sm:col-span-2">
+                    <label className="block text-slate-400 mb-1 text-[11px]">Miscellaneous Description (Optional)</label>
+                    <input
+                      type="text"
+                      value={miscellaneousDescription}
+                      onChange={(e) => setMiscellaneousDescription(e.target.value)}
+                      placeholder="e.g. Scaffolding rental, Cherry picker, Disposal fee"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 text-[11px]">Misc Charge (ZAR)</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        value={miscellaneousFee}
+                        onChange={(e) => setMiscellaneousFee(Number(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Discount & VAT */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-[#282E3E]">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Client Discount (%)</label>
+                    <input
+                      type="number"
+                      value={discountPct}
+                      onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-amber-400 font-mono font-bold"
+                    />
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <label className="block text-slate-400 mb-1">15% South African VAT</label>
+                    <button
+                      type="button"
+                      onClick={() => setVatEnabled(!vatEnabled)}
+                      className={`w-full py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        vatEnabled
+                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40'
+                          : 'bg-[#1B1E28] text-slate-400 border border-[#334155]'
+                      }`}
+                    >
+                      {vatEnabled ? '15% VAT ACTIVE' : 'VAT EXEMPT'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Right: Calculated Financial Breakdown */}
-            <div className="p-4 rounded-xl bg-[#151722] border border-[#282E3E] space-y-2 font-mono text-xs">
-              <h5 className="font-bold text-white uppercase tracking-wider mb-2">Quote Financial Summary</h5>
-
-              <div className="flex justify-between text-slate-400">
-                <span>Materials Total:</span>
-                <span className="text-white font-bold">{formatZAR(totals.itemsTotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Callout & Diagnostics:</span>
-                <span className="text-white font-bold">{formatZAR(totals.calloutFee)}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Labour ({labourHours} hrs @ {formatZAR(labourRatePerHour)}):</span>
-                <span className="text-white font-bold">{formatZAR(totals.labourTotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Logistics ({travelDistanceKm} km @ {formatZAR(travelRatePerKm)}):</span>
-                <span className="text-white font-bold">{formatZAR(totals.travelTotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-300 pt-1 border-t border-[#282E3E]">
-                <span>Subtotal (Excl VAT):</span>
-                <span className="text-white font-bold">{formatZAR(totals.subtotal)}</span>
-              </div>
-
-              {totals.discountAmount > 0 && (
-                <div className="flex justify-between text-red-400">
-                  <span>Discount ({totals.discountPct}%):</span>
-                  <span>-{formatZAR(totals.discountAmount)}</span>
+            {/* Right 5 cols: Live Calculated Financial Summary Card */}
+            <div className="lg:col-span-5">
+              <div className="p-5 rounded-2xl bg-[#141722] border border-[#282E3E] space-y-3 font-mono text-xs shadow-lg sticky top-4">
+                <div className="flex items-center justify-between pb-2 border-b border-[#282E3E]">
+                  <h5 className="font-bold text-white uppercase tracking-wider flex items-center space-x-1.5">
+                    <FileText className="w-4 h-4 text-sky-400" />
+                    <span>Quote Financial Summary</span>
+                  </h5>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
+                    Live
+                  </span>
                 </div>
-              )}
 
-              {totals.vatEnabled && (
-                <div className="flex justify-between text-slate-400">
-                  <span>South African VAT (15%):</span>
-                  <span className="text-white font-bold">{formatZAR(totals.vatAmount)}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Materials & Equipment:</span>
+                    <span className="text-white font-bold">{formatZAR(totals.itemsTotal)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-slate-400">
+                    <span>Call-Out Fee (1st Hr Included):</span>
+                    <span className="text-slate-300 font-semibold">{formatZAR(totals.calloutFee)}</span>
+                  </div>
+
+                  {totals.additionalLabourHours > 0 && (
+                    <div className="flex justify-between text-slate-400 pl-2 text-[11px]">
+                      <span>Addl Labour ({totals.additionalLabourHours} hrs @ {formatZAR(totals.labourRatePerHour)}):</span>
+                      <span className="text-slate-300">+{formatZAR(totals.additionalLabourAmount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-sky-400 font-bold pt-1 border-t border-[#232838]">
+                    <span>Total Labor Subtotal:</span>
+                    <span>{formatZAR(totals.totalLabourAmount)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-slate-400">
+                    <span>Logistics ({travelDistanceKm} km @ {formatZAR(travelRatePerKm)}):</span>
+                    <span className="text-white font-bold">{formatZAR(totals.travelTotal)}</span>
+                  </div>
+
+                  {totals.consumablesFee > 0 && (
+                    <div className="flex justify-between text-amber-400">
+                      <span>Consumables ({consumablesTier.toUpperCase()}):</span>
+                      <span className="font-bold">{formatZAR(totals.consumablesFee)}</span>
+                    </div>
+                  )}
+
+                  {totals.miscellaneousFee > 0 && (
+                    <div className="flex justify-between text-slate-400">
+                      <span className="truncate max-w-[170px]">Misc ({miscellaneousDescription || 'Extras'}):</span>
+                      <span className="text-white font-bold">{formatZAR(totals.miscellaneousFee)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-slate-300 pt-2 border-t border-[#282E3E]">
+                    <span className="font-bold">Subtotal (Excl VAT):</span>
+                    <span className="text-white font-black">{formatZAR(totals.subtotal)}</span>
+                  </div>
+
+                  {totals.discountAmount > 0 && (
+                    <div className="flex justify-between text-red-400">
+                      <span>Discount ({totals.discountPct}%):</span>
+                      <span>-{formatZAR(totals.discountAmount)}</span>
+                    </div>
+                  )}
+
+                  {totals.vatEnabled && (
+                    <div className="flex justify-between text-slate-400">
+                      <span>South African VAT (15%):</span>
+                      <span className="text-white font-bold">{formatZAR(totals.vatAmount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-base font-black text-white pt-3 border-t-2 border-[#334155]">
+                    <span>TOTAL AMOUNT:</span>
+                    <span className="text-amber-400 text-lg">{formatZAR(totals.totalAmount)}</span>
+                  </div>
                 </div>
-              )}
-
-              <div className="flex justify-between text-base font-black text-white pt-2 border-t-2 border-[#334155]">
-                <span>TOTAL AMOUNT:</span>
-                <span className="text-amber-400">{formatZAR(totals.totalAmount)}</span>
               </div>
             </div>
           </div>

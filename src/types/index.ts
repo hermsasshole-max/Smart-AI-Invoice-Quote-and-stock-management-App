@@ -6,13 +6,25 @@ export type ServiceCategory =
   | 'Automation & Gate Motors'
   | 'Maintenance & Repairs';
 
+export type InventoryCategory =
+  | ServiceCategory
+  | 'Hardware & Site Materials'
+  | 'Hardware & Fasteners'
+  | 'Consumables'
+  | 'Cabling'
+  | 'Switchgear'
+  | 'Hardware'
+  | 'General';
+
+export type ConsumablesTier = 'none' | 'light' | 'standard' | 'heavy' | 'custom';
+
 export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'invoiced' | 'declined';
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue';
 
 export interface QuoteLineItem {
   id: string;
   description: string;
-  category: ServiceCategory | 'General';
+  category: ServiceCategory | InventoryCategory | 'General';
   costPrice: number;
   markupPct: number;
   unitPrice: number;
@@ -20,6 +32,7 @@ export interface QuoteLineItem {
   unit: string;
   total: number;
   notes?: string;
+  inventoryId?: string;
 }
 
 export interface Quotation {
@@ -35,13 +48,19 @@ export interface Quotation {
   serviceType: ServiceCategory;
   scopeOfWork: string;
   items: QuoteLineItem[];
-  calloutFee: number;
-  labourHours: number;
-  labourRatePerHour: number;
-  labourTotal: number;
+  calloutFee: number; // Flat Call-Out Fee (Includes 1st Hour Labor)
+  labourHours: number; // Additional Labor Hours (worked after 1st hour)
+  labourRatePerHour: number; // Hourly Rate per additional hour
+  labourTotal: number; // Automatically computed: Call-Out Fee + (Additional Hours * Hourly Rate)
+  additionalLabourTotal?: number; // (Additional Hours * Hourly Rate)
   travelDistanceKm: number;
   travelRatePerKm: number;
   travelTotal: number;
+  consumablesTier?: ConsumablesTier;
+  consumablesFee?: number;
+  consumablesDescription?: string;
+  miscellaneousDescription?: string;
+  miscellaneousFee?: number;
   subtotal: number;
   discountPct: number;
   discountAmount: number;
@@ -67,13 +86,19 @@ export interface Invoice {
   serviceType: ServiceCategory;
   scopeOfWork: string;
   items: QuoteLineItem[];
-  calloutFee: number;
-  labourHours: number;
-  labourRatePerHour: number;
-  labourTotal: number;
+  calloutFee: number; // Flat Call-Out Fee (Includes 1st Hour Labor)
+  labourHours: number; // Additional Labor Hours (worked after 1st hour)
+  labourRatePerHour: number; // Hourly Rate per additional hour
+  labourTotal: number; // Automatically computed: Call-Out Fee + (Additional Hours * Hourly Rate)
+  additionalLabourTotal?: number; // (Additional Hours * Hourly Rate)
   travelDistanceKm: number;
   travelRatePerKm: number;
   travelTotal: number;
+  consumablesTier?: ConsumablesTier;
+  consumablesFee?: number;
+  consumablesDescription?: string;
+  miscellaneousDescription?: string;
+  miscellaneousFee?: number;
   subtotal: number;
   discountPct: number;
   discountAmount: number;
@@ -111,15 +136,16 @@ export interface InventoryItem {
   id: string;
   sku: string;
   name: string;
-  category: ServiceCategory | 'Consumables' | 'Cabling' | 'Switchgear' | 'Hardware' | 'General';
+  category: InventoryCategory;
   costPrice: number;
   defaultMarkup: number;
   sellingPrice: number;
-  unit: string;
+  unit: string; // e.g. 'ea', 'box', 'pack', 'roll', 'm', 'length', 'set'
   stockQty: number;
   minStockLevel: number;
   supplier?: string;
   location?: string;
+  notes?: string;
 }
 
 export interface BusinessProfile {
@@ -148,9 +174,11 @@ export interface BusinessProfile {
 
 export interface AndroidBridge {
   saveFile?: (base64Data: string, filename: string, mimeType: string) => void;
+  openFile?: (base64Data: string, filename: string, mimeType: string) => void;
   printDocument?: () => void;
   shareFile?: (base64Data: string, filename: string, mimeType: string, title?: string) => void;
   showToast?: (message: string) => void;
+  isAndroidApp?: () => boolean;
 }
 
 declare global {

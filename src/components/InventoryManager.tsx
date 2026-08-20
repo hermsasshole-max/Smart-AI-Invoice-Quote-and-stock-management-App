@@ -24,34 +24,39 @@ export const InventoryManager: React.FC = () => {
 
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<'Electrical' | 'Air Conditioning' | 'Solar & Backup' | 'Security & CCTV' | 'Hardware'>('Electrical');
+  const [category, setCategory] = useState<string>('Hardware & Site Materials');
   const [costPrice, setCostPrice] = useState<number>(0);
   const [defaultMarkup, setDefaultMarkup] = useState<number>(35);
-  const [unit, setUnit] = useState('ea');
+  const [unit, setUnit] = useState('box');
   const [stockQty, setStockQty] = useState<number>(10);
   const [minStockLevel, setMinStockLevel] = useState<number>(2);
-  const [supplier, setSupplier] = useState('Voltex');
+  const [supplier, setSupplier] = useState('Bolt & Nut Centre');
+  const [notes, setNotes] = useState('');
 
   const filteredItems = inventory.filter((item) => {
     const matchesSearch =
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.supplier?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCat = filterCategory === 'All' || item.category === filterCategory;
+    const matchesCat =
+      filterCategory === 'All' ||
+      item.category === filterCategory ||
+      (filterCategory === 'Hardware & Site Materials' && (item.category === 'Hardware & Site Materials' || item.category === 'Hardware & Fasteners' || item.category === 'Hardware'));
     return matchesSearch && matchesCat;
   });
 
   const openAdd = () => {
     setEditingId(null);
-    setSku('SKU-' + Math.floor(1000 + Math.random() * 9000));
+    setSku('FAST-' + Math.floor(1000 + Math.random() * 9000));
     setName('');
-    setCategory('Electrical');
+    setCategory('Hardware & Site Materials');
     setCostPrice(100);
     setDefaultMarkup(profile.defaultMarkup || 35);
-    setUnit('ea');
+    setUnit('box');
     setStockQty(10);
     setMinStockLevel(2);
-    setSupplier('Voltex');
+    setSupplier('Bolt & Nut Centre');
+    setNotes('');
     setIsModalOpen(true);
   };
 
@@ -59,13 +64,14 @@ export const InventoryManager: React.FC = () => {
     setEditingId(item.id);
     setSku(item.sku);
     setName(item.name);
-    setCategory(item.category as any);
+    setCategory(item.category);
     setCostPrice(item.costPrice);
     setDefaultMarkup(item.defaultMarkup);
     setUnit(item.unit);
     setStockQty(item.stockQty);
     setMinStockLevel(item.minStockLevel);
     setSupplier(item.supplier || '');
+    setNotes(item.notes || '');
     setIsModalOpen(true);
   };
 
@@ -81,7 +87,7 @@ export const InventoryManager: React.FC = () => {
       updateInventoryItem(editingId, {
         sku,
         name,
-        category,
+        category: category as any,
         costPrice,
         defaultMarkup,
         sellingPrice,
@@ -89,12 +95,13 @@ export const InventoryManager: React.FC = () => {
         stockQty,
         minStockLevel,
         supplier,
+        notes,
       });
     } else {
       addInventoryItem({
         sku,
         name,
-        category,
+        category: category as any,
         costPrice,
         defaultMarkup,
         sellingPrice,
@@ -102,10 +109,19 @@ export const InventoryManager: React.FC = () => {
         stockQty,
         minStockLevel,
         supplier,
+        notes,
       });
     }
 
     setIsModalOpen(false);
+  };
+
+  const handleAdjustQty = (id: string, delta: number) => {
+    const item = inventory.find((i) => i.id === id);
+    if (item) {
+      const newQty = Math.max(0, item.stockQty + delta);
+      updateInventoryItem(id, { stockQty: newQty });
+    }
   };
 
   return (
@@ -152,20 +168,22 @@ export const InventoryManager: React.FC = () => {
           className="px-3 py-2.5 rounded-xl bg-[#1B1E28] border border-[#282E3E] text-white text-xs sm:text-sm font-semibold focus:outline-none focus:border-sky-500"
         >
           <option value="All">All Categories</option>
+          <option value="Hardware & Site Materials">Hardware & Site Materials / Fasteners</option>
           <option value="Electrical">Electrical</option>
           <option value="Air Conditioning">Air Conditioning</option>
           <option value="Solar & Backup">Solar & Backup</option>
           <option value="Security & CCTV">Security & CCTV</option>
-          <option value="Hardware">Hardware</option>
+          <option value="Automation & Gate Motors">Automation & Gate Motors</option>
+          <option value="Consumables">Consumables</option>
         </select>
       </div>
 
       {/* Inventory Table */}
-      <div className={`rounded-2xl border overflow-hidden ${sunlightMode ? 'bg-white border-slate-300' : 'bg-[#1B1E28] border-[#282E3E]'}`}>
+      <div className={`rounded-2xl border overflow-hidden ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#12141C] text-slate-400 font-mono uppercase text-[10px] border-b border-[#282E3E]">
+              <tr className={`${sunlightMode ? 'bg-slate-100 text-slate-700' : 'bg-[#12141C] text-slate-400'} font-mono uppercase text-[10px] border-b border-[#282E3E]`}>
                 <th className="p-3.5">SKU & Item Description</th>
                 <th className="p-3.5">Category</th>
                 <th className="p-3.5">Supplier</th>
@@ -176,15 +194,18 @@ export const InventoryManager: React.FC = () => {
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#282E3E]">
+            <tbody className={`divide-y ${sunlightMode ? 'divide-slate-200' : 'divide-[#282E3E]'}`}>
               {filteredItems.map((item) => {
                 const isLow = item.stockQty <= item.minStockLevel;
 
                 return (
-                  <tr key={item.id} className="hover:bg-[#151824] transition-all">
+                  <tr key={item.id} className={`${sunlightMode ? 'hover:bg-slate-50' : 'hover:bg-[#151824]'} transition-all`}>
                     <td className="p-3.5">
-                      <div className="font-bold text-white text-sm">{item.name}</div>
-                      <span className="font-mono text-[10px] text-slate-400">{item.sku}</span>
+                      <div className={`font-bold text-sm ${sunlightMode ? 'text-slate-900' : 'text-white'}`}>{item.name}</div>
+                      <div className="flex items-center space-x-2 mt-0.5">
+                        <span className="font-mono text-[10px] text-slate-400">{item.sku}</span>
+                        {item.notes && <span className="text-[10px] text-slate-500 italic truncate max-w-xs">{item.notes}</span>}
+                      </div>
                     </td>
                     <td className="p-3.5">
                       <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30">
@@ -192,28 +213,44 @@ export const InventoryManager: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-3.5 text-slate-400 font-medium">{item.supplier || 'N/A'}</td>
-                    <td className="p-3.5 text-right font-mono text-slate-300 font-semibold">
+                    <td className={`p-3.5 text-right font-mono font-semibold ${sunlightMode ? 'text-slate-700' : 'text-slate-300'}`}>
                       {formatZAR(item.costPrice)}
                     </td>
-                    <td className="p-3.5 text-center font-mono text-amber-400 font-bold">
+                    <td className="p-3.5 text-center font-mono text-amber-500 font-bold">
                       +{item.defaultMarkup}%
                     </td>
-                    <td className="p-3.5 text-right font-mono text-emerald-400 font-black text-sm">
+                    <td className="p-3.5 text-right font-mono text-emerald-500 font-black text-sm">
                       {formatZAR(item.sellingPrice)}
                     </td>
                     <td className="p-3.5 text-center">
-                      <span
-                        className={`inline-flex items-center space-x-1 font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
-                          isLow
-                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                            : 'bg-emerald-500/10 text-emerald-400'
-                        }`}
-                      >
-                        {isLow && <AlertCircle className="w-3 h-3" />}
-                        <span>
-                          {item.stockQty} {item.unit}
+                      <div className="inline-flex items-center space-x-1.5">
+                        <button
+                          onClick={() => handleAdjustQty(item.id, -1)}
+                          title="Decrease 1"
+                          className="w-5 h-5 rounded bg-slate-700 hover:bg-slate-600 text-white font-bold flex items-center justify-center text-xs active:scale-95"
+                        >
+                          -
+                        </button>
+                        <span
+                          className={`inline-flex items-center space-x-1 font-mono font-bold px-2 py-0.5 rounded text-[11px] min-w-[55px] justify-center ${
+                            isLow
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                              : 'bg-emerald-500/10 text-emerald-400'
+                          }`}
+                        >
+                          {isLow && <AlertCircle className="w-3 h-3" />}
+                          <span>
+                            {item.stockQty} {item.unit}
+                          </span>
                         </span>
-                      </span>
+                        <button
+                          onClick={() => handleAdjustQty(item.id, 1)}
+                          title="Increase 1"
+                          className="w-5 h-5 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center justify-center text-xs active:scale-95"
+                        >
+                          +
+                        </button>
+                      </div>
                     </td>
                     <td className="p-3.5 text-right">
                       <div className="flex justify-end space-x-1.5">
@@ -278,14 +315,17 @@ export const InventoryManager: React.FC = () => {
                   <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Category</label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-semibold"
                   >
+                    <option value="Hardware & Site Materials">Hardware & Site Materials</option>
+                    <option value="Hardware & Fasteners">Hardware & Fasteners</option>
                     <option value="Electrical">Electrical</option>
                     <option value="Air Conditioning">Air Conditioning</option>
                     <option value="Solar & Backup">Solar & Backup</option>
                     <option value="Security & CCTV">Security & CCTV</option>
-                    <option value="Hardware">Hardware</option>
+                    <option value="Automation & Gate Motors">Automation & Gate Motors</option>
+                    <option value="Consumables">Consumables</option>
                   </select>
                 </div>
               </div>
@@ -296,7 +336,7 @@ export const InventoryManager: React.FC = () => {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Alliance 12000 BTU Inverter Split Unit"
+                  placeholder="e.g. Tek Screws Hex Flange 4.8x25mm (Box of 100)"
                   className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
                 />
               </div>
@@ -333,13 +373,21 @@ export const InventoryManager: React.FC = () => {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Unit</label>
-                  <input
-                    type="text"
+                  <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    placeholder="ea, m, roll"
-                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-center"
-                  />
+                    className="w-full px-2 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-center"
+                  >
+                    <option value="box">box</option>
+                    <option value="pack">pack</option>
+                    <option value="ea">ea</option>
+                    <option value="roll">roll</option>
+                    <option value="length">length</option>
+                    <option value="set">set</option>
+                    <option value="m">m</option>
+                    <option value="unit">unit</option>
+                    <option value="kit">kit</option>
+                  </select>
                 </div>
 
                 <div>
@@ -369,7 +417,18 @@ export const InventoryManager: React.FC = () => {
                   type="text"
                   value={supplier}
                   onChange={(e) => setSupplier(e.target.value)}
-                  placeholder="Voltex, ARB, Plumblink, ACDC Express"
+                  placeholder="Fastener City, Bolt & Nut, Voltex, Plumblink"
+                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Notes / Pack Specifications</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Box of 100 screws. For roof sheeting & brackets."
                   className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
                 />
               </div>

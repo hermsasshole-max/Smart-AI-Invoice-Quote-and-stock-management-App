@@ -3,24 +3,22 @@ package com.harrys.aircon;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
-import android.content.ContentResolver;
-import android.content.ContentValues;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.MediaScannerConnection;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.print.PrintAttributes;
-import android.print.PrintDocumentAdapter;
-import android.print.PrintManager;
 import android.provider.MediaStore;
-import android.util.Base64;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
-import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
@@ -34,13 +32,13 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -49,8 +47,10 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "HarrysMainActivity";
+    public static final String DOWNLOAD_CHANNEL_ID = "harrys_downloads_channel";
 
     private WebView webView;
+    private WebAppInterface webAppInterface;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraCaptureUri;
 
@@ -58,21 +58,39 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> fileChooserLauncher;
 
     // Modern ActivityResultLauncher for Runtime Permissions
-    private ActivityResultLauncher<String[]> permissionLauncher;
+    private final ActivityResultLauncher<String[]> requestPermissionsLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
+                boolean hasPermission = false;
+                for (Boolean isGranted : permissions.values()) {
+                    if (Boolean.TRUE.equals(isGranted)) {
+                        hasPermission = true;
+                    }
+                }
+                Log.d(TAG, "Permissions result evaluated. Granted at least one: " + hasPermission);
+            });
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 1. Initialize Activity Result Launchers
+        // 1. Create System Notification Channel for File Downloads
+        createNotificationChannel();
+
+        // 2. Initialize Activity Result Launchers
         initActivityLaunchers();
 
-        // 2. Instantiate and attach WebView
+        // 3. Instantiate and attach WebView with MATCH_PARENT for full system resolution coverage
         webView = new WebView(this);
+        webView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         setContentView(webView);
 
-        // 3. Configure WebSettings for optimal modern web app execution & hardware acceleration
+        // 4. Configure WebSettings for optimal modern web app execution, resolution scaling & hardware acceleration
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
@@ -82,9 +100,13 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
         webSettings.setSupportZoom(true);
-        webSettings.setBuiltInZoomControls(false);
+        webSettings.setBuiltInZoomControls(true);
         webSettings.setDisplayZoomControls(false);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
+        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING);
+        }
 
         // Enable cookies & mixed content
         CookieManager.getInstance().setAcceptCookie(true);
@@ -93,10 +115,11 @@ public class MainActivity extends AppCompatActivity {
             webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
 
-        // 4. Expose Native Android JavaScript Interface Bridge (both on MainActivity instance & WebAppInterface)
-        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidInterface");
+        // 5. Expose Native Android JavaScript Interface Bridge
+        webAppInterface = new WebAppInterface(this);
+        webView.addJavascriptInterface(webAppInterface, "AndroidInterface");
 
-        // 5. Configure WebViewClient for external app routing (WhatsApp, Tel, Mailto)
+        // 6. Configure WebViewClient for external app routing (WhatsApp, Tel, Mailto)
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -128,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 6. Configure WebChromeClient with onShowFileChooser & onPermissionRequest handlers
+        // 7. Configure WebChromeClient with onShowFileChooser & onPermissionRequest handlers
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
@@ -201,7 +224,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 7. Configure DownloadListener for Blob / HTTP URL downloads
+        // 8. Configure DownloadListener for standard download URLs
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             try {
                 if (url.startsWith("blob:") || url.startsWith("data:")) {
@@ -232,12 +255,83 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 8. Request runtime permissions on startup
+        // 9. Request runtime permissions on startup
         requestAppPermissions();
 
-        // 9. Load Application
+        // 10. Load Application
         String appUrl = "http://localhost:3000";
         webView.loadUrl(appUrl);
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    DOWNLOAD_CHANNEL_ID,
+                    "Document & File Downloads",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("Notifications when Quotes, Invoices, and Reports are saved to device");
+            channel.enableVibration(true);
+
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    public void triggerDownloadNotification(String filename, File file, Uri contentUri, String mimeType) {
+        try {
+            Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+            Uri uriToOpen = null;
+
+            if (file != null && file.exists()) {
+                uriToOpen = FileProvider.getUriForFile(
+                        this,
+                        getPackageName() + ".fileprovider",
+                        file
+                );
+            } else if (contentUri != null) {
+                uriToOpen = contentUri;
+            }
+
+            PendingIntent pendingIntent = null;
+            if (uriToOpen != null) {
+                viewIntent.setDataAndType(uriToOpen, mimeType != null ? mimeType : "*/*");
+                viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    flags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+
+                pendingIntent = PendingIntent.getActivity(
+                        this,
+                        (int) System.currentTimeMillis(),
+                        Intent.createChooser(viewIntent, "Open " + filename),
+                        flags
+                );
+            }
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, DOWNLOAD_CHANNEL_ID)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle("Download Complete")
+                    .setContentText(filename + " saved to Downloads")
+                    .setAutoCancel(true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH);
+
+            if (pendingIntent != null) {
+                builder.setContentIntent(pendingIntent);
+            }
+
+            NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                    || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                manager.notify((int) System.currentTimeMillis(), builder.build());
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not post download notification", e);
+        }
     }
 
     private void initActivityLaunchers() {
@@ -277,18 +371,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
         );
-
-        // Runtime Permissions Launcher
-        permissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.RequestMultiplePermissions(),
-                resultMap -> {
-                    boolean cameraGranted = resultMap.containsKey(Manifest.permission.CAMERA) &&
-                            Boolean.TRUE.equals(resultMap.get(Manifest.permission.CAMERA));
-                    if (cameraGranted) {
-                        Log.i(TAG, "Camera permission granted for receipt scanning");
-                    }
-                }
-        );
     }
 
     private File createImageFile() throws IOException {
@@ -298,9 +380,13 @@ public class MainActivity extends AppCompatActivity {
         return File.createTempFile(imageFileName, ".jpg", storageDir);
     }
 
+    /**
+     * Runtime Permission Request on App Startup
+     */
     private void requestAppPermissions() {
         List<String> permissions = new ArrayList<>();
 
+        // Camera & Audio Permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.CAMERA);
         }
@@ -308,129 +394,44 @@ public class MainActivity extends AppCompatActivity {
             permissions.add(Manifest.permission.RECORD_AUDIO);
         }
 
+        // Notification Permission (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+            }
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_MEDIA_IMAGES);
             }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_MEDIA_AUDIO);
+            }
         } else {
+            // Android 12 and below
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
             }
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
         }
 
+        // Trigger the modern permission launcher if any permissions are pending
         if (!permissions.isEmpty()) {
-            permissionLauncher.launch(permissions.toArray(new String[0]));
+            requestPermissionsLauncher.launch(permissions.toArray(new String[0]));
         }
-    }
-
-    /**
-     * Direct JavascriptInterface implementation for maximum compatibility
-     */
-    @JavascriptInterface
-    public void saveFile(String base64Data, String filename, String mimeType) {
-        if (base64Data == null || filename == null) {
-            Log.e(TAG, "saveFile error: base64Data or filename is null");
-            return;
-        }
-
-        try {
-            String rawBase64 = base64Data.contains(",") ? base64Data.split(",")[1] : base64Data;
-            byte[] fileBytes = Base64.decode(rawBase64, Base64.DEFAULT);
-
-            if (mimeType == null || mimeType.isEmpty()) {
-                mimeType = "application/octet-stream";
-            }
-
-            boolean savedSuccessfully = false;
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+ (API 29–35): MediaStore Downloads Collection (No storage permissions needed)
-                ContentResolver resolver = getContentResolver();
-                ContentValues contentValues = new ContentValues();
-                contentValues.put(MediaStore.Downloads.DISPLAY_NAME, filename);
-                contentValues.put(MediaStore.Downloads.MIME_TYPE, mimeType);
-                contentValues.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/HarrysFieldOps");
-
-                Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues);
-                if (uri != null) {
-                    try (OutputStream outputStream = resolver.openOutputStream(uri)) {
-                        if (outputStream != null) {
-                            outputStream.write(fileBytes);
-                            outputStream.flush();
-                            savedSuccessfully = true;
-                        }
-                    }
-                }
-            } else {
-                // Android 9 and below: Direct filesystem writing to public Downloads directory
-                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                if (!downloadsDir.exists()) {
-                    downloadsDir.mkdirs();
-                }
-                File targetFile = new File(downloadsDir, filename);
-                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                    fos.write(fileBytes);
-                    fos.flush();
-                    savedSuccessfully = true;
-                }
-
-                // Notify media scanner so file appears immediately in Files app
-                MediaScannerConnection.scanFile(
-                        this,
-                        new String[]{targetFile.getAbsolutePath()},
-                        new String[]{mimeType},
-                        null
-                );
-            }
-
-            if (savedSuccessfully) {
-                final String finalFilename = filename;
-                runOnUiThread(() ->
-                        Toast.makeText(MainActivity.this, "Saved to Downloads: " + finalFilename, Toast.LENGTH_LONG).show()
-                );
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error saving file to Downloads", e);
-            runOnUiThread(() ->
-                    Toast.makeText(MainActivity.this, "Failed to save file: " + e.getMessage(), Toast.LENGTH_SHORT).show()
-            );
-        }
-    }
-
-    @JavascriptInterface
-    public void printDocument() {
-        runOnUiThread(() -> {
-            try {
-                if (webView == null) return;
-                PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                if (printManager != null) {
-                    PrintDocumentAdapter printAdapter;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        printAdapter = webView.createPrintDocumentAdapter("Harrys_Document");
-                    } else {
-                        printAdapter = webView.createPrintDocumentAdapter();
-                    }
-
-                    printManager.print(
-                            "Harrys_Invoice_Quote",
-                            printAdapter,
-                            new PrintAttributes.Builder().build()
-                    );
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error invoking Android PrintManager", e);
-                Toast.makeText(MainActivity.this, "Print error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     public WebView getWebView() {
         return webView;
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (webView != null) {
+            webView.requestLayout();
+            webView.invalidate();
+        }
     }
 
     @Override
@@ -442,3 +443,4 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
+

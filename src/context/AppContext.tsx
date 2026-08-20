@@ -25,13 +25,14 @@ interface AppContextType {
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => InventoryItem;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
+  deductStock: (items: { id?: string; sku?: string; quantity: number }[]) => void;
   quotes: Quotation[];
   addQuote: (quote: Omit<Quotation, 'id'>) => Quotation;
   updateQuote: (id: string, updates: Partial<Quotation>) => void;
   deleteQuote: (id: string) => void;
   convertQuoteToInvoice: (quoteId: string) => Invoice | null;
   invoices: Invoice[];
-  addInvoice: (invoice: Omit<Invoice, 'id'>) => Invoice;
+  addInvoice: (invoice: Omit<Invoice, 'id'>, deductStockItems?: boolean) => Invoice;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
   recordPayment: (invoiceId: string, amount: number, method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT', reference?: string) => void;
@@ -139,6 +140,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setInventory((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const deductStock = (itemsToDeduct: { id?: string; sku?: string; quantity: number }[]) => {
+    setInventory((prev) =>
+      prev.map((invItem) => {
+        const match = itemsToDeduct.find(
+          (d) => (d.id && d.id === invItem.id) || (d.sku && d.sku.toLowerCase() === invItem.sku.toLowerCase())
+        );
+        if (match && match.quantity > 0) {
+          const newQty = Math.max(0, invItem.stockQty - match.quantity);
+          return { ...invItem, stockQty: newQty };
+        }
+        return invItem;
+      })
+    );
+  };
+
   const addQuote = (quoteData: Omit<Quotation, 'id'>): Quotation => {
     const newQuote: Quotation = {
       ...quoteData,
@@ -156,12 +172,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setQuotes((prev) => prev.filter((q) => q.id !== id));
   };
 
-  const addInvoice = (invoiceData: Omit<Invoice, 'id'>): Invoice => {
+  const addInvoice = (invoiceData: Omit<Invoice, 'id'>, deductStockItems: boolean = false): Invoice => {
     const newInvoice: Invoice = {
       ...invoiceData,
       id: 'inv_' + Date.now(),
     };
     setInvoices((prev) => [newInvoice, ...prev]);
+
+    if (deductStockItems && invoiceData.items && invoiceData.items.length > 0) {
+      const deductionList = invoiceData.items.map((item) => ({
+        id: item.inventoryId,
+        sku: item.notes,
+        quantity: item.quantity,
+      }));
+      deductStock(deductionList);
+    }
+
     return newInvoice;
   };
 
@@ -199,9 +225,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       labourHours: quote.labourHours,
       labourRatePerHour: quote.labourRatePerHour,
       labourTotal: quote.labourTotal,
+      additionalLabourTotal: quote.additionalLabourTotal,
       travelDistanceKm: quote.travelDistanceKm,
       travelRatePerKm: quote.travelRatePerKm,
       travelTotal: quote.travelTotal,
+      consumablesTier: quote.consumablesTier,
+      consumablesFee: quote.consumablesFee,
+      consumablesDescription: quote.consumablesDescription,
+      miscellaneousDescription: quote.miscellaneousDescription,
+      miscellaneousFee: quote.miscellaneousFee,
       subtotal: quote.subtotal,
       discountPct: quote.discountPct,
       discountAmount: quote.discountAmount,
@@ -267,6 +299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addInventoryItem,
         updateInventoryItem,
         deleteInventoryItem,
+        deductStock,
         quotes,
         addQuote,
         updateQuote,
