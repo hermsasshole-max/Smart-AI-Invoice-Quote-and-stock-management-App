@@ -487,22 +487,22 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
       <div
-        className={`w-full max-w-2xl rounded-xl border shadow-2xl overflow-hidden flex flex-col max-h-[92vh] ${
-          sunlightMode ? 'bg-white border-2 border-black text-black' : 'bg-[#141416] border-[#2D2D30] text-[#E0E0E0]'
+        className={`w-full max-w-2xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col max-h-[92vh] ${
+          sunlightMode ? 'bg-white border-2 border-black text-black' : 'bg-[#232838] border-[#334155] text-[#F8FAFC]'
         }`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-[#2D2D30] flex items-center justify-between bg-gradient-to-r from-[#FF6321]/15 via-transparent to-transparent">
+        <div className="p-4 border-b border-[#334155] flex items-center justify-between bg-gradient-to-r from-[#38BDF8]/15 via-transparent to-transparent">
           <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-lg bg-[#FF6321] text-black">
+            <div className="p-2 rounded-lg bg-[#38BDF8] text-[#1B1E28]">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FF6321] text-black uppercase">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase">
                   INTERACTIVE VOICE WIZARD
                 </span>
-                <span className="text-[11px] font-mono text-[#707070]">
+                <span className="text-[11px] font-mono text-[#94A3B8]">
                   STEP {currentStepIndex + 1} OF {stepsList.length}
                 </span>
               </div>
@@ -516,16 +516,16 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
             <button
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
               title={isVoiceMuted ? 'Unmute Assistant' : 'Mute Assistant'}
-              className={`p-2 rounded border text-xs ${
-                isVoiceMuted ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-[#252528] text-[#A0A0A5] border-[#2D2D30]'
+              className={`p-2 rounded-lg border text-xs transition-colors ${
+                isVoiceMuted ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-[#1B1E28] text-[#94A3B8] border-[#334155] hover:text-[#38BDF8]'
               }`}
             >
-              {isVoiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[#00FF41]" />}
+              {isVoiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[#10B981]" />}
             </button>
 
             <button
               onClick={onClose}
-              className="p-2 rounded border border-[#2D2D30] hover:bg-[#252528] text-[#A0A0A5] hover:text-white"
+              className="p-2 rounded-lg border border-[#334155] hover:bg-[#1B1E28] text-[#94A3B8] hover:text-white transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -533,46 +533,46 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
         </div>
 
         {/* Progress Step Indicator */}
-        <div className="grid grid-cols-8 gap-1 p-2 bg-[#0A0A0B] border-b border-[#2D2D30]">
+        <div className="grid grid-cols-8 gap-1 p-2 bg-[#1B1E28] border-b border-[#334155]">
           {stepsList.map((step, idx) => (
             <div
               key={step}
               onClick={() => setCurrentStep(step)}
               className={`h-1.5 rounded-full cursor-pointer transition-all ${
                 idx === currentStepIndex
-                  ? 'bg-[#FF6321] ring-2 ring-[#FF6321]/30'
+                  ? 'bg-[#38BDF8] ring-2 ring-[#38BDF8]/40'
                   : idx < currentStepIndex
-                  ? 'bg-[#00FF41]'
-                  : 'bg-[#2D2D30]'
+                  ? 'bg-[#10B981]'
+                  : 'bg-[#334155]'
               }`}
             />
           ))}
         </div>
 
         {/* Voice Feedback & Wave Visualizer */}
-        <div className="p-4 bg-[#0A0A0B]/80 border-b border-[#2D2D30] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 bg-[#1B1E28]/90 border-b border-[#334155] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <button
               onClick={isListening ? stopListening : startListening}
               className={`relative p-3 rounded-full font-bold flex items-center justify-center transition-all ${
                 isListening
                   ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50 ring-4 ring-red-500/30'
-                  : 'bg-[#FF6321] text-black hover:bg-[#e0551a]'
+                  : 'bg-[#38BDF8] text-[#1B1E28] hover:bg-[#7DD3FC]'
               }`}
             >
               {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
             </button>
 
             <div>
-              <div className="text-[10px] font-mono uppercase text-[#707070] flex items-center space-x-1.5">
-                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-red-500 animate-ping' : isSpeaking ? 'bg-[#00FF41]' : 'bg-gray-500'}`} />
+              <div className="text-[10px] font-mono uppercase text-[#94A3B8] flex items-center space-x-1.5">
+                <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-red-500 animate-ping' : isSpeaking ? 'bg-[#10B981]' : 'bg-gray-500'}`} />
                 <span>{isSpeaking ? 'Assistant Speaking...' : isListening ? 'Listening for your voice...' : 'Microphone Ready (Click to Speak)'}</span>
               </div>
-              <p className="text-sm font-semibold text-[#FF6321] mt-0.5">
+              <p className="text-sm font-semibold text-[#38BDF8] mt-0.5">
                 "{speechFeedback}"
               </p>
               {interimTranscript && (
-                <p className="text-xs font-mono text-[#00FF41] italic mt-0.5">
+                <p className="text-xs font-mono text-[#10B981] italic mt-0.5">
                   Hearing: "{interimTranscript}"
                 </p>
               )}
@@ -582,9 +582,9 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => speak(speechFeedback)}
-              className="px-2.5 py-1.5 rounded bg-[#1A1A1C] border border-[#2D2D30] text-xs font-mono text-[#A0A0A5] hover:text-white flex items-center space-x-1"
+              className="px-2.5 py-1.5 rounded-lg bg-[#232838] border border-[#334155] text-xs font-mono text-[#94A3B8] hover:text-white flex items-center space-x-1 transition-colors"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5 text-[#38BDF8]" />
               <span>Repeat Prompt</span>
             </button>
           </div>
@@ -595,7 +595,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 1: Client Name */}
           {currentStep === 'client_name' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 1. Client Name / Surname / Business Name *
               </label>
               <input
@@ -603,10 +603,10 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="e.g. Johan van der Merwe / Apex Retail Mall"
-                className="w-full px-4 py-3 rounded-lg bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-lg font-bold focus:border-[#FF6321] focus:outline-none"
+                className="w-full px-4 py-3 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] text-lg font-bold focus:border-[#38BDF8] focus:outline-none"
               />
               <div className="flex flex-wrap gap-2 pt-1">
-                <span className="text-[11px] font-mono text-[#707070]">Existing Clients:</span>
+                <span className="text-[11px] font-mono text-[#94A3B8]">Existing Clients:</span>
                 {clients.slice(0, 4).map((c) => (
                   <button
                     key={c.id}
@@ -617,7 +617,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                       setClientEmail(c.email || '');
                       setServiceType(c.serviceType);
                     }}
-                    className="px-2 py-1 rounded bg-[#1A1A1C] border border-[#2D2D30] text-xs font-mono text-[#A0A0A5] hover:border-[#FF6321] hover:text-white"
+                    className="px-2 py-1 rounded bg-[#1B1E28] border border-[#334155] text-xs font-mono text-[#94A3B8] hover:border-[#38BDF8] hover:text-[#38BDF8]"
                   >
                     {c.name}
                   </button>
@@ -629,7 +629,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 2: Client Address */}
           {currentStep === 'client_address' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 2. Site Location / Physical Address
               </label>
               <input
@@ -637,7 +637,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                 value={clientAddress}
                 onChange={(e) => setClientAddress(e.target.value)}
                 placeholder="e.g. 45 Hendrik Verwoerd Dr, Randburg, JHB"
-                className="w-full px-4 py-3 rounded-lg bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-base font-bold focus:border-[#FF6321] focus:outline-none"
+                className="w-full px-4 py-3 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] text-base font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
           )}
@@ -645,7 +645,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 3: Client Phone */}
           {currentStep === 'client_phone' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 3. Contact Phone / WhatsApp Number
               </label>
               <input
@@ -653,7 +653,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="e.g. 082 345 6789"
-                className="w-full px-4 py-3 rounded-lg bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-base font-bold focus:border-[#FF6321] focus:outline-none"
+                className="w-full px-4 py-3 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] text-base font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
           )}
@@ -661,7 +661,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 4: Client Email */}
           {currentStep === 'client_email' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 4. Email Address (Optional)
               </label>
               <input
@@ -669,7 +669,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="e.g. johan@example.co.za"
-                className="w-full px-4 py-3 rounded-lg bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-base font-bold focus:border-[#FF6321] focus:outline-none"
+                className="w-full px-4 py-3 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] text-base font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
           )}
@@ -677,7 +677,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 5: Service Category */}
           {currentStep === 'service_type' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 5. Service Trade Category
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -687,8 +687,8 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                     onClick={() => setServiceType(cat)}
                     className={`p-4 rounded-xl border font-bold text-center transition-all ${
                       serviceType === cat
-                        ? 'bg-[#FF6321] text-black border-[#FF6321] shadow-lg shadow-[#FF632133]'
-                        : 'bg-[#1A1A1C] border-[#2D2D30] text-[#A0A0A5] hover:text-white'
+                        ? 'bg-[#38BDF8] text-[#1B1E28] border-[#38BDF8] shadow-lg shadow-[#38BDF833]'
+                        : 'bg-[#1B1E28] border-[#334155] text-[#94A3B8] hover:text-white'
                     }`}
                   >
                     {cat}
@@ -701,20 +701,20 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 6: Interactive Items Flow */}
           {currentStep === 'items_flow' && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between border-b border-[#2D2D30] pb-2">
-                <label className="text-xs font-mono uppercase text-[#FF6321] font-bold">
+              <div className="flex items-center justify-between border-b border-[#334155] pb-2">
+                <label className="text-xs font-mono uppercase text-[#38BDF8] font-bold">
                   6. Add Materials, Diagnostics & Labour Line Items
                 </label>
-                <span className="text-xs font-mono text-[#00FF41]">
+                <span className="text-xs font-mono text-[#10B981] font-bold">
                   Current Items Total: {formatZAR(lineItems.reduce((acc, it) => acc + it.total, 0))}
                 </span>
               </div>
 
               {/* Sub-step item adding box */}
-              <div className="p-3 bg-[#0A0A0B] rounded-lg border border-[#2D2D30] space-y-3">
+              <div className="p-3 bg-[#1B1E28] rounded-xl border border-[#334155] space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="sm:col-span-1.5">
-                    <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                    <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                       Item Description / Part
                     </label>
                     <input
@@ -722,35 +722,35 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                       placeholder="e.g. 20A Circuit Breaker / R410A Gas Topup"
                       value={currentItemDesc}
                       onChange={(e) => setCurrentItemDesc(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-[#141416] border border-[#2D2D30] text-xs text-[#E0E0E0] font-bold"
+                      className="w-full px-3 py-2 rounded-lg bg-[#232838] border border-[#334155] text-xs text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Quantity</label>
+                    <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Quantity</label>
                     <input
                       type="number"
                       min={1}
                       value={currentItemQty}
                       onChange={(e) => setCurrentItemQty(Number(e.target.value) || 1)}
-                      className="w-full px-3 py-2 rounded bg-[#141416] border border-[#2D2D30] text-xs text-[#E0E0E0] font-bold"
+                      className="w-full px-3 py-2 rounded-lg bg-[#232838] border border-[#334155] text-xs text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Unit Rate (ZAR)</label>
+                    <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Unit Rate (ZAR)</label>
                     <input
                       type="number"
                       value={currentItemPrice}
                       onChange={(e) => setCurrentItemPrice(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-2 rounded bg-[#141416] border border-[#2D2D30] text-xs text-[#E0E0E0] font-bold"
+                      className="w-full px-3 py-2 rounded-lg bg-[#232838] border border-[#334155] text-xs text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs font-mono text-[#707070]">
-                    Line Total: {formatZAR(currentItemQty * currentItemPrice)}
+                  <span className="text-xs font-mono text-[#94A3B8]">
+                    Line Total: <strong className="text-[#38BDF8]">{formatZAR(currentItemQty * currentItemPrice)}</strong>
                   </span>
                   <button
                     onClick={() => {
@@ -771,7 +771,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                       setCurrentItemQty(1);
                       setCurrentItemPrice(250);
                     }}
-                    className="px-3 py-1.5 rounded bg-[#FF6321] text-black font-bold text-xs uppercase flex items-center space-x-1"
+                    className="px-3 py-1.5 rounded-lg bg-[#38BDF8] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1 hover:bg-[#7DD3FC]"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Item</span>
@@ -785,19 +785,19 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                   {lineItems.map((item, idx) => (
                     <div
                       key={item.id}
-                      className="p-2.5 rounded bg-[#1A1A1C] border border-[#2D2D30] flex items-center justify-between text-xs font-mono"
+                      className="p-2.5 rounded-lg bg-[#1B1E28] border border-[#334155] flex items-center justify-between text-xs font-mono"
                     >
                       <div className="flex-1 pr-2">
                         <span className="font-bold text-white">{item.description}</span>
-                        <div className="text-[11px] text-[#707070]">
+                        <div className="text-[11px] text-[#94A3B8]">
                           {item.quantity} x {formatZAR(item.unitPrice)}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-bold text-[#00FF41]">{formatZAR(item.total)}</span>
+                        <span className="font-bold text-[#10B981]">{formatZAR(item.total)}</span>
                         <button
                           onClick={() => setLineItems(lineItems.filter((_, i) => i !== idx))}
-                          className="p-1 text-[#707070] hover:text-red-400"
+                          className="p-1 text-[#94A3B8] hover:text-red-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -812,7 +812,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 7: Notes & Scope of Work */}
           {currentStep === 'notes' && (
             <div className="space-y-3 animate-fadeIn">
-              <label className="text-xs font-mono uppercase text-[#707070] block">
+              <label className="text-xs font-mono uppercase text-[#94A3B8] block">
                 7. Scope of Work / Service Description & Job Notes
               </label>
               <textarea
@@ -820,7 +820,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                 value={scopeOfWork}
                 onChange={(e) => setScopeOfWork(e.target.value)}
                 placeholder="e.g. Conducted full fault-finding on main DB board. Replaced faulty 20A circuit breaker for geyser circuit. Tested earth leakage trip times in compliance with SANS 10142-1."
-                className="w-full px-4 py-3 rounded-lg bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-sm font-sans focus:border-[#FF6321] focus:outline-none"
+                className="w-full px-4 py-3 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] text-sm font-sans focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
           )}
@@ -828,41 +828,41 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
           {/* Step 8: Final Review & Generation */}
           {currentStep === 'review' && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="p-4 rounded-xl bg-[#0A0A0B] border border-[#2D2D30] space-y-3">
-                <div className="flex justify-between items-start border-b border-[#2D2D30] pb-2">
+              <div className="p-4 rounded-xl bg-[#1B1E28] border border-[#334155] space-y-3">
+                <div className="flex justify-between items-start border-b border-[#334155] pb-2">
                   <div>
                     <h4 className="font-bold text-white text-base">{clientName || 'Client Name'}</h4>
-                    <p className="text-xs font-mono text-[#707070]">{clientAddress} • {clientPhone}</p>
-                    {clientEmail && <p className="text-xs font-mono text-[#707070]">{clientEmail}</p>}
+                    <p className="text-xs font-mono text-[#94A3B8]">{clientAddress} • {clientPhone}</p>
+                    {clientEmail && <p className="text-xs font-mono text-[#94A3B8]">{clientEmail}</p>}
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#FF6321] text-black">
+                  <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28]">
                     {serviceType}
                   </span>
                 </div>
 
                 {scopeOfWork && (
-                  <div className="p-2.5 rounded bg-[#1A1A1C] border border-[#2D2D30] text-xs">
-                    <span className="text-[10px] font-mono text-[#FF6321] uppercase block font-bold mb-0.5">Scope of Work:</span>
-                    <p className="text-[#A0A0A5]">{scopeOfWork}</p>
+                  <div className="p-2.5 rounded-lg bg-[#232838] border border-[#334155] text-xs">
+                    <span className="text-[10px] font-mono text-[#38BDF8] uppercase block font-bold mb-0.5">Scope of Work:</span>
+                    <p className="text-[#94A3B8]">{scopeOfWork}</p>
                   </div>
                 )}
 
                 <div className="space-y-1 text-xs font-mono">
-                  <div className="flex justify-between text-[#707070]">
+                  <div className="flex justify-between text-[#94A3B8]">
                     <span>Items Count:</span>
-                    <span>{lineItems.length} items</span>
+                    <span className="text-[#F8FAFC]">{lineItems.length} items</span>
                   </div>
-                  <div className="flex justify-between text-[#707070]">
+                  <div className="flex justify-between text-[#94A3B8]">
                     <span>Subtotal (Excl VAT):</span>
-                    <span>{formatZAR(lineItems.reduce((acc, it) => acc + it.total, 0))}</span>
+                    <span className="text-[#F8FAFC]">{formatZAR(lineItems.reduce((acc, it) => acc + it.total, 0))}</span>
                   </div>
                   {vatEnabled && (
-                    <div className="flex justify-between text-[#707070]">
+                    <div className="flex justify-between text-[#94A3B8]">
                       <span>VAT (15%):</span>
-                      <span>{formatZAR(lineItems.reduce((acc, it) => acc + it.total, 0) * 0.15)}</span>
+                      <span className="text-[#F8FAFC]">{formatZAR(lineItems.reduce((acc, it) => acc + it.total, 0) * 0.15)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base font-bold text-[#00FF41] pt-1 border-t border-[#2D2D30]">
+                  <div className="flex justify-between text-base font-bold text-[#10B981] pt-2 border-t border-[#334155]">
                     <span>Grand Total:</span>
                     <span>{formatZAR(calculateWizardTotal())}</span>
                   </div>
@@ -874,7 +874,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                       type="checkbox"
                       checked={vatEnabled}
                       onChange={(e) => setVatEnabled(e.target.checked)}
-                      className="rounded accent-[#FF6321]"
+                      className="rounded accent-[#38BDF8]"
                     />
                     <span>Include 15% South African VAT</span>
                   </label>
@@ -882,16 +882,16 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setDocType('invoice')}
-                      className={`px-3 py-1.5 rounded text-xs font-bold font-mono transition-all ${
-                        docType === 'invoice' ? 'bg-[#007AFF] text-white' : 'bg-[#1A1A1C] text-[#707070]'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
+                        docType === 'invoice' ? 'bg-[#38BDF8] text-[#1B1E28]' : 'bg-[#232838] text-[#94A3B8]'
                       }`}
                     >
                       Tax Invoice
                     </button>
                     <button
                       onClick={() => setDocType('quote')}
-                      className={`px-3 py-1.5 rounded text-xs font-bold font-mono transition-all ${
-                        docType === 'quote' ? 'bg-[#00FF41] text-black' : 'bg-[#1A1A1C] text-[#707070]'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
+                        docType === 'quote' ? 'bg-[#F59E0B] text-[#1B1E28]' : 'bg-[#232838] text-[#94A3B8]'
                       }`}
                     >
                       Official Quotation
@@ -904,7 +904,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
         </div>
 
         {/* Wizard Footer Navigation */}
-        <div className="p-4 border-t border-[#2D2D30] bg-[#0A0A0B] flex items-center justify-between">
+        <div className="p-4 border-t border-[#334155] bg-[#1B1E28] flex items-center justify-between">
           <button
             onClick={() => {
               if (currentStepIndex > 0) {
@@ -912,7 +912,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
               }
             }}
             disabled={currentStepIndex === 0}
-            className="px-3.5 py-2 rounded border border-[#2D2D30] text-xs font-mono text-[#A0A0A5] hover:text-white disabled:opacity-30 flex items-center space-x-1"
+            className="px-3.5 py-2 rounded-lg border border-[#334155] text-xs font-mono text-[#94A3B8] hover:text-white disabled:opacity-30 flex items-center space-x-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Previous</span>
@@ -926,7 +926,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
                     setCurrentStep(stepsList[currentStepIndex + 1]);
                   }
                 }}
-                className="px-4 py-2 rounded bg-[#FF6321] hover:bg-[#e0551a] text-black font-bold text-xs uppercase flex items-center space-x-1.5 font-mono shadow"
+                className="px-4 py-2 rounded-lg bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1.5 font-mono shadow"
               >
                 <span>Next Step</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -934,7 +934,7 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
             ) : (
               <button
                 onClick={() => handleFinalSubmit(docType)}
-                className="px-5 py-2 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold text-xs uppercase flex items-center space-x-2 font-mono shadow-lg shadow-[#00FF4133]"
+                className="px-5 py-2 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-2 font-mono shadow-lg shadow-[#10B98133]"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Generate {docType === 'invoice' ? 'Tax Invoice' : 'Quotation'}</span>

@@ -80,20 +80,20 @@ export const ClientsDirectory: React.FC = () => {
   });
 
   return (
-    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#E0E0E0]'}`}>
+    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#F8FAFC]'}`}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2D2D30] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155] pb-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#00FF41] text-black uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase tracking-wider">
               FIELD CUSTOMER BASE
             </span>
-            <span className="text-[11px] font-mono text-[#707070]">DIRECT WHATSAPP • PHONE DIAL • GPS NAV</span>
+            <span className="text-[11px] font-mono text-[#94A3B8]">DIRECT WHATSAPP • PHONE DIAL • GPS NAV</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-[#FF6321]">
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-white">
             Client Directory
           </h2>
-          <p className="text-xs font-mono text-[#A0A0A5] mt-0.5">
+          <p className="text-xs font-mono text-[#94A3B8] mt-0.5">
             Full client profile management, site addresses, service categories, WhatsApp triggers, and GPS navigation.
           </p>
         </div>
@@ -101,12 +101,12 @@ export const ClientsDirectory: React.FC = () => {
         <button
           id="btn-add-new-client"
           onClick={() => setIsAddingClient(!isAddingClient)}
-          className={`px-4 py-2 rounded font-mono font-bold text-xs uppercase flex items-center space-x-1.5 transition-all shadow ${
+          className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase flex items-center space-x-1.5 transition-all shadow ${
             isAddingClient
-              ? 'bg-[#252528] text-[#A0A0A5] border border-[#2D2D30]'
+              ? 'bg-[#232838] text-[#94A3B8] border border-[#334155]'
               : sunlightMode
               ? 'bg-amber-400 text-black border-2 border-black font-extrabold'
-              : 'bg-[#00FF41] hover:bg-[#00d636] text-black shadow-lg shadow-[#00FF4133]'
+              : 'bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] shadow-lg shadow-[#38BDF833]'
           }`}
         >
           <Plus className="w-4 h-4" />
@@ -117,66 +117,66 @@ export const ClientsDirectory: React.FC = () => {
       {/* Add Client Drawer */}
       {isAddingClient && (
         <div
-          className={`p-5 rounded-xl border space-y-4 shadow-2xl ${
-            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
+          className={`p-5 rounded-2xl border space-y-4 shadow-2xl ${
+            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#232838] border-[#334155]'
           }`}
         >
-          <h3 className="font-bold text-xs uppercase tracking-widest text-[#00FF41] flex items-center space-x-2 font-mono">
-            <Users className="w-4 h-4 text-[#00FF41]" />
+          <h3 className="font-bold text-xs uppercase tracking-widest text-[#38BDF8] flex items-center space-x-2 font-mono">
+            <Users className="w-4 h-4 text-[#38BDF8]" />
             <span>ADD NEW CLIENT / SITE LOCATION</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs font-mono">
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Full Name / Company *</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Full Name / Company *</label>
               <input
                 type="text"
                 placeholder="e.g. Pieter Marais"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold font-sans text-xs"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold font-sans text-xs focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">WhatsApp / Phone *</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">WhatsApp / Phone *</label>
               <input
                 type="text"
                 placeholder="e.g. 083 456 7890"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Email Address</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Email Address</label>
               <input
                 type="email"
                 placeholder="e.g. pieter@example.co.za"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Physical Site Address *</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Physical Site Address *</label>
               <input
                 type="text"
                 placeholder="e.g. 14 Protea Crescent, Sandton, Johannesburg"
                 value={siteAddress}
                 onChange={(e) => setSiteAddress(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-sans text-xs"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-sans text-xs focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Primary Trade</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Primary Trade</label>
               <select
                 value={serviceType}
                 onChange={(e) => setServiceType(e.target.value as ServiceCategory)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#007AFF] font-bold"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-bold focus:border-[#38BDF8] focus:outline-none"
               >
                 <option value="Electrical">Electrical</option>
                 <option value="HVAC">HVAC+R</option>
@@ -188,16 +188,16 @@ export const ClientsDirectory: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-2 border-t border-[#2D2D30] font-mono">
+          <div className="flex items-center justify-end space-x-3 pt-2 border-t border-[#334155] font-mono">
             <button
               onClick={() => setIsAddingClient(false)}
-              className="px-3 py-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#A0A0A5] text-xs font-bold uppercase"
+              className="px-3 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#94A3B8] text-xs font-bold uppercase hover:text-white"
             >
               Cancel
             </button>
             <button
               onClick={handleCreateClient}
-              className="px-5 py-2 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold text-xs uppercase shadow-lg shadow-[#00FF4133]"
+              className="px-5 py-2 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold text-xs uppercase shadow-lg shadow-[#10B98133]"
             >
               Save Client Profile
             </button>
@@ -207,20 +207,20 @@ export const ClientsDirectory: React.FC = () => {
 
       {/* Search Toolbar */}
       <div className="relative font-mono">
-        <Search className="w-3.5 h-3.5 text-[#707070] absolute left-3 top-2.5" />
+        <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5" />
         <input
           type="text"
           placeholder="Search clients by name, phone, suburb, or street address..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+          className="w-full pl-9 pr-3 py-2 text-xs rounded-lg bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
         />
       </div>
 
       {/* Clients Grid */}
       <div className="space-y-3">
         {filteredClients.length === 0 ? (
-          <div className="p-8 text-center text-[#707070] border border-dashed border-[#2D2D30] rounded text-xs font-mono uppercase">
+          <div className="p-8 text-center text-[#94A3B8] border border-dashed border-[#334155] rounded-xl text-xs font-mono uppercase">
             No clients found matching "{searchQuery}".
           </div>
         ) : (
@@ -235,46 +235,46 @@ export const ClientsDirectory: React.FC = () => {
                   className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
                     sunlightMode
                       ? 'bg-white border-2 border-black text-black'
-                      : 'bg-[#1A1A1C] border-[#2D2D30] text-[#E0E0E0] hover:border-[#3D3D42]'
+                      : 'bg-[#232838] border-[#334155] text-[#F8FAFC] hover:border-[#38BDF8]/50'
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1 font-mono">
-                      <h4 className="font-bold text-sm text-[#E0E0E0] font-sans">{client.name}</h4>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#00FF41] border border-[#00FF4144]">
+                      <h4 className="font-bold text-sm text-white font-sans">{client.name}</h4>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1B1E28] text-[#38BDF8] border border-[#38BDF8]/30">
                         {client.serviceType}
                       </span>
                     </div>
 
-                    <div className="space-y-1 text-xs text-[#A0A0A5] font-mono mt-2">
-                      <div className="flex items-center space-x-2 text-[#E0E0E0]">
-                        <Phone className="w-3.5 h-3.5 text-[#007AFF]" />
+                    <div className="space-y-1 text-xs text-[#94A3B8] font-mono mt-2">
+                      <div className="flex items-center space-x-2 text-[#F8FAFC]">
+                        <Phone className="w-3.5 h-3.5 text-[#38BDF8]" />
                         <span className="font-bold">{client.phone}</span>
                       </div>
 
                       {client.email && (
-                        <div className="flex items-center space-x-2 text-[#707070]">
-                          <Mail className="w-3.5 h-3.5 text-[#707070]" />
+                        <div className="flex items-center space-x-2 text-[#94A3B8]">
+                          <Mail className="w-3.5 h-3.5 text-[#94A3B8]" />
                           <span className="truncate">{client.email}</span>
                         </div>
                       )}
 
-                      <div className="flex items-start space-x-2 text-[#707070] pt-1">
-                        <MapPin className="w-3.5 h-3.5 text-[#FF6321] flex-shrink-0 mt-0.5" />
+                      <div className="flex items-start space-x-2 text-[#94A3B8] pt-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
                         <span className="line-clamp-2">{client.siteAddress}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Direct Contact & Action Bar */}
-                  <div className="pt-2 border-t border-[#2D2D30] flex items-center justify-between font-mono">
+                  <div className="pt-2 border-t border-[#334155] flex items-center justify-between font-mono">
                     <div className="flex items-center space-x-1.5">
                       {/* WhatsApp */}
                       <a
                         href={getWhatsAppShareLink(client.phone, waText)}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2.5 py-1.5 rounded bg-[#25D366] text-black hover:bg-[#20ba59] text-xs font-bold flex items-center space-x-1 uppercase"
+                        className="px-2.5 py-1.5 rounded-lg bg-[#25D366] text-black hover:bg-[#20ba59] text-xs font-bold flex items-center space-x-1 uppercase shadow-sm"
                         title="Open WhatsApp Chat"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -284,7 +284,7 @@ export const ClientsDirectory: React.FC = () => {
                       {/* Phone Dial */}
                       <a
                         href={`tel:${client.phone}`}
-                        className="p-1.5 rounded bg-[#0A0A0B] text-[#007AFF] border border-[#2D2D30] hover:bg-[#252528]"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] text-[#38BDF8] border border-[#334155] hover:bg-[#232838] hover:border-[#38BDF8]"
                         title="Dial Phone"
                       >
                         <Phone className="w-3.5 h-3.5" />
@@ -295,7 +295,7 @@ export const ClientsDirectory: React.FC = () => {
                         href={mapsUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1.5 rounded bg-[#0A0A0B] text-[#FF6321] border border-[#2D2D30] hover:bg-[#252528]"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] text-[#F59E0B] border border-[#334155] hover:bg-[#232838] hover:border-[#F59E0B]"
                         title="Navigate in Google Maps"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -306,16 +306,16 @@ export const ClientsDirectory: React.FC = () => {
                       {/* Edit Client */}
                       <button
                         onClick={() => setEditingClient(JSON.parse(JSON.stringify(client)))}
-                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#A0A0A5] hover:text-white"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#94A3B8] hover:text-[#38BDF8] hover:border-[#38BDF8]"
                         title="Edit Client Profile"
                       >
-                        <Edit2 className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <Edit2 className="w-3.5 h-3.5 text-[#38BDF8]" />
                       </button>
 
                       {/* Delete */}
                       <button
                         onClick={() => setDeleteConfirmId(client.id)}
-                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] hover:border-red-500/40 text-[#707070] hover:text-red-400"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] hover:border-red-500/40 text-[#94A3B8] hover:text-red-400"
                         title="Delete client"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -332,65 +332,65 @@ export const ClientsDirectory: React.FC = () => {
       {/* Edit Client Modal */}
       {editingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg p-5 rounded-xl bg-[#141416] border border-[#2D2D30] shadow-2xl space-y-4 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#2D2D30] pb-2">
+          <div className="w-full max-w-lg p-5 rounded-2xl bg-[#232838] border border-[#334155] shadow-2xl space-y-4 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#334155] pb-2">
               <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4 text-[#007AFF]" />
+                <Users className="w-4 h-4 text-[#38BDF8]" />
                 <h3 className="font-bold text-sm text-white uppercase">Edit Client Profile</h3>
               </div>
-              <button onClick={() => setEditingClient(null)} className="text-[#707070] hover:text-white">
+              <button onClick={() => setEditingClient(null)} className="text-[#94A3B8] hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Full Name / Company *</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Full Name / Company *</label>
                 <input
                   type="text"
                   value={editingClient.name}
                   onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase text-[#707070] block mb-1">Phone (WhatsApp) *</label>
+                  <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Phone (WhatsApp) *</label>
                   <input
                     type="text"
                     value={editingClient.phone}
                     onChange={(e) => setEditingClient({ ...editingClient, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase text-[#707070] block mb-1">Email</label>
+                  <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Email</label>
                   <input
                     type="email"
                     value={editingClient.email || ''}
                     onChange={(e) => setEditingClient({ ...editingClient, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Physical Site Address</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Physical Site Address</label>
                 <input
                   type="text"
                   value={editingClient.siteAddress}
                   onChange={(e) => setEditingClient({ ...editingClient, siteAddress: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Primary Trade Category</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Primary Trade Category</label>
                 <select
                   value={editingClient.serviceType}
                   onChange={(e) => setEditingClient({ ...editingClient, serviceType: e.target.value as ServiceCategory })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#007AFF] font-bold"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-bold focus:border-[#38BDF8] focus:outline-none"
                 >
                   <option value="Electrical">Electrical</option>
                   <option value="HVAC">HVAC+R</option>
@@ -402,27 +402,27 @@ export const ClientsDirectory: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Notes / Site Access Details</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Notes / Site Access Details</label>
                 <textarea
                   rows={2}
                   value={editingClient.notes || ''}
                   onChange={(e) => setEditingClient({ ...editingClient, notes: e.target.value })}
                   placeholder="Gate code, DB location, dogs on property, etc."
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#2D2D30]">
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155]">
               <button
                 onClick={() => setEditingClient(null)}
-                className="px-3.5 py-1.5 rounded bg-[#252528] text-[#A0A0A5] hover:text-white"
+                className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-[#94A3B8] hover:text-white border border-[#334155]"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleSaveEdit(editingClient)}
-                className="px-5 py-1.5 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold uppercase"
+                className="px-5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold uppercase shadow"
               >
                 Save Client
               </button>
@@ -434,18 +434,18 @@ export const ClientsDirectory: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md p-5 rounded-xl bg-[#18181B] border border-red-500/40 space-y-4 shadow-2xl font-mono">
+          <div className="w-full max-w-md p-5 rounded-2xl bg-[#232838] border border-red-500/40 space-y-4 shadow-2xl font-mono">
             <div className="flex items-center space-x-2 text-red-400">
               <AlertTriangle className="w-5 h-5" />
               <h3 className="font-bold text-sm uppercase">Delete Client Profile</h3>
             </div>
-            <p className="text-xs text-[#A0A0A5]">
+            <p className="text-xs text-[#94A3B8]">
               Are you sure you want to delete this client? Past invoices and quotations referencing this client will remain in record.
             </p>
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3.5 py-1.5 rounded bg-[#27272A] text-xs text-[#A0A0A5] hover:text-white"
+                className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-xs text-[#94A3B8] hover:text-white border border-[#334155]"
               >
                 Cancel
               </button>
@@ -454,7 +454,7 @@ export const ClientsDirectory: React.FC = () => {
                   deleteClient(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="px-4 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase"
+                className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase shadow"
               >
                 Delete
               </button>

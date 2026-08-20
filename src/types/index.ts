@@ -6,13 +6,17 @@ export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue';
 
 export interface BusinessProfile {
   companyName: string;
+  tagline?: string;
+  website?: string;
   regNumber: string;
+  registrationNumber?: string;
   vatNumber: string;
   email: string;
   phone: string;
   whatsapp: string;
   address: string;
   bankName: string;
+  accountName?: string;
   accountNumber: string;
   branchCode: string;
   accountType: string;

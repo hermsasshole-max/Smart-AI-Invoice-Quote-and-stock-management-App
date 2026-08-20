@@ -1,17 +1,21 @@
 import { BusinessProfile, InventoryItem, Client, Quotation, Invoice, Job } from '../types';
 
 export const defaultBusinessProfile: BusinessProfile = {
-  companyName: 'Harrys Aircon Electrical and Solar Services Pty.Ltd',
+  companyName: "HARRY'S AIRCON ELECTRICAL AND SOLAR SERVICES PTY. LTD.",
+  tagline: "From Electrical to Aircons, security to automation, we've got you covered",
+  website: 'https://harryselectrical.co.za',
   regNumber: '2021/849201/07',
+  registrationNumber: '2021/849201/07',
   vatNumber: '4790284912',
-  email: 'herms1982@gmail.com',
-  phone: '+27 82 459 1284',
-  whatsapp: '27824591284',
-  address: '14 Industrial Park Way, Meadowdale, Johannesburg, 1614',
-  bankName: 'First National Bank (FNB)',
-  accountNumber: '62891234567',
-  branchCode: '250655',
-  accountType: 'Cheque / Business Account',
+  email: 'amicovolt@outlook.com',
+  phone: '071 689 6139 / 078 797 6058',
+  whatsapp: '27716896139',
+  address: '69A North Street, Rayton',
+  bankName: 'Tyme Bank Business',
+  accountName: 'Harrys Aircon and Electrical',
+  accountNumber: '53002734919',
+  branchCode: '678910',
+  accountType: 'Current',
   defaultVatRate: 15,
   rates: {
     calloutDiagnostic: 750, // Standard Call-out / Diagnostic baseline (R650 - R850)
@@ -845,7 +849,7 @@ export const initialQuotations: Quotation[] = [
     totalAmount: 56777.8,
     status: 'accepted',
     notes: 'Includes full installation, DB sub-board split for essentials, COC compliance signoff, and app monitoring setup.',
-    terms: 'Valid for 14 days. 70% deposit required upon confirmation for equipment allocation. Balance on sign-off.',
+    terms: '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.',
     createdAt: '2026-08-14',
   },
   {

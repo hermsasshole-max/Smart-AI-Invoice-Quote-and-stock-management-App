@@ -193,20 +193,20 @@ export const InvoicingPipeline: React.FC = () => {
   });
 
   return (
-    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#E0E0E0]'}`}>
+    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#F8FAFC]'}`}>
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2D2D30] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155] pb-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#007AFF] text-white uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase tracking-wider">
               FINANCIAL DISPATCH & AUDIT
             </span>
-            <span className="text-[11px] font-mono text-[#707070]">15% VAT INVOICING • MULTI-FORMAT EXPORTS</span>
+            <span className="text-[11px] font-mono text-[#94A3B8]">15% VAT INVOICING • MULTI-FORMAT EXPORTS</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-[#FF6321]">
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-white">
             Invoicing & Job Execution Pipeline
           </h2>
-          <p className="text-xs font-mono text-[#A0A0A5] mt-0.5">
+          <p className="text-xs font-mono text-[#94A3B8] mt-0.5">
             Full CRUD management, automated stock deductions, interactive Voice Assistant, and PDF/Excel/Word/TXT exports.
           </p>
         </div>
@@ -214,21 +214,21 @@ export const InvoicingPipeline: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 font-mono">
           <button
             onClick={() => setIsVoiceWizardOpen(true)}
-            className="px-3.5 py-2 rounded bg-gradient-to-r from-amber-500 to-[#FF6321] hover:from-amber-400 hover:to-[#e0551a] text-black font-bold text-xs uppercase flex items-center space-x-1.5 shadow-lg shadow-amber-500/20"
+            className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-[#F59E0B] hover:from-amber-400 hover:to-[#D97706] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1.5 shadow-lg shadow-amber-500/20"
           >
-            <Mic className="w-4 h-4 text-black animate-pulse" />
+            <Mic className="w-4 h-4 text-[#1B1E28] animate-pulse" />
             <span>Voice Assistant Wizard</span>
           </button>
 
           <button
             id="btn-new-direct-invoice"
             onClick={() => setIsCreatingStandalone(!isCreatingStandalone)}
-            className={`px-4 py-2 rounded font-mono font-bold text-xs uppercase flex items-center space-x-2 transition-all shadow ${
+            className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase flex items-center space-x-2 transition-all shadow ${
               isCreatingStandalone
-                ? 'bg-[#252528] text-[#A0A0A5] border border-[#2D2D30]'
+                ? 'bg-[#232838] text-[#94A3B8] border border-[#334155]'
                 : sunlightMode
                 ? 'bg-amber-400 text-black border-2 border-black font-extrabold'
-                : 'bg-[#FF6321] hover:bg-[#e0551a] text-black shadow-lg shadow-[#FF632133]'
+                : 'bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] shadow-lg shadow-[#38BDF833]'
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -240,27 +240,27 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Standalone Emergency / Direct Invoice Creator */}
       {isCreatingStandalone && (
         <div
-          className={`p-5 rounded-xl border space-y-4 shadow-2xl ${
-            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
+          className={`p-5 rounded-2xl border space-y-4 shadow-2xl ${
+            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#232838] border-[#334155]'
           }`}
         >
-          <div className="flex items-center justify-between border-b border-[#2D2D30] pb-2">
-            <h3 className="font-bold text-xs font-mono uppercase tracking-widest text-[#FF6321] flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-[#FF6321]" />
+          <div className="flex items-center justify-between border-b border-[#334155] pb-2">
+            <h3 className="font-bold text-xs font-mono uppercase tracking-widest text-[#38BDF8] flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[#38BDF8]" />
               <span>DIRECT EMERGENCY CALLOUT / COUNTER SALE TAX INVOICE</span>
             </h3>
-            <span className="text-[10px] text-[#707070] font-mono uppercase">Auto-Generates Tax Invoice #</span>
+            <span className="text-[10px] text-[#94A3B8] font-mono uppercase">Auto-Generates Tax Invoice #</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                 Client Selection
               </label>
               <select
                 value={selectedClientId}
                 onChange={(e) => handleClientSelect(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               >
                 <option value="">-- CHOOSE EXISTING OR TYPE BELOW --</option>
                 {clients.map((c) => (
@@ -272,7 +272,7 @@ export const InvoicingPipeline: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                 Client Name *
               </label>
               <input
@@ -280,12 +280,12 @@ export const InvoicingPipeline: React.FC = () => {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="e.g. Johan Van Der Merwe"
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold font-sans"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold font-sans focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                 Phone Number (WhatsApp) *
               </label>
               <input
@@ -293,18 +293,18 @@ export const InvoicingPipeline: React.FC = () => {
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="e.g. 082 123 4567"
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                 Service Trade
               </label>
               <select
                 value={serviceType}
                 onChange={(e) => setServiceType(e.target.value as ServiceCategory)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#007AFF] font-bold"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-bold focus:border-[#38BDF8] focus:outline-none"
               >
                 <option value="Electrical">Electrical Emergency Callout</option>
                 <option value="HVAC">HVAC Regas & Fault Finding</option>
@@ -317,30 +317,30 @@ export const InvoicingPipeline: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Site Location</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Site Location</label>
               <input
                 type="text"
                 value={clientAddress}
                 onChange={(e) => setClientAddress(e.target.value)}
                 placeholder="e.g. 14 Kudu Street, Randburg, JHB"
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Email (Optional)</label>
+              <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">Email (Optional)</label>
               <input
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="e.g. client@example.co.za"
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
           </div>
 
           {/* Scope of Work / Notes */}
           <div className="space-y-1 text-xs font-mono">
-            <label className="text-[10px] font-mono uppercase text-[#FF6321] block font-bold">
+            <label className="text-[10px] font-mono uppercase text-[#38BDF8] block font-bold">
               Scope of Work & Technical Description of Services:
             </label>
             <textarea
@@ -348,48 +348,48 @@ export const InvoicingPipeline: React.FC = () => {
               value={scopeOfWork}
               onChange={(e) => setScopeOfWork(e.target.value)}
               placeholder="e.g. Diagnosed tripping main circuit breaker. Isolated faulty geyser element and replaced with standard 3kW incoloy element + new thermostat."
-              className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-sans text-xs"
+              className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-sans text-xs focus:border-[#38BDF8] focus:outline-none"
             />
           </div>
 
           {/* Cost Items Breakdown */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-[#0A0A0B] rounded border border-[#2D2D30] text-xs font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-[#1B1E28] rounded-xl border border-[#334155] text-xs font-mono">
             <div>
-              <label className="text-[10px] uppercase text-[#707070] block mb-1">Callout Fee (ZAR)</label>
+              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Callout Fee (ZAR)</label>
               <input
                 type="number"
                 value={calloutFee}
                 onChange={(e) => setCalloutFee(Number(e.target.value) || 0)}
-                className="w-full px-3 py-1.5 rounded bg-[#141416] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#232838] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase text-[#707070] block mb-1">Labour Charge (ZAR)</label>
+              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Labour Charge (ZAR)</label>
               <input
                 type="number"
                 value={labourAmount}
                 onChange={(e) => setLabourAmount(Number(e.target.value) || 0)}
-                className="w-full px-3 py-1.5 rounded bg-[#141416] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#232838] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase text-[#707070] block mb-1">Materials / Parts (ZAR)</label>
+              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Materials / Parts (ZAR)</label>
               <input
                 type="number"
                 value={materialsAmount}
                 onChange={(e) => setMaterialsAmount(Number(e.target.value) || 0)}
-                className="w-full px-3 py-1.5 rounded bg-[#141416] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#232838] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase text-[#707070] block mb-1">Discount (%)</label>
+              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Discount (%)</label>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={discountPct}
                 onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
-                className="w-full px-3 py-1.5 rounded bg-[#141416] border border-[#2D2D30] text-red-400 font-bold"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#232838] border border-[#334155] text-red-400 font-bold focus:border-red-400 focus:outline-none"
               />
             </div>
           </div>
@@ -400,13 +400,13 @@ export const InvoicingPipeline: React.FC = () => {
                 type="checkbox"
                 checked={vatEnabled}
                 onChange={(e) => setVatEnabled(e.target.checked)}
-                className="rounded accent-[#FF6321]"
+                className="rounded accent-[#38BDF8]"
               />
               <span>Calculate 15% South African VAT</span>
             </label>
 
             <div className="flex items-center space-x-3">
-              <span className="text-sm font-mono font-bold text-[#00FF41]">
+              <span className="text-sm font-mono font-bold text-[#10B981]">
                 Total:{' '}
                 {formatZAR(
                   (calloutFee + labourAmount + materialsAmount) *
@@ -417,7 +417,7 @@ export const InvoicingPipeline: React.FC = () => {
 
               <button
                 onClick={handleCreateStandaloneInvoice}
-                className="px-5 py-2 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold text-xs uppercase font-mono shadow-lg shadow-[#00FF4133]"
+                className="px-5 py-2 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold text-xs uppercase font-mono shadow-lg shadow-[#10B98133]"
               >
                 Issue Tax Invoice
               </button>
@@ -427,16 +427,16 @@ export const InvoicingPipeline: React.FC = () => {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center space-x-2 border-b border-[#2D2D30] pb-2 font-mono text-xs overflow-x-auto">
-        <span className="text-[#707070] text-[10px] uppercase mr-2">Filter Status:</span>
+      <div className="flex items-center space-x-2 border-b border-[#334155] pb-2 font-mono text-xs overflow-x-auto">
+        <span className="text-[#94A3B8] text-[10px] uppercase mr-2">Filter Status:</span>
         {(['all', 'draft', 'issued', 'paid', 'overdue', 'cancelled'] as const).map((st) => (
           <button
             key={st}
             onClick={() => setStatusFilter(st)}
-            className={`px-3 py-1 rounded uppercase font-bold transition-all ${
+            className={`px-3 py-1 rounded-lg uppercase font-bold transition-all ${
               statusFilter === st
-                ? 'bg-[#007AFF] text-white'
-                : 'bg-[#1A1A1C] text-[#A0A0A5] hover:text-white border border-[#2D2D30]'
+                ? 'bg-[#38BDF8] text-[#1B1E28]'
+                : 'bg-[#232838] text-[#94A3B8] hover:text-white border border-[#334155]'
             }`}
           >
             {st} ({st === 'all' ? invoices.length : invoices.filter((i) => i.status === st).length})
@@ -447,7 +447,7 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Invoices List */}
       <div className="space-y-3">
         {filteredInvoices.length === 0 ? (
-          <div className="p-8 text-center border border-dashed border-[#2D2D30] rounded-xl font-mono text-xs text-[#707070]">
+          <div className="p-8 text-center border border-dashed border-[#334155] rounded-xl font-mono text-xs text-[#94A3B8]">
             No invoices found matching filter criteria.
           </div>
         ) : (
@@ -462,23 +462,23 @@ export const InvoicingPipeline: React.FC = () => {
                   sunlightMode
                     ? 'bg-white border-2 border-black'
                     : isPaid
-                    ? 'bg-[#141A14] border-[#00FF4133]'
+                    ? 'bg-[#232838] border-[#10B981]/40'
                     : isOverdue
-                    ? 'bg-[#1E1414] border-red-500/30'
-                    : 'bg-[#141416] border-[#2D2D30] hover:border-[#3D3D42]'
+                    ? 'bg-[#232838] border-red-500/40'
+                    : 'bg-[#232838] border-[#334155] hover:border-[#38BDF8]/50'
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                   {/* Left info */}
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold font-mono text-[#007AFF]">
+                      <span className="text-sm font-bold font-mono text-[#38BDF8]">
                         {invoice.invoiceNumber}
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
                           isPaid
-                            ? 'bg-[#00FF41] text-black'
+                            ? 'bg-[#10B981] text-[#1B1E28]'
                             : isOverdue
                             ? 'bg-red-500 text-white'
                             : 'bg-amber-400 text-black'
@@ -486,29 +486,29 @@ export const InvoicingPipeline: React.FC = () => {
                       >
                         {invoice.status}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#252528] text-[#A0A0A5]">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#1B1E28] text-[#94A3B8] border border-[#334155]">
                         {invoice.serviceType}
                       </span>
-                      <span className="text-xs font-mono text-[#707070]">Date: {invoice.date}</span>
+                      <span className="text-xs font-mono text-[#94A3B8]">Date: {invoice.date}</span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-x-4 text-xs font-mono text-[#A0A0A5] pt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-4 text-xs font-mono text-[#94A3B8] pt-0.5">
                       <span className="font-bold text-white flex items-center space-x-1">
-                        <Briefcase className="w-3.5 h-3.5 text-[#FF6321]" />
+                        <Briefcase className="w-3.5 h-3.5 text-[#38BDF8]" />
                         <span>{invoice.clientName}</span>
                       </span>
                       <span className="flex items-center space-x-1">
-                        <Phone className="w-3.5 h-3.5 text-[#00FF41]" />
+                        <Phone className="w-3.5 h-3.5 text-[#10B981]" />
                         <span>{invoice.clientPhone}</span>
                       </span>
                       <span className="flex items-center space-x-1">
-                        <MapPin className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <MapPin className="w-3.5 h-3.5 text-[#38BDF8]" />
                         <span>{invoice.clientAddress}</span>
                       </span>
                     </div>
 
                     {(invoice.scopeOfWork || invoice.notes) && (
-                      <p className="text-xs text-[#707070] italic line-clamp-1 pt-0.5">
+                      <p className="text-xs text-[#94A3B8] italic line-clamp-1 pt-0.5">
                         Scope: {invoice.scopeOfWork || invoice.notes}
                       </p>
                     )}
@@ -517,10 +517,10 @@ export const InvoicingPipeline: React.FC = () => {
                   {/* Right Actions & Amount */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="text-right font-mono">
-                      <div className="text-base font-bold text-[#00FF41]">
+                      <div className="text-base font-bold text-[#10B981]">
                         {formatZAR(invoice.totalAmount)}
                       </div>
-                      <div className="text-[10px] text-[#707070]">
+                      <div className="text-[10px] text-[#94A3B8]">
                         Sub: {formatZAR(invoice.subtotal)}{' '}
                         {invoice.vatEnabled ? `• VAT: ${formatZAR(invoice.vatAmount)}` : '• Excl VAT'}
                       </div>
@@ -531,7 +531,7 @@ export const InvoicingPipeline: React.FC = () => {
                       {!isPaid && (
                         <button
                           onClick={() => markInvoicePaid(invoice.id, 'EFT')}
-                          className="px-2.5 py-1.5 rounded bg-[#00FF4111] hover:bg-[#00FF4122] border border-[#00FF4144] text-[#00FF41] text-xs font-mono font-bold flex items-center space-x-1"
+                          className="px-2.5 py-1.5 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 border border-[#10B981]/30 text-[#10B981] text-xs font-mono font-bold flex items-center space-x-1"
                           title="Record Instant Settlement"
                         >
                           <Check className="w-3.5 h-3.5" />
@@ -551,7 +551,7 @@ export const InvoicingPipeline: React.FC = () => {
                         )}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 rounded bg-[#00FF4115] hover:bg-[#00FF4130] text-[#00FF41] border border-[#00FF4133]"
+                        className="p-2 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/30 text-[#10B981] border border-[#10B981]/30"
                         title="Send via WhatsApp"
                       >
                         <MessageSquare className="w-4 h-4" />
@@ -563,21 +563,21 @@ export const InvoicingPipeline: React.FC = () => {
                           onClick={() =>
                             setOpenExportMenuId(openExportMenuId === invoice.id ? null : invoice.id)
                           }
-                          className="px-2.5 py-1.5 rounded bg-[#1A1A1C] hover:bg-[#252528] border border-[#2D2D30] text-[#E0E0E0] text-xs font-mono flex items-center space-x-1"
+                          className="px-2.5 py-1.5 rounded-lg bg-[#1B1E28] hover:bg-[#232838] border border-[#334155] text-[#F8FAFC] text-xs font-mono flex items-center space-x-1"
                         >
-                          <Download className="w-3.5 h-3.5 text-[#FF6321]" />
+                          <Download className="w-3.5 h-3.5 text-[#38BDF8]" />
                           <span>Export</span>
-                          <ChevronDown className="w-3 h-3 text-[#707070]" />
+                          <ChevronDown className="w-3 h-3 text-[#94A3B8]" />
                         </button>
 
                         {openExportMenuId === invoice.id && (
-                          <div className="absolute right-0 mt-1 w-44 rounded-lg bg-[#18181B] border border-[#2D2D30] shadow-2xl z-30 py-1 font-mono text-xs">
+                          <div className="absolute right-0 mt-1 w-44 rounded-xl bg-[#232838] border border-[#334155] shadow-2xl z-30 py-1 font-mono text-xs">
                             <button
                               onClick={() => {
                                 exportToPDF('invoice', invoice, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileText className="w-4 h-4 text-red-400" />
                               <span>PDF Document (.pdf)</span>
@@ -588,7 +588,7 @@ export const InvoicingPipeline: React.FC = () => {
                                 exportToExcel('invoice', invoice, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileSpreadsheet className="w-4 h-4 text-green-400" />
                               <span>Excel Sheet (.xlsx)</span>
@@ -599,7 +599,7 @@ export const InvoicingPipeline: React.FC = () => {
                                 exportToWord('invoice', invoice, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <File className="w-4 h-4 text-blue-400" />
                               <span>Word Doc (.docx)</span>
@@ -610,7 +610,7 @@ export const InvoicingPipeline: React.FC = () => {
                                 exportToPlainText('invoice', invoice, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileText className="w-4 h-4 text-gray-400" />
                               <span>Plain Text (.txt)</span>
@@ -622,16 +622,16 @@ export const InvoicingPipeline: React.FC = () => {
                       {/* Edit Invoice Button */}
                       <button
                         onClick={() => setEditingInvoice(JSON.parse(JSON.stringify(invoice)))}
-                        className="p-2 rounded bg-[#1A1A1C] hover:bg-[#252528] border border-[#2D2D30] text-[#A0A0A5] hover:text-white"
+                        className="p-2 rounded-lg bg-[#1B1E28] hover:bg-[#232838] border border-[#334155] text-[#94A3B8] hover:text-white"
                         title="Edit Invoice"
                       >
-                        <Edit2 className="w-4 h-4 text-[#007AFF]" />
+                        <Edit2 className="w-4 h-4 text-[#38BDF8]" />
                       </button>
 
                       {/* Delete Invoice Button */}
                       <button
                         onClick={() => setDeleteConfirmId(invoice.id)}
-                        className="p-2 rounded bg-[#1A1A1C] hover:bg-red-500/20 border border-[#2D2D30] hover:border-red-500/40 text-[#707070] hover:text-red-400"
+                        className="p-2 rounded-lg bg-[#1B1E28] hover:bg-red-500/20 border border-[#334155] hover:border-red-500/40 text-[#94A3B8] hover:text-red-400"
                         title="Delete Invoice"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -648,18 +648,18 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md p-5 rounded-xl bg-[#18181B] border border-red-500/40 space-y-4 shadow-2xl font-mono">
+          <div className="w-full max-w-md p-5 rounded-2xl bg-[#232838] border border-red-500/40 space-y-4 shadow-2xl font-mono">
             <div className="flex items-center space-x-2 text-red-400">
               <AlertTriangle className="w-5 h-5" />
               <h3 className="font-bold text-sm uppercase">Confirm Invoice Deletion</h3>
             </div>
-            <p className="text-xs text-[#A0A0A5]">
+            <p className="text-xs text-[#94A3B8]">
               Are you sure you want to permanently delete this Tax Invoice? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3.5 py-1.5 rounded bg-[#27272A] text-xs text-[#A0A0A5] hover:text-white"
+                className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-xs text-[#94A3B8] hover:text-white border border-[#334155]"
               >
                 Cancel
               </button>
@@ -668,7 +668,7 @@ export const InvoicingPipeline: React.FC = () => {
                   deleteInvoice(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="px-4 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase"
+                className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase shadow"
               >
                 Delete Invoice
               </button>
@@ -680,17 +680,17 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Edit Invoice Modal */}
       {editingInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-3xl rounded-xl bg-[#141416] border border-[#2D2D30] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#2D2D30] pb-3">
+          <div className="w-full max-w-3xl rounded-2xl bg-[#232838] border border-[#334155] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#334155] pb-3">
               <div className="flex items-center space-x-2">
-                <Receipt className="w-5 h-5 text-[#007AFF]" />
+                <Receipt className="w-5 h-5 text-[#38BDF8]" />
                 <h3 className="font-bold text-sm text-white uppercase">
                   Edit Tax Invoice: {editingInvoice.invoiceNumber}
                 </h3>
               </div>
               <button
                 onClick={() => setEditingInvoice(null)}
-                className="p-1 rounded text-[#707070] hover:text-white"
+                className="p-1 rounded text-[#94A3B8] hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -699,31 +699,31 @@ export const InvoicingPipeline: React.FC = () => {
             {/* Client & Metadata */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Client Name</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Client Name</label>
                 <input
                   type="text"
                   value={editingInvoice.clientName}
                   onChange={(e) =>
                     setEditingInvoice({ ...editingInvoice, clientName: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Client Phone</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Client Phone</label>
                 <input
                   type="text"
                   value={editingInvoice.clientPhone}
                   onChange={(e) =>
                     setEditingInvoice({ ...editingInvoice, clientPhone: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Status</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Status</label>
                 <select
                   value={editingInvoice.status}
                   onChange={(e) =>
@@ -732,7 +732,7 @@ export const InvoicingPipeline: React.FC = () => {
                       status: e.target.value as InvoiceStatus,
                     })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#00FF41] font-bold uppercase"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#10B981] font-bold uppercase focus:border-[#38BDF8] focus:outline-none"
                 >
                   <option value="draft">Draft</option>
                   <option value="issued">Issued</option>
@@ -745,43 +745,43 @@ export const InvoicingPipeline: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Site Address</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Site Address</label>
                 <input
                   type="text"
                   value={editingInvoice.clientAddress}
                   onChange={(e) =>
                     setEditingInvoice({ ...editingInvoice, clientAddress: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Invoice Date</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Invoice Date</label>
                 <input
                   type="date"
                   value={editingInvoice.date}
                   onChange={(e) => setEditingInvoice({ ...editingInvoice, date: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Due Date</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Due Date</label>
                 <input
                   type="date"
                   value={editingInvoice.dueDate}
                   onChange={(e) =>
                     setEditingInvoice({ ...editingInvoice, dueDate: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Scope of Work / Notes */}
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-[#FF6321] block font-bold">
+              <label className="text-[10px] uppercase text-[#38BDF8] block font-bold">
                 Scope of Work & Notes:
               </label>
               <textarea
@@ -794,13 +794,13 @@ export const InvoicingPipeline: React.FC = () => {
                     notes: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-sans text-xs"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-sans text-xs focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             {/* Line items manager */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-[#2D2D30] pb-1">
+              <div className="flex items-center justify-between border-b border-[#334155] pb-1">
                 <span className="font-bold text-white text-[11px] uppercase">
                   Line Items ({editingInvoice.items?.length || 0})
                 </span>
@@ -821,7 +821,7 @@ export const InvoicingPipeline: React.FC = () => {
                       items: [...(editingInvoice.items || []), newItem],
                     });
                   }}
-                  className="px-2 py-1 rounded bg-[#FF6321] text-black font-bold text-[10px] uppercase flex items-center space-x-1"
+                  className="px-2 py-1 rounded-lg bg-[#38BDF8] text-[#1B1E28] font-bold text-[10px] uppercase flex items-center space-x-1"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Add Line Item</span>
@@ -832,7 +832,7 @@ export const InvoicingPipeline: React.FC = () => {
                 {(editingInvoice.items || []).map((item, idx) => (
                   <div
                     key={item.id || idx}
-                    className="grid grid-cols-12 gap-2 p-2 rounded bg-[#0A0A0B] border border-[#2D2D30] items-center"
+                    className="grid grid-cols-12 gap-2 p-2 rounded-lg bg-[#1B1E28] border border-[#334155] items-center"
                   >
                     <div className="col-span-5">
                       <input
@@ -843,7 +843,7 @@ export const InvoicingPipeline: React.FC = () => {
                           updated[idx].description = e.target.value;
                           setEditingInvoice({ ...editingInvoice, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-white"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
                     <div className="col-span-2">
@@ -858,7 +858,7 @@ export const InvoicingPipeline: React.FC = () => {
                           updated[idx].total = Number((q * updated[idx].unitPrice).toFixed(2));
                           setEditingInvoice({ ...editingInvoice, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-center"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-center text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
                     <div className="col-span-2">
@@ -872,10 +872,10 @@ export const InvoicingPipeline: React.FC = () => {
                           updated[idx].total = Number((updated[idx].quantity * p).toFixed(2));
                           setEditingInvoice({ ...editingInvoice, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-right"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-right text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
-                    <div className="col-span-2 text-right font-bold text-[#00FF41]">
+                    <div className="col-span-2 text-right font-bold text-[#10B981]">
                       {formatZAR(item.total)}
                     </div>
                     <div className="col-span-1 text-center">
@@ -884,7 +884,7 @@ export const InvoicingPipeline: React.FC = () => {
                           const updated = editingInvoice.items.filter((_, i) => i !== idx);
                           setEditingInvoice({ ...editingInvoice, items: updated });
                         }}
-                        className="p-1 text-[#707070] hover:text-red-400"
+                        className="p-1 text-[#94A3B8] hover:text-red-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -895,9 +895,9 @@ export const InvoicingPipeline: React.FC = () => {
             </div>
 
             {/* Rates & Discount */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#0A0A0B] rounded border border-[#2D2D30]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#1B1E28] rounded-xl border border-[#334155]">
               <div>
-                <label className="text-[10px] text-[#707070] block">Callout Fee</label>
+                <label className="text-[10px] text-[#94A3B8] block">Callout Fee</label>
                 <input
                   type="number"
                   value={editingInvoice.calloutFee || 0}
@@ -907,11 +907,11 @@ export const InvoicingPipeline: React.FC = () => {
                       calloutFee: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Labour Total</label>
+                <label className="text-[10px] text-[#94A3B8] block">Labour Total</label>
                 <input
                   type="number"
                   value={editingInvoice.labourTotal || 0}
@@ -921,11 +921,11 @@ export const InvoicingPipeline: React.FC = () => {
                       labourTotal: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Travel Surcharge</label>
+                <label className="text-[10px] text-[#94A3B8] block">Travel Surcharge</label>
                 <input
                   type="number"
                   value={editingInvoice.travelTotal || 0}
@@ -935,11 +935,11 @@ export const InvoicingPipeline: React.FC = () => {
                       travelTotal: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Discount %</label>
+                <label className="text-[10px] text-[#94A3B8] block">Discount %</label>
                 <input
                   type="number"
                   min={0}
@@ -951,12 +951,12 @@ export const InvoicingPipeline: React.FC = () => {
                       discountPct: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-red-400 font-bold"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-red-400 font-bold focus:border-red-400 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#2D2D30]">
+            <div className="flex items-center justify-between pt-2 border-t border-[#334155]">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -964,7 +964,7 @@ export const InvoicingPipeline: React.FC = () => {
                   onChange={(e) =>
                     setEditingInvoice({ ...editingInvoice, vatEnabled: e.target.checked })
                   }
-                  className="rounded accent-[#FF6321]"
+                  className="rounded accent-[#38BDF8]"
                 />
                 <span>Include 15% South African VAT</span>
               </label>
@@ -972,13 +972,13 @@ export const InvoicingPipeline: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setEditingInvoice(null)}
-                  className="px-3.5 py-1.5 rounded bg-[#252528] text-[#A0A0A5] hover:text-white"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-[#94A3B8] hover:text-white border border-[#334155]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleSaveInvoiceEdit(editingInvoice)}
-                  className="px-5 py-1.5 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold uppercase"
+                  className="px-5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold uppercase shadow"
                 >
                   Save Changes
                 </button>

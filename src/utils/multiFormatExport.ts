@@ -19,7 +19,7 @@ import { formatZAR } from './calculator';
 export type ExportFormat = 'pdf' | 'xlsx' | 'docx' | 'txt';
 
 /**
- * Generate PDF for Quotation or Invoice
+ * Generate PDF for Quotation or Invoice with Harry's Aircon Electrical & Solar Brand Identity
  */
 export function exportToPDF(
   docType: 'quote' | 'invoice',
@@ -33,21 +33,29 @@ export function exportToPDF(
     format: 'a4',
   });
 
-  const primaryColor = isInvoice ? [15, 23, 42] : [22, 101, 52]; // Dark slate or forest green
+  // Official Brand Colors
+  const headerBgColor = [27, 30, 40]; // Deep Slate #1B1E28
+  const cyanBrandColor = [56, 189, 248]; // Vibrant Cyan #38BDF8
+  const tableHeaderBg = isInvoice ? [2, 132, 199] : [14, 116, 144]; // Deep Cyan / Teal #0284C7
+  const goldAccentColor = [245, 158, 11]; // Electric Amber / Gold #F59E0B
   const darkTextColor = [30, 41, 59];
   const mutedTextColor = [100, 116, 139];
 
-  // Header background bar
-  doc.setFillColor(241, 245, 249);
-  doc.rect(0, 0, 210, 42, 'F');
+  // Top Deep Navy Header Banner
+  doc.setFillColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
+  doc.rect(0, 0, 210, 44, 'F');
+
+  // Accent Cyan Horizontal Stripe
+  doc.setFillColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
+  doc.rect(0, 44, 210, 1.5, 'F');
 
   // Custom Logo or Fallback Text
   let textStartX = 14;
   if (profile.logoUrl && profile.logoUrl.startsWith('data:image/')) {
     try {
       const format = profile.logoUrl.includes('image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(profile.logoUrl, format, 14, 8, 26, 26);
-      textStartX = 44;
+      doc.addImage(profile.logoUrl, format, 14, 8, 28, 28);
+      textStartX = 46;
     } catch {
       textStartX = 14;
     }
@@ -55,19 +63,22 @@ export function exportToPDF(
 
   // Company Name & Subheader
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(profile.companyName, textStartX, 15);
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text(profile.companyName || "HARRY'S AIRCON ELECTRICAL AND SOLAR SERVICES PTY. LTD.", textStartX, 13);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(mutedTextColor[0], mutedTextColor[1], mutedTextColor[2]);
-  doc.text('Electrical Compliance • HVAC+R Air Conditioning • Solar PV & Battery Systems', textStartX, 20);
-  doc.text(`Reg: ${profile.regNumber || 'N/A'} | VAT Reg: ${profile.vatNumber || 'N/A'}`, textStartX, 24.5);
-  doc.text(`Email: ${profile.email} | Phone: ${profile.phone}`, textStartX, 29);
-  doc.text(profile.address, textStartX, 33.5);
+  doc.setFontSize(7.5);
+  doc.setTextColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
+  doc.text(profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered", textStartX, 18);
 
-  // Document Title & Reference
+  doc.setFontSize(7.5);
+  doc.setTextColor(203, 213, 225); // #CBD5E1
+  doc.text(`Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'}`, textStartX, 23);
+  doc.text(`Email: ${profile.email || 'amicovolt@outlook.com'} | Tel: ${profile.phone || '071 689 6139 / 078 797 6058'}`, textStartX, 28);
+  doc.text(`Address: ${profile.address || '69A North Street, Rayton'} | ${profile.website || 'https://harryselectrical.co.za'}`, textStartX, 33);
+
+  // Document Title & Reference on Right Header
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
   const docDate = data.date;
@@ -76,72 +87,82 @@ export function exportToPDF(
     : `Valid: ${(data as Quotation).expiryDate || '30 Days'}`;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(docTitle, 138, 16);
+  doc.setFontSize(14);
+  doc.setTextColor(goldAccentColor[0], goldAccentColor[1], goldAccentColor[2]);
+  doc.text(docTitle, 140, 15);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text(`Ref #: ${docNumber}`, 138, 22);
-  doc.text(`Date: ${docDate}`, 138, 27);
-  doc.text(docSecondaryDate, 138, 32);
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`Ref #: ${docNumber}`, 140, 21);
+  doc.text(`Date: ${docDate}`, 140, 26);
+  doc.text(docSecondaryDate, 140, 31);
 
   // Status Badge
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(isInvoice && data.status === 'paid' ? 22 : primaryColor[0], isInvoice && data.status === 'paid' ? 101 : primaryColor[1], isInvoice && data.status === 'paid' ? 52 : primaryColor[2]);
-  doc.text(`STATUS: ${data.status.toUpperCase()}`, 138, 37);
+  doc.setFontSize(8);
+  if (isInvoice && data.status === 'paid') {
+    doc.setTextColor(34, 197, 94); // Green
+  } else {
+    doc.setTextColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
+  }
+  doc.text(`STATUS: ${data.status.toUpperCase()}`, 140, 37);
 
   // Client Details Section
-  let y = 48;
+  let y = 51;
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(14, y, 182, 26, 2, 2, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(14, y, 182, 26, 2, 2, 'D');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
+  doc.setFontSize(8.5);
+  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
   doc.text(isInvoice ? 'BILLED TO / SITE LOCATION:' : 'CLIENT & SITE DETAILS:', 18, y + 6);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
+  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
   doc.text(`Client: ${data.clientName}`, 18, y + 12);
   doc.text(`Phone: ${data.clientPhone}`, 18, y + 17);
   doc.text(`Site: ${data.clientAddress}`, 18, y + 22);
 
-  doc.text(`Service Type: ${data.serviceType}`, 120, y + 12);
+  doc.text(`Service Category: ${data.serviceType}`, 115, y + 12);
   if (data.clientEmail) {
-    doc.text(`Email: ${data.clientEmail}`, 120, y + 17);
+    doc.text(`Email: ${data.clientEmail}`, 115, y + 17);
   }
 
   // Scope of Work / Notes Section (if provided)
-  y = 78;
+  y = 81;
   if (data.scopeOfWork || data.notes) {
     const scopeText = data.scopeOfWork || data.notes || '';
     doc.setFillColor(254, 243, 199); // light amber tint
     const splitScope = doc.splitTextToSize(scopeText, 174);
-    const boxHeight = Math.max(16, splitScope.length * 4.5 + 8);
+    const boxHeight = Math.max(15, splitScope.length * 4.2 + 8);
 
     doc.roundedRect(14, y, 182, boxHeight, 1.5, 1.5, 'F');
+    doc.setDrawColor(245, 158, 11);
+    doc.roundedRect(14, y, 182, boxHeight, 1.5, 1.5, 'D');
+
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(180, 83, 9);
-    doc.text('SCOPE OF WORK / SERVICE DESCRIPTION:', 18, y + 5);
+    doc.text('SCOPE OF WORK / SERVICE SPECIFICATIONS:', 18, y + 5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(55, 65, 81);
-    doc.text(splitScope, 18, y + 10);
+    doc.text(splitScope, 18, y + 9.5);
 
     y += boxHeight + 4;
   }
 
   // Items Table Header
-  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFillColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
   doc.rect(14, y, 182, 7.5, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
   doc.text('ITEM / SERVICE DESCRIPTION', 18, y + 5);
   doc.text('QTY', 122, y + 5);
@@ -188,7 +209,7 @@ export function exportToPDF(
 
   if (data.travelTotal > 0) {
     if (y > 255) { doc.addPage(); y = 20; }
-    doc.text('Travel & Transport Surcharge', 18, y);
+    doc.text('Travel & Logistics Surcharge', 18, y);
     doc.text('1 trip', 122, y);
     doc.text(formatZAR(data.travelTotal), 142, y);
     doc.text(formatZAR(data.travelTotal), 172, y);
@@ -199,66 +220,80 @@ export function exportToPDF(
   y += 2;
   doc.setDrawColor(203, 213, 225);
   doc.line(14, y, 196, y);
-  y += 5;
+  y += 4;
 
-  if (y > 240) {
+  if (y > 235) {
     doc.addPage();
     y = 20;
   }
 
-  // Totals Box
+  // Totals Box on Right
   const summaryBoxY = y;
   doc.setFillColor(248, 250, 252);
-  const boxH = data.discountAmount && data.discountAmount > 0 ? 36 : 30;
-  doc.roundedRect(118, summaryBoxY, 78, boxH, 2, 2, 'F');
+  const boxH = data.discountAmount && data.discountAmount > 0 ? 38 : 32;
+  doc.roundedRect(116, summaryBoxY, 80, boxH, 2, 2, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(116, summaryBoxY, 80, boxH, 2, 2, 'D');
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text('Subtotal (Excl VAT):', 122, summaryBoxY + 6);
-  doc.text(formatZAR(data.subtotal), 172, summaryBoxY + 6);
+  doc.text('Subtotal (Excl VAT):', 120, summaryBoxY + 6);
+  doc.text(formatZAR(data.subtotal), 170, summaryBoxY + 6);
 
   let currentSummaryOffset = 11;
   if (data.discountAmount && data.discountAmount > 0) {
     doc.setTextColor(220, 38, 38);
-    doc.text(`Discount (${data.discountPct || 0}%):`, 122, summaryBoxY + currentSummaryOffset);
-    doc.text(`-${formatZAR(data.discountAmount)}`, 172, summaryBoxY + currentSummaryOffset);
+    doc.text(`Discount (${data.discountPct || 0}%):`, 120, summaryBoxY + currentSummaryOffset);
+    doc.text(`-${formatZAR(data.discountAmount)}`, 170, summaryBoxY + currentSummaryOffset);
     currentSummaryOffset += 5;
     doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
   }
 
   if (data.vatEnabled) {
-    doc.text('VAT @ 15%:', 122, summaryBoxY + currentSummaryOffset);
-    doc.text(formatZAR(data.vatAmount), 172, summaryBoxY + currentSummaryOffset);
+    doc.text('VAT @ 15%:', 120, summaryBoxY + currentSummaryOffset);
+    doc.text(formatZAR(data.vatAmount), 170, summaryBoxY + currentSummaryOffset);
     currentSummaryOffset += 6;
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text('TOTAL AMOUNT:', 122, summaryBoxY + currentSummaryOffset);
-  doc.text(formatZAR(data.totalAmount), 172, summaryBoxY + currentSummaryOffset);
+  doc.setFontSize(9.5);
+  doc.setTextColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
+  doc.text('TOTAL AMOUNT:', 120, summaryBoxY + currentSummaryOffset);
+  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
+  doc.text(formatZAR(data.totalAmount), 170, summaryBoxY + currentSummaryOffset);
 
   // Banking Details on Left
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
+  doc.setFontSize(8);
+  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
   doc.text('BANKING DETAILS (EFT SETTLEMENT):', 14, summaryBoxY + 6);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`Bank: ${profile.bankName}`, 14, summaryBoxY + 11);
-  doc.text(`Account Name: ${profile.companyName}`, 14, summaryBoxY + 16);
-  doc.text(`Account Number: ${profile.accountNumber}`, 14, summaryBoxY + 21);
-  doc.text(`Branch Code: ${profile.branchCode} (${profile.accountType})`, 14, summaryBoxY + 26);
-  doc.text(`Reference: ${docNumber}`, 14, summaryBoxY + 31);
+  doc.setFontSize(7.5);
+  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
+  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 14, summaryBoxY + 11);
+  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 14, summaryBoxY + 16);
+  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 14, summaryBoxY + 21);
+  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 14, summaryBoxY + 26);
+  doc.text(`Payment Reference: ${docNumber}`, 14, summaryBoxY + 31);
+
+  // Terms & Conditions (if present or default)
+  const quoteTerms = (data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.';
+  y = summaryBoxY + boxH + 4;
+  if (y <= 270) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(mutedTextColor[0], mutedTextColor[1], mutedTextColor[2]);
+    doc.text(`Terms & Conditions: ${quoteTerms}`, 14, y);
+  }
 
   // Footer text
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(mutedTextColor[0], mutedTextColor[1], mutedTextColor[2]);
   doc.text(
-    'Thank you for your business. Certified SANS 10142 compliant electrical & HVAC installations.',
+    "Thank you for choosing Harry's Aircon Electrical & Solar Services. Certified SANS 10142 compliance & workmanship warranty.",
     14,
     285
   );
@@ -267,7 +302,7 @@ export function exportToPDF(
 }
 
 /**
- * Generate Excel (.xlsx) spreadsheet
+ * Generate Excel (.xlsx) spreadsheet with Official Brand Headers
  */
 export function exportToExcel(
   docType: 'quote' | 'invoice',
@@ -280,22 +315,22 @@ export function exportToExcel(
 
   const rows: any[][] = [
     [profile.companyName.toUpperCase()],
-    [`Electrical, HVAC & Solar Contracting Services`],
-    [`Reg: ${profile.regNumber || 'N/A'} | VAT: ${profile.vatNumber || 'N/A'} | Email: ${profile.email} | Phone: ${profile.phone}`],
-    [`Address: ${profile.address}`],
+    [profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"],
+    [`Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'} | Email: ${profile.email || 'amicovolt@outlook.com'} | Tel: ${profile.phone || '071 689 6139 / 078 797 6058'}`],
+    [`Address: ${profile.address || '69A North Street, Rayton'} | Web: ${profile.website || 'https://harryselectrical.co.za'}`],
     [],
     [docTitle, '', '', `Ref Number:`, docNumber],
     [`Date:`, data.date, '', isInvoice ? `Due Date:` : `Valid Until:`, isInvoice ? (data as Invoice).dueDate : (data as Quotation).expiryDate],
-    [`Status:`, data.status.toUpperCase(), '', `Service:`, data.serviceType],
+    [`Status:`, data.status.toUpperCase(), '', `Service Category:`, data.serviceType],
     [],
-    [`CLIENT INFORMATION:`],
+    [`CLIENT & SITE INFORMATION:`],
     [`Name:`, data.clientName, '', `Contact:`, data.clientPhone],
     [`Email:`, data.clientEmail || 'N/A', '', `Site Address:`, data.clientAddress],
     [],
   ];
 
   if (data.scopeOfWork || data.notes) {
-    rows.push([`SCOPE OF WORK / DESCRIPTION OF SERVICES:`]);
+    rows.push([`SCOPE OF WORK / SERVICE SPECIFICATIONS:`]);
     rows.push([data.scopeOfWork || data.notes || '']);
     rows.push([]);
   }
@@ -317,13 +352,13 @@ export function exportToExcel(
   });
 
   if (data.calloutFee > 0) {
-    rows.push([idx++, 'Callout / Diagnostic Fee', 'CALLOUT', 1, 'ea', data.calloutFee, data.calloutFee]);
+    rows.push([idx++, 'Standard Callout & Diagnostics', 'CALLOUT', 1, 'ea', data.calloutFee, data.calloutFee]);
   }
   if (data.labourTotal > 0) {
     rows.push([idx++, 'Technical Labour & Installation', 'LABOUR', 1, 'lot', data.labourTotal, data.labourTotal]);
   }
   if (data.travelTotal > 0) {
-    rows.push([idx++, 'Travel & Logistics Surcharge', 'TRAVEL', 1, 'trip', data.travelTotal, data.travelTotal]);
+    rows.push([idx++, 'Travel & Transport Surcharge', 'TRAVEL', 1, 'trip', data.travelTotal, data.travelTotal]);
   }
 
   rows.push([]);
@@ -339,12 +374,16 @@ export function exportToExcel(
 
   rows.push(['', '', '', '', '', 'GRAND TOTAL (ZAR):', data.totalAmount]);
   rows.push([]);
-  rows.push(['BANKING DETAILS:']);
-  rows.push(['Bank Name:', profile.bankName]);
-  rows.push(['Account Name:', profile.companyName]);
-  rows.push(['Account Number:', profile.accountNumber]);
-  rows.push(['Branch Code:', profile.branchCode]);
+  rows.push(['BANKING DETAILS (EFT SETTLEMENT):']);
+  rows.push(['Bank Name:', profile.bankName || 'Tyme Bank Business']);
+  rows.push(['Account Name:', profile.accountName || 'Harrys Aircon and Electrical']);
+  rows.push(['Account Number:', profile.accountNumber || '53002734919']);
+  rows.push(['Branch Code:', profile.branchCode || '678910']);
+  rows.push(['Account Type:', profile.accountType || 'Current']);
   rows.push(['Reference:', docNumber]);
+  rows.push([]);
+  rows.push(['TERMS & CONDITIONS:']);
+  rows.push([(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.']);
 
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
@@ -365,7 +404,7 @@ export function exportToExcel(
 }
 
 /**
- * Generate Word (.docx) formatted document
+ * Generate Word (.docx) formatted document with Harry's Brand Theme
  */
 export async function exportToWord(
   docType: 'quote' | 'invoice',
@@ -375,6 +414,8 @@ export async function exportToWord(
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const headerFill = '1B1E28'; // Deep Slate
+  const tableFill = isInvoice ? '0284C7' : '0E7490'; // Cyan / Teal
 
   const tableRows: TableRow[] = [
     new TableRow({
@@ -382,22 +423,22 @@ export async function exportToWord(
       children: [
         new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: 'Description', bold: true, color: 'FFFFFF' })] })],
-          shading: { fill: isInvoice ? '0F172A' : '166534' },
+          shading: { fill: tableFill },
           width: { size: 50, type: WidthType.PERCENTAGE },
         }),
         new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: 'Qty', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.CENTER })],
-          shading: { fill: isInvoice ? '0F172A' : '166534' },
+          shading: { fill: tableFill },
           width: { size: 15, type: WidthType.PERCENTAGE },
         }),
         new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: 'Rate (ZAR)', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.RIGHT })],
-          shading: { fill: isInvoice ? '0F172A' : '166534' },
+          shading: { fill: tableFill },
           width: { size: 17, type: WidthType.PERCENTAGE },
         }),
         new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: 'Total (ZAR)', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.RIGHT })],
-          shading: { fill: isInvoice ? '0F172A' : '166534' },
+          shading: { fill: tableFill },
           width: { size: 18, type: WidthType.PERCENTAGE },
         }),
       ],
@@ -464,21 +505,27 @@ export async function exportToWord(
           new Paragraph({
             text: profile.companyName,
             heading: HeadingLevel.HEADING_1,
-            spacing: { after: 100 },
+            spacing: { after: 60 },
           }),
           new Paragraph({
             children: [
               new TextRun({
-                text: `${profile.address} | Phone: ${profile.phone} | Email: ${profile.email}`,
-                color: '64748B',
+                text: `${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}\n`,
+                italics: true,
+                color: '0284C7',
                 size: 20,
+              }),
+              new TextRun({
+                text: `Address: ${profile.address} | Tel: ${profile.phone} | Email: ${profile.email} | Web: ${profile.website || 'https://harryselectrical.co.za'}`,
+                color: '64748B',
+                size: 18,
               }),
             ],
             spacing: { after: 200 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: docTitle, bold: true, size: 28, color: isInvoice ? '0F172A' : '166534' }),
+              new TextRun({ text: docTitle, bold: true, size: 28, color: tableFill }),
             ],
             spacing: { after: 100 },
           }),
@@ -494,7 +541,7 @@ export async function exportToWord(
             spacing: { after: 200 },
           }),
           new Paragraph({
-            text: 'Client Details:',
+            text: 'Client & Site Location Details:',
             heading: HeadingLevel.HEADING_2,
             spacing: { after: 80 },
           }),
@@ -504,14 +551,14 @@ export async function exportToWord(
               new TextRun({ text: `Contact Number: ${data.clientPhone}\n` }),
               new TextRun({ text: `Email: ${data.clientEmail || 'N/A'}\n` }),
               new TextRun({ text: `Site Location: ${data.clientAddress}\n` }),
-              new TextRun({ text: `Service Type: ${data.serviceType}\n` }),
+              new TextRun({ text: `Service Category: ${data.serviceType}\n` }),
             ],
             spacing: { after: 200 },
           }),
           ...(data.scopeOfWork || data.notes
             ? [
                 new Paragraph({
-                  text: 'Scope of Work & Notes:',
+                  text: 'Scope of Work / Service Specifications:',
                   heading: HeadingLevel.HEADING_2,
                   spacing: { after: 80 },
                 }),
@@ -533,23 +580,38 @@ export async function exportToWord(
                 ? [new TextRun({ text: `Discount (${data.discountPct}%): -${formatZAR(data.discountAmount)}\n`, color: 'DC2626' })]
                 : []),
               ...(data.vatEnabled ? [new TextRun({ text: `VAT (15%): ${formatZAR(data.vatAmount)}\n` })] : []),
-              new TextRun({ text: `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}\n`, bold: true, size: 24, color: isInvoice ? '0F172A' : '166534' }),
+              new TextRun({ text: `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}\n`, bold: true, size: 24, color: tableFill }),
             ],
             alignment: AlignmentType.RIGHT,
             spacing: { after: 200 },
           }),
           new Paragraph({
-            text: 'Payment Instructions (EFT):',
+            text: 'Banking Details (EFT Settlement):',
             heading: HeadingLevel.HEADING_2,
             spacing: { after: 80 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Bank: ${profile.bankName}\n` }),
-              new TextRun({ text: `Account Name: ${profile.companyName}\n` }),
-              new TextRun({ text: `Account Number: ${profile.accountNumber}\n` }),
-              new TextRun({ text: `Branch Code: ${profile.branchCode} (${profile.accountType})\n` }),
-              new TextRun({ text: `Reference: ${docNumber}\n` }),
+              new TextRun({ text: `Bank: ${profile.bankName || 'Tyme Bank Business'}\n` }),
+              new TextRun({ text: `Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}\n` }),
+              new TextRun({ text: `Account Number: ${profile.accountNumber || '53002734919'}\n` }),
+              new TextRun({ text: `Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})\n` }),
+              new TextRun({ text: `Payment Reference: ${docNumber}\n` }),
+            ],
+            spacing: { after: 150 },
+          }),
+          new Paragraph({
+            text: 'Terms & Conditions:',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { after: 80 },
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: (data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.',
+                italics: true,
+                color: '64748B',
+              }),
             ],
           }),
         ],
@@ -581,10 +643,10 @@ export function exportToPlainText(
   const lines = [
     '======================================================================',
     ` ${profile.companyName.toUpperCase()}`,
-    ' Electrical Compliance • HVAC+R Air Conditioning • Solar PV & Battery',
-    ` Reg: ${profile.regNumber || 'N/A'} | VAT: ${profile.vatNumber || 'N/A'}`,
-    ` Phone: ${profile.phone} | Email: ${profile.email}`,
-    ` Address: ${profile.address}`,
+    ` ${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}`,
+    ` Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'}`,
+    ` Phone: ${profile.phone || '071 689 6139 / 078 797 6058'} | Email: ${profile.email || 'amicovolt@outlook.com'}`,
+    ` Address: ${profile.address || '69A North Street, Rayton'} | ${profile.website || 'https://harryselectrical.co.za'}`,
     '======================================================================',
     '',
     ` DOCUMENT: ${docTitle}`,
@@ -596,17 +658,17 @@ export function exportToPlainText(
     '----------------------------------------------------------------------',
     ' CLIENT & SITE LOCATION',
     '----------------------------------------------------------------------',
-    ` Client Name:  ${data.clientName}`,
-    ` Phone Number: ${data.clientPhone}`,
-    ` Email:        ${data.clientEmail || 'N/A'}`,
-    ` Site Address: ${data.clientAddress}`,
-    ` Service Type: ${data.serviceType}`,
+    ` Client Name:      ${data.clientName}`,
+    ` Phone Number:     ${data.clientPhone}`,
+    ` Email:            ${data.clientEmail || 'N/A'}`,
+    ` Site Address:     ${data.clientAddress}`,
+    ` Service Category: ${data.serviceType}`,
     '',
   ];
 
   if (data.scopeOfWork || data.notes) {
     lines.push('----------------------------------------------------------------------');
-    lines.push(' SCOPE OF WORK / DESCRIPTION OF SERVICES');
+    lines.push(' SCOPE OF WORK / SERVICE SPECIFICATIONS');
     lines.push('----------------------------------------------------------------------');
     lines.push(data.scopeOfWork || data.notes || '');
     lines.push('');
@@ -651,11 +713,14 @@ export function exportToPlainText(
   lines.push('======================================================================');
   lines.push('');
   lines.push(' BANKING DETAILS FOR EFT:');
-  lines.push(` Bank:           ${profile.bankName}`);
-  lines.push(` Account Name:   ${profile.companyName}`);
-  lines.push(` Account Number: ${profile.accountNumber}`);
-  lines.push(` Branch Code:    ${profile.branchCode} (${profile.accountType})`);
+  lines.push(` Bank:           ${profile.bankName || 'Tyme Bank Business'}`);
+  lines.push(` Account Name:   ${profile.accountName || 'Harrys Aircon and Electrical'}`);
+  lines.push(` Account Number: ${profile.accountNumber || '53002734919'}`);
+  lines.push(` Branch Code:    ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`);
   lines.push(` Reference:      ${docNumber}`);
+  lines.push('');
+  lines.push(' TERMS & CONDITIONS:');
+  lines.push(` ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.'}`);
   lines.push('======================================================================');
 
   const textContent = lines.join('\n');
@@ -667,3 +732,4 @@ export function exportToPlainText(
   a.click();
   URL.revokeObjectURL(url);
 }
+

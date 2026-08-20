@@ -286,20 +286,20 @@ export const QuotationEngine: React.FC = () => {
   });
 
   return (
-    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#E0E0E0]'}`}>
+    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#F8FAFC]'}`}>
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2D2D30] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155] pb-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#007AFF] text-white uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase tracking-wider">
               FAST ON-SITE QUOTE ENGINE
             </span>
-            <span className="text-[11px] font-mono text-[#707070]">SANS 10142-1 • ZAR TRADE RATES</span>
+            <span className="text-[11px] font-mono text-[#94A3B8]">SANS 10142-1 • ZAR TRADE RATES</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-[#FF6321]">
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-white">
             Quotation Pipeline & Cost Modeler
           </h2>
-          <p className="text-xs font-mono text-[#A0A0A5] mt-0.5">
+          <p className="text-xs font-mono text-[#94A3B8] mt-0.5">
             Create multi-item contractor estimates, automated labour/travel math, discount control, and multi-format exports.
           </p>
         </div>
@@ -307,21 +307,21 @@ export const QuotationEngine: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 font-mono">
           <button
             onClick={() => setIsVoiceWizardOpen(true)}
-            className="px-3.5 py-2 rounded bg-gradient-to-r from-amber-500 to-[#FF6321] hover:from-amber-400 hover:to-[#e0551a] text-black font-bold text-xs uppercase flex items-center space-x-1.5 shadow-lg shadow-amber-500/20"
+            className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-[#F59E0B] hover:from-amber-400 hover:to-[#D97706] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1.5 shadow-lg shadow-amber-500/20"
           >
-            <Mic className="w-4 h-4 text-black animate-pulse" />
+            <Mic className="w-4 h-4 text-[#1B1E28] animate-pulse" />
             <span>Voice Assistant</span>
           </button>
 
           <button
             id="btn-create-quote"
             onClick={() => setIsCreating(!isCreating)}
-            className={`px-4 py-2 rounded font-mono font-bold text-xs uppercase flex items-center space-x-1.5 transition-all shadow ${
+            className={`px-4 py-2 rounded-lg font-mono font-bold text-xs uppercase flex items-center space-x-1.5 transition-all shadow ${
               isCreating
-                ? 'bg-[#252528] text-[#A0A0A5] border border-[#2D2D30]'
+                ? 'bg-[#232838] text-[#94A3B8] border border-[#334155]'
                 : sunlightMode
                 ? 'bg-amber-400 text-black border-2 border-black font-extrabold'
-                : 'bg-[#FF6321] hover:bg-[#e0551a] text-black shadow-lg shadow-[#FF632133]'
+                : 'bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] shadow-lg shadow-[#38BDF833]'
             }`}
           >
             <Plus className="w-4 h-4" />
@@ -333,36 +333,36 @@ export const QuotationEngine: React.FC = () => {
       {/* Quote Creation Form Drawer */}
       {isCreating && (
         <div
-          className={`p-5 rounded-xl border space-y-6 shadow-2xl ${
-            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
+          className={`p-5 rounded-2xl border space-y-6 shadow-2xl ${
+            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#232838] border-[#334155]'
           }`}
         >
-          <div className="flex items-center justify-between border-b border-[#2D2D30] pb-2">
-            <h3 className="font-bold text-xs font-mono uppercase tracking-widest text-[#FF6321] flex items-center space-x-2">
-              <Zap className="w-4 h-4 text-[#FF6321]" />
+          <div className="flex items-center justify-between border-b border-[#334155] pb-2">
+            <h3 className="font-bold text-xs font-mono uppercase tracking-widest text-[#38BDF8] flex items-center space-x-2">
+              <Zap className="w-4 h-4 text-[#38BDF8]" />
               <span>ON-SITE QUOTE CAPTURE WIZARD</span>
             </h3>
-            <span className="text-[10px] text-[#707070] font-mono">
+            <span className="text-[10px] text-[#94A3B8] font-mono">
               DRAFT ID: QUO-{new Date().getFullYear()}-XXXX
             </span>
           </div>
 
           {/* Section 1: Client Information */}
           <div>
-            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#707070] mb-3 flex items-center space-x-1.5">
-              <Users className="w-3.5 h-3.5 text-[#007AFF]" />
+            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#94A3B8] mb-3 flex items-center space-x-1.5">
+              <Users className="w-3.5 h-3.5 text-[#38BDF8]" />
               <span>1. CLIENT & SITE LOCATION</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                   Select Existing Client
                 </label>
                 <select
                   value={selectedClientId}
                   onChange={(e) => handleClientSelect(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-mono focus:border-[#38BDF8] focus:outline-none"
                 >
                   <option value="new">+ QUICK ADD NEW CLIENT</option>
                   {clients.map((c) => (
@@ -374,7 +374,7 @@ export const QuotationEngine: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                   Client / Business Name *
                 </label>
                 <input
@@ -382,12 +382,12 @@ export const QuotationEngine: React.FC = () => {
                   placeholder="e.g. Johan Van Der Merwe"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                   Phone (WhatsApp) *
                 </label>
                 <input
@@ -395,18 +395,18 @@ export const QuotationEngine: React.FC = () => {
                   placeholder="e.g. 082 123 4567"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-mono font-bold"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-mono font-bold focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                   Service Category
                 </label>
                 <select
                   value={serviceType}
                   onChange={(e) => setServiceType(e.target.value as ServiceCategory)}
-                  className="w-full px-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#007AFF] font-mono font-bold"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-mono font-bold focus:border-[#38BDF8] focus:outline-none"
                 >
                   <option value="Electrical">Electrical Installation & DB</option>
                   <option value="HVAC">HVAC+R Air Conditioning</option>
@@ -418,17 +418,17 @@ export const QuotationEngine: React.FC = () => {
               </div>
 
               <div className="sm:col-span-2 lg:col-span-4">
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">
+                <label className="text-[10px] font-mono uppercase text-[#94A3B8] block mb-1">
                   Physical Site Address (for GPS & travel billing)
                 </label>
                 <div className="relative">
-                  <MapPin className="w-3.5 h-3.5 text-[#707070] absolute left-3 top-2.5" />
+                  <MapPin className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5" />
                   <input
                     type="text"
                     placeholder="e.g. 42 Woodlands Drive, Woodmead, Sandton"
                     value={clientAddress}
                     onChange={(e) => setClientAddress(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                   />
                 </div>
               </div>
@@ -437,8 +437,8 @@ export const QuotationEngine: React.FC = () => {
 
           {/* Section 2: Scope of Work / Description of Services */}
           <div>
-            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#FF6321] mb-2 flex items-center space-x-1.5">
-              <FileText className="w-3.5 h-3.5 text-[#FF6321]" />
+            <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#38BDF8] mb-2 flex items-center space-x-1.5">
+              <FileText className="w-3.5 h-3.5 text-[#38BDF8]" />
               <span>2. SCOPE OF WORK & SERVICE DESCRIPTION</span>
             </h4>
             <textarea
@@ -446,21 +446,21 @@ export const QuotationEngine: React.FC = () => {
               value={scopeOfWork}
               onChange={(e) => setScopeOfWork(e.target.value)}
               placeholder="e.g. Supply and install 5kW Hybrid Inverter with 5.12kWh Lithium Battery and automated changeover switch. Issue SANS 10142 Certificate of Compliance on completion."
-              className="w-full px-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-sans"
+              className="w-full px-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-sans focus:border-[#38BDF8] focus:outline-none"
             />
           </div>
 
           {/* Section 3: Material Line Items */}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#707070] flex items-center space-x-1.5">
-                <Receipt className="w-3.5 h-3.5 text-[#00FF41]" />
+              <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#94A3B8] flex items-center space-x-1.5">
+                <Receipt className="w-3.5 h-3.5 text-[#10B981]" />
                 <span>3. MATERIALS & PARTS (WITH LIVE STOCK CHECK)</span>
               </h4>
 
               <button
                 onClick={handleAddCustomItem}
-                className="text-xs font-mono text-[#00FF41] hover:underline font-bold flex items-center space-x-1 uppercase"
+                className="text-xs font-mono text-[#10B981] hover:underline font-bold flex items-center space-x-1 uppercase"
               >
                 <Plus className="w-3 h-3" />
                 <span>Add Custom Line Item</span>
@@ -470,18 +470,18 @@ export const QuotationEngine: React.FC = () => {
             {/* Quick Catalog Search Bar */}
             <div className="mb-3">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-[#707070] absolute left-3 top-2.5" />
+                <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5" />
                 <input
                   type="text"
                   placeholder="Search ZAR Price Book (e.g. 2.5mm cable, 63A breaker, R410a gas, 5kW Deye, MC4)..."
                   value={catalogSearch}
                   onChange={(e) => setCatalogSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               {catalogSearch.trim() && (
-                <div className="mt-1.5 p-2 bg-[#0A0A0B] border border-[#2D2D30] rounded max-h-48 overflow-y-auto space-y-1 z-20">
+                <div className="mt-1.5 p-2 bg-[#1B1E28] border border-[#334155] rounded-xl max-h-48 overflow-y-auto space-y-1 z-20 shadow-2xl">
                   {filteredCatalog.slice(0, 8).map((item) => (
                     <div
                       key={item.id}
@@ -489,15 +489,15 @@ export const QuotationEngine: React.FC = () => {
                         handleAddCatalogItem(item);
                         setCatalogSearch('');
                       }}
-                      className="p-2 rounded hover:bg-[#252528] cursor-pointer flex items-center justify-between text-xs font-mono"
+                      className="p-2 rounded-lg hover:bg-[#232838] cursor-pointer flex items-center justify-between text-xs font-mono"
                     >
                       <div>
-                        <span className="text-[10px] text-[#007AFF] mr-2">{item.sku}</span>
-                        <span className="font-bold text-[#E0E0E0]">{item.description}</span>
+                        <span className="text-[10px] text-[#38BDF8] mr-2">{item.sku}</span>
+                        <span className="font-bold text-[#F8FAFC]">{item.description}</span>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <span className="text-[#00FF41] font-bold">{formatZAR(item.sellingPrice)}</span>
-                        <span className="text-[10px] text-[#707070]">Stock: {item.stockOnHand} {item.unit}</span>
+                        <span className="text-[#10B981] font-bold">{formatZAR(item.sellingPrice)}</span>
+                        <span className="text-[10px] text-[#94A3B8]">Stock: {item.stockOnHand} {item.unit}</span>
                       </div>
                     </div>
                   ))}
@@ -511,14 +511,14 @@ export const QuotationEngine: React.FC = () => {
                 {lineItems.map((item) => (
                   <div
                     key={item.id}
-                    className="grid grid-cols-12 gap-2 p-2.5 rounded bg-[#0A0A0B] border border-[#2D2D30] items-center text-xs font-mono"
+                    className="grid grid-cols-12 gap-2 p-2.5 rounded-lg bg-[#1B1E28] border border-[#334155] items-center text-xs font-mono"
                   >
                     <div className="col-span-12 sm:col-span-5">
                       <input
                         type="text"
                         value={item.description}
                         onChange={(e) => handleUpdateLineItem(item.id, 'description', e.target.value)}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs font-bold text-[#E0E0E0]"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs font-bold text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
                     <div className="col-span-4 sm:col-span-2 flex items-center space-x-1">
@@ -527,25 +527,25 @@ export const QuotationEngine: React.FC = () => {
                         min={1}
                         value={item.quantity}
                         onChange={(e) => handleUpdateLineItem(item.id, 'quantity', Number(e.target.value) || 1)}
-                        className="w-16 px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-center"
+                        className="w-16 px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-center text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
-                      <span className="text-[10px] text-[#707070]">{item.unit || 'ea'}</span>
+                      <span className="text-[10px] text-[#94A3B8]">{item.unit || 'ea'}</span>
                     </div>
                     <div className="col-span-4 sm:col-span-2">
                       <input
                         type="number"
                         value={item.unitPrice}
                         onChange={(e) => handleUpdateLineItem(item.id, 'unitPrice', Number(e.target.value) || 0)}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-right"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-right text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
-                    <div className="col-span-3 sm:col-span-2 text-right font-bold text-[#00FF41]">
+                    <div className="col-span-3 sm:col-span-2 text-right font-bold text-[#10B981]">
                       {formatZAR(item.total)}
                     </div>
                     <div className="col-span-1 text-center">
                       <button
                         onClick={() => handleRemoveLineItem(item.id)}
-                        className="p-1 text-[#707070] hover:text-red-400"
+                        className="p-1 text-[#94A3B8] hover:text-red-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -557,65 +557,65 @@ export const QuotationEngine: React.FC = () => {
           </div>
 
           {/* Section 4: Labour & Discounts */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-[#0A0A0B] rounded border border-[#2D2D30] text-xs font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-[#1B1E28] rounded-xl border border-[#334155] text-xs font-mono">
             <div>
-              <label className="text-[10px] text-[#707070] block mb-1">Callout Fee</label>
+              <label className="text-[10px] text-[#94A3B8] block mb-1">Callout Fee</label>
               <input
                 type="number"
                 value={calloutFee}
                 onChange={(e) => setCalloutFee(Number(e.target.value) || 0)}
-                className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] text-[#707070] block mb-1">Master Labour (Hours)</label>
+              <label className="text-[10px] text-[#94A3B8] block mb-1">Master Labour (Hours)</label>
               <input
                 type="number"
                 value={masterLabourHours}
                 onChange={(e) => setMasterLabourHours(Number(e.target.value) || 0)}
-                className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] text-[#707070] block mb-1">Travel (Km)</label>
+              <label className="text-[10px] text-[#94A3B8] block mb-1">Travel (Km)</label>
               <input
                 type="number"
                 value={travelKm}
                 onChange={(e) => setTravelKm(Number(e.target.value) || 0)}
-                className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-[10px] text-[#707070] block mb-1">Discount %</label>
+              <label className="text-[10px] text-[#94A3B8] block mb-1">Discount %</label>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={discountPct}
                 onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
-                className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-red-400 font-bold"
+                className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-red-400 font-bold focus:border-red-400 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Totals & Submit */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#2D2D30]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#334155]">
             <label className="flex items-center space-x-2 text-xs font-mono cursor-pointer">
               <input
                 type="checkbox"
                 checked={vatEnabled}
                 onChange={(e) => setVatEnabled(e.target.checked)}
-                className="rounded accent-[#FF6321]"
+                className="rounded accent-[#38BDF8]"
               />
               <span>Include 15% South African VAT</span>
             </label>
 
             <div className="flex items-center space-x-3 font-mono">
               <div className="text-right">
-                <div className="text-sm font-bold text-[#00FF41]">
+                <div className="text-sm font-bold text-[#10B981]">
                   Total: {formatZAR(liveTotals.totalAmount)}
                 </div>
-                <div className="text-[10px] text-[#707070]">
+                <div className="text-[10px] text-[#94A3B8]">
                   Sub: {formatZAR(liveTotals.subtotal)}
                   {liveTotals.discountAmount > 0 && ` • Disc: -${formatZAR(liveTotals.discountAmount)}`}
                 </div>
@@ -623,7 +623,7 @@ export const QuotationEngine: React.FC = () => {
 
               <button
                 onClick={handleSaveQuotation}
-                className="px-5 py-2 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold text-xs uppercase shadow-lg shadow-[#00FF4133]"
+                className="px-5 py-2 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold text-xs uppercase shadow-lg shadow-[#10B98133]"
               >
                 Save & Issue Quotation
               </button>
@@ -635,7 +635,7 @@ export const QuotationEngine: React.FC = () => {
       {/* Quotations List */}
       <div className="space-y-4">
         {quotations.length === 0 ? (
-          <div className="p-8 text-center border border-dashed border-[#2D2D30] rounded-xl font-mono text-xs text-[#707070]">
+          <div className="p-8 text-center border border-dashed border-[#334155] rounded-xl font-mono text-xs text-[#94A3B8]">
             No quotations found. Click "+ New Quotation" or "Voice Assistant" to create one.
           </div>
         ) : (
@@ -672,39 +672,39 @@ export const QuotationEngine: React.FC = () => {
                   className={`p-4 rounded-xl border transition-all ${
                     sunlightMode
                       ? 'bg-white border-2 border-black text-black'
-                      : 'bg-[#1A1A1C] border-[#2D2D30] text-[#E0E0E0] hover:border-[#3D3D42]'
+                      : 'bg-[#232838] border-[#334155] text-[#F8FAFC] hover:border-[#38BDF8]/50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2 font-mono">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-[#007AFF]">
+                        <span className="text-xs font-bold text-[#38BDF8]">
                           {quote.quoteNumber}
                         </span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#0A0A0B] text-[#A0A0A5] border border-[#2D2D30]">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1B1E28] text-[#94A3B8] border border-[#334155]">
                           {quote.serviceType}
                         </span>
                       </div>
-                      <h4 className="font-bold text-sm text-[#E0E0E0] mt-1 font-sans">
+                      <h4 className="font-bold text-sm text-white mt-1 font-sans">
                         {quote.clientName}
                       </h4>
-                      <p className="text-[11px] text-[#707070] flex items-center space-x-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-[#707070]" />
+                      <p className="text-[11px] text-[#94A3B8] flex items-center space-x-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-[#38BDF8]" />
                         <span>{quote.clientAddress}</span>
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <div className="text-base font-bold text-[#00FF41]">
+                      <div className="text-base font-bold text-[#10B981]">
                         {formatZAR(quote.totalAmount)}
                       </div>
                       <span
                         className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                           quote.status === 'accepted'
-                            ? 'bg-[#00FF4122] text-[#00FF41] border border-[#00FF4144]'
+                            ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
                             : quote.status === 'converted'
-                            ? 'bg-[#007AFF22] text-[#007AFF] border border-[#007AFF44]'
-                            : 'bg-[#0A0A0B] text-[#707070] border border-[#2D2D30]'
+                            ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
+                            : 'bg-[#1B1E28] text-[#94A3B8] border border-[#334155]'
                         }`}
                       >
                         {quote.status}
@@ -714,8 +714,8 @@ export const QuotationEngine: React.FC = () => {
 
                   {/* Scope of Work */}
                   {(quote.scopeOfWork || quote.notes) && (
-                    <div className="p-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[11px] font-mono text-[#A0A0A5] mb-2">
-                      <span className="text-[#FF6321] text-[9px] uppercase font-bold block mb-0.5">
+                    <div className="p-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[11px] font-mono text-[#94A3B8] mb-2">
+                      <span className="text-[#38BDF8] text-[9px] uppercase font-bold block mb-0.5">
                         Scope of Work:
                       </span>
                       <p className="line-clamp-2">{quote.scopeOfWork || quote.notes}</p>
@@ -723,18 +723,18 @@ export const QuotationEngine: React.FC = () => {
                   )}
 
                   {/* Summary of Line Items */}
-                  <div className="py-2 border-y border-[#2D2D30] text-[11px] font-mono text-[#A0A0A5] space-y-1 mb-3">
-                    <div className="font-bold text-[#707070] text-[10px] uppercase">
+                  <div className="py-2 border-y border-[#334155] text-[11px] font-mono text-[#94A3B8] space-y-1 mb-3">
+                    <div className="font-bold text-[#94A3B8] text-[10px] uppercase">
                       Items & Materials ({quote.items.length}):
                     </div>
                     {quote.items.slice(0, 2).map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between text-[11px]">
                         <span className="truncate pr-2">• {item.description} ({item.quantity} {item.unit})</span>
-                        <span className="font-bold text-[#E0E0E0]">{formatZAR(item.total)}</span>
+                        <span className="font-bold text-white">{formatZAR(item.total)}</span>
                       </div>
                     ))}
                     {quote.items.length > 2 && (
-                      <div className="text-[10px] text-[#707070] italic">
+                      <div className="text-[10px] text-[#94A3B8] italic">
                         + {quote.items.length - 2} more line items...
                       </div>
                     )}
@@ -747,7 +747,7 @@ export const QuotationEngine: React.FC = () => {
                         href={getWhatsAppShareLink(quote.clientPhone, whatsappSummary)}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2.5 py-1.5 rounded bg-[#25D366] text-black hover:bg-[#20ba59] text-xs font-bold flex items-center space-x-1 uppercase"
+                        className="px-2.5 py-1.5 rounded-lg bg-[#10B981] text-[#1B1E28] hover:bg-[#34D399] text-xs font-bold flex items-center space-x-1 uppercase"
                         title="Share on WhatsApp"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -760,21 +760,21 @@ export const QuotationEngine: React.FC = () => {
                           onClick={() =>
                             setOpenExportMenuId(openExportMenuId === quote.id ? null : quote.id)
                           }
-                          className="px-2.5 py-1.5 rounded bg-[#0A0A0B] text-[#E0E0E0] border border-[#2D2D30] hover:bg-[#252528] text-xs font-bold flex items-center space-x-1"
+                          className="px-2.5 py-1.5 rounded-lg bg-[#1B1E28] text-[#F8FAFC] border border-[#334155] hover:bg-[#232838] text-xs font-bold flex items-center space-x-1"
                         >
-                          <Download className="w-3.5 h-3.5 text-[#00FF41]" />
+                          <Download className="w-3.5 h-3.5 text-[#38BDF8]" />
                           <span>Export</span>
-                          <ChevronDown className="w-3 h-3 text-[#707070]" />
+                          <ChevronDown className="w-3 h-3 text-[#94A3B8]" />
                         </button>
 
                         {openExportMenuId === quote.id && (
-                          <div className="absolute left-0 mt-1 w-44 rounded-lg bg-[#18181B] border border-[#2D2D30] shadow-2xl z-30 py-1 font-mono text-xs">
+                          <div className="absolute left-0 mt-1 w-44 rounded-xl bg-[#232838] border border-[#334155] shadow-2xl z-30 py-1 font-mono text-xs">
                             <button
                               onClick={() => {
                                 exportToPDF('quote', quote, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileText className="w-4 h-4 text-red-400" />
                               <span>PDF Document (.pdf)</span>
@@ -785,7 +785,7 @@ export const QuotationEngine: React.FC = () => {
                                 exportToExcel('quote', quote, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileSpreadsheet className="w-4 h-4 text-green-400" />
                               <span>Excel Sheet (.xlsx)</span>
@@ -796,7 +796,7 @@ export const QuotationEngine: React.FC = () => {
                                 exportToWord('quote', quote, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <File className="w-4 h-4 text-blue-400" />
                               <span>Word Doc (.docx)</span>
@@ -807,7 +807,7 @@ export const QuotationEngine: React.FC = () => {
                                 exportToPlainText('quote', quote, profile);
                                 setOpenExportMenuId(null);
                               }}
-                              className="w-full px-3 py-2 text-left hover:bg-[#27272A] flex items-center space-x-2 text-[#E0E0E0]"
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#F8FAFC]"
                             >
                               <FileText className="w-4 h-4 text-gray-400" />
                               <span>Plain Text (.txt)</span>
@@ -819,16 +819,16 @@ export const QuotationEngine: React.FC = () => {
                       {/* Edit Button */}
                       <button
                         onClick={() => setEditingQuote(JSON.parse(JSON.stringify(quote)))}
-                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#A0A0A5] hover:text-white"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#94A3B8] hover:text-white"
                         title="Edit Quotation"
                       >
-                        <Edit2 className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <Edit2 className="w-3.5 h-3.5 text-[#38BDF8]" />
                       </button>
 
                       {/* Delete Button */}
                       <button
                         onClick={() => setDeleteConfirmId(quote.id)}
-                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] hover:border-red-500/40 text-[#707070] hover:text-red-400"
+                        className="p-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] hover:border-red-500/40 text-[#94A3B8] hover:text-red-400"
                         title="Delete Quotation"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -844,7 +844,7 @@ export const QuotationEngine: React.FC = () => {
                               convertQuoteToJob(quote.id);
                               setActiveTab('invoices');
                             }}
-                            className="px-2 py-1 rounded bg-[#007AFF] hover:bg-[#0062cc] text-white text-[11px] font-bold flex items-center space-x-1 uppercase"
+                            className="px-2 py-1 rounded-lg bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] text-[11px] font-bold flex items-center space-x-1 uppercase"
                             title="Convert to Active Job"
                           >
                             <Briefcase className="w-3 h-3" />
@@ -856,7 +856,7 @@ export const QuotationEngine: React.FC = () => {
                               convertQuoteToInvoice(quote.id);
                               setActiveTab('invoices');
                             }}
-                            className="px-2 py-1 rounded bg-[#FF6321] hover:bg-[#e0551a] text-black text-[11px] font-bold flex items-center space-x-1 uppercase"
+                            className="px-2 py-1 rounded-lg bg-amber-400 hover:bg-amber-500 text-black text-[11px] font-bold flex items-center space-x-1 uppercase"
                             title="Convert Directly to Tax Invoice"
                           >
                             <Receipt className="w-3 h-3" />
@@ -876,18 +876,18 @@ export const QuotationEngine: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md p-5 rounded-xl bg-[#18181B] border border-red-500/40 space-y-4 shadow-2xl font-mono">
+          <div className="w-full max-w-md p-5 rounded-2xl bg-[#232838] border border-red-500/40 space-y-4 shadow-2xl font-mono">
             <div className="flex items-center space-x-2 text-red-400">
               <AlertCircle className="w-5 h-5" />
               <h3 className="font-bold text-sm uppercase">Delete Quotation</h3>
             </div>
-            <p className="text-xs text-[#A0A0A5]">
+            <p className="text-xs text-[#94A3B8]">
               Are you sure you want to permanently delete this quotation?
             </p>
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3.5 py-1.5 rounded bg-[#27272A] text-xs text-[#A0A0A5] hover:text-white"
+                className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-xs text-[#94A3B8] hover:text-white border border-[#334155]"
               >
                 Cancel
               </button>
@@ -896,7 +896,7 @@ export const QuotationEngine: React.FC = () => {
                   deleteQuotation(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="px-4 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase"
+                className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase shadow"
               >
                 Delete Quotation
               </button>
@@ -908,17 +908,17 @@ export const QuotationEngine: React.FC = () => {
       {/* Edit Quotation Modal */}
       {editingQuote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-3xl rounded-xl bg-[#141416] border border-[#2D2D30] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#2D2D30] pb-3">
+          <div className="w-full max-w-3xl rounded-2xl bg-[#232838] border border-[#334155] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#334155] pb-3">
               <div className="flex items-center space-x-2">
-                <FileText className="w-5 h-5 text-[#007AFF]" />
+                <FileText className="w-5 h-5 text-[#38BDF8]" />
                 <h3 className="font-bold text-sm text-white uppercase">
                   Edit Quotation: {editingQuote.quoteNumber}
                 </h3>
               </div>
               <button
                 onClick={() => setEditingQuote(null)}
-                className="p-1 rounded text-[#707070] hover:text-white"
+                className="p-1 rounded text-[#94A3B8] hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -927,27 +927,27 @@ export const QuotationEngine: React.FC = () => {
             {/* Client & Status */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Client Name</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Client Name</label>
                 <input
                   type="text"
                   value={editingQuote.clientName}
                   onChange={(e) => setEditingQuote({ ...editingQuote, clientName: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Client Phone</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Client Phone</label>
                 <input
                   type="text"
                   value={editingQuote.clientPhone}
                   onChange={(e) => setEditingQuote({ ...editingQuote, clientPhone: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase text-[#707070] block mb-1">Status</label>
+                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Status</label>
                 <select
                   value={editingQuote.status}
                   onChange={(e) =>
@@ -956,7 +956,7 @@ export const QuotationEngine: React.FC = () => {
                       status: e.target.value as QuoteStatus,
                     })
                   }
-                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#00FF41] font-bold uppercase"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#10B981] font-bold uppercase focus:border-[#38BDF8] focus:outline-none"
                 >
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
@@ -969,7 +969,7 @@ export const QuotationEngine: React.FC = () => {
 
             {/* Scope of Work */}
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-[#FF6321] block font-bold">
+              <label className="text-[10px] uppercase text-[#38BDF8] block font-bold">
                 Scope of Work & Notes:
               </label>
               <textarea
@@ -982,13 +982,13 @@ export const QuotationEngine: React.FC = () => {
                     notes: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-sans text-xs"
+                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-sans text-xs focus:border-[#38BDF8] focus:outline-none"
               />
             </div>
 
             {/* Line items editor */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between border-b border-[#2D2D30] pb-1">
+              <div className="flex items-center justify-between border-b border-[#334155] pb-1">
                 <span className="font-bold text-white text-[11px] uppercase">
                   Line Items ({editingQuote.items?.length || 0})
                 </span>
@@ -1009,7 +1009,7 @@ export const QuotationEngine: React.FC = () => {
                       items: [...(editingQuote.items || []), newItem],
                     });
                   }}
-                  className="px-2 py-1 rounded bg-[#FF6321] text-black font-bold text-[10px] uppercase flex items-center space-x-1"
+                  className="px-2 py-1 rounded-lg bg-[#38BDF8] text-[#1B1E28] font-bold text-[10px] uppercase flex items-center space-x-1"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Add Item</span>
@@ -1020,7 +1020,7 @@ export const QuotationEngine: React.FC = () => {
                 {(editingQuote.items || []).map((item, idx) => (
                   <div
                     key={item.id || idx}
-                    className="grid grid-cols-12 gap-2 p-2 rounded bg-[#0A0A0B] border border-[#2D2D30] items-center"
+                    className="grid grid-cols-12 gap-2 p-2 rounded-lg bg-[#1B1E28] border border-[#334155] items-center"
                   >
                     <div className="col-span-5">
                       <input
@@ -1031,7 +1031,7 @@ export const QuotationEngine: React.FC = () => {
                           updated[idx].description = e.target.value;
                           setEditingQuote({ ...editingQuote, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-white"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-white focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
                     <div className="col-span-2">
@@ -1046,7 +1046,7 @@ export const QuotationEngine: React.FC = () => {
                           updated[idx].total = Number((q * updated[idx].unitPrice).toFixed(2));
                           setEditingQuote({ ...editingQuote, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-center"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-center text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
                     <div className="col-span-2">
@@ -1060,10 +1060,10 @@ export const QuotationEngine: React.FC = () => {
                           updated[idx].total = Number((updated[idx].quantity * p).toFixed(2));
                           setEditingQuote({ ...editingQuote, items: updated });
                         }}
-                        className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-xs text-right"
+                        className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-xs text-right text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                       />
                     </div>
-                    <div className="col-span-2 text-right font-bold text-[#00FF41]">
+                    <div className="col-span-2 text-right font-bold text-[#10B981]">
                       {formatZAR(item.total)}
                     </div>
                     <div className="col-span-1 text-center">
@@ -1072,7 +1072,7 @@ export const QuotationEngine: React.FC = () => {
                           const updated = editingQuote.items.filter((_, i) => i !== idx);
                           setEditingQuote({ ...editingQuote, items: updated });
                         }}
-                        className="p-1 text-[#707070] hover:text-red-400"
+                        className="p-1 text-[#94A3B8] hover:text-red-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1083,9 +1083,9 @@ export const QuotationEngine: React.FC = () => {
             </div>
 
             {/* Rates & Discount */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#0A0A0B] rounded border border-[#2D2D30]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#1B1E28] rounded-xl border border-[#334155]">
               <div>
-                <label className="text-[10px] text-[#707070] block">Callout Fee</label>
+                <label className="text-[10px] text-[#94A3B8] block">Callout Fee</label>
                 <input
                   type="number"
                   value={editingQuote.calloutFee || 0}
@@ -1095,11 +1095,11 @@ export const QuotationEngine: React.FC = () => {
                       calloutFee: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Labour Total</label>
+                <label className="text-[10px] text-[#94A3B8] block">Labour Total</label>
                 <input
                   type="number"
                   value={editingQuote.labourTotal || 0}
@@ -1109,11 +1109,11 @@ export const QuotationEngine: React.FC = () => {
                       labourTotal: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Travel Surcharge</label>
+                <label className="text-[10px] text-[#94A3B8] block">Travel Surcharge</label>
                 <input
                   type="number"
                   value={editingQuote.travelTotal || 0}
@@ -1123,11 +1123,11 @@ export const QuotationEngine: React.FC = () => {
                       travelTotal: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30]"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-[#707070] block">Discount %</label>
+                <label className="text-[10px] text-[#94A3B8] block">Discount %</label>
                 <input
                   type="number"
                   min={0}
@@ -1139,12 +1139,12 @@ export const QuotationEngine: React.FC = () => {
                       discountPct: Number(e.target.value) || 0,
                     })
                   }
-                  className="w-full px-2 py-1 rounded bg-[#141416] border border-[#2D2D30] text-red-400 font-bold"
+                  className="w-full px-2 py-1 rounded bg-[#232838] border border-[#334155] text-red-400 font-bold focus:border-red-400 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#2D2D30]">
+            <div className="flex items-center justify-between pt-2 border-t border-[#334155]">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -1152,7 +1152,7 @@ export const QuotationEngine: React.FC = () => {
                   onChange={(e) =>
                     setEditingQuote({ ...editingQuote, vatEnabled: e.target.checked })
                   }
-                  className="rounded accent-[#FF6321]"
+                  className="rounded accent-[#38BDF8]"
                 />
                 <span>Include 15% South African VAT</span>
               </label>
@@ -1160,13 +1160,13 @@ export const QuotationEngine: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setEditingQuote(null)}
-                  className="px-3.5 py-1.5 rounded bg-[#252528] text-[#A0A0A5] hover:text-white"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-[#94A3B8] hover:text-white border border-[#334155]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleSaveQuoteEdit(editingQuote)}
-                  className="px-5 py-1.5 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold uppercase"
+                  className="px-5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold uppercase shadow"
                 >
                   Save Changes
                 </button>
