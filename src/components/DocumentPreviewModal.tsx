@@ -9,6 +9,7 @@ import {
   exportToPlainText,
   printHtmlDocument,
   openPdfInNewTab,
+  shareDocumentDirectly,
 } from '../utils/multiFormatExport';
 import {
   X,
@@ -21,6 +22,7 @@ import {
   ExternalLink,
   Check,
   Copy,
+  Smartphone,
 } from 'lucide-react';
 
 interface DocumentPreviewModalProps {
@@ -39,6 +41,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const { profile, sunlightMode } = useApp();
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   if (!isOpen || !data) return null;
 
@@ -49,12 +52,20 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     ? (data as Invoice).dueDate || 'Upon Presentation'
     : (data as Quotation).expiryDate || '30 Days';
 
+  const isAndroidApp = typeof window !== 'undefined' && !!(window as any).AndroidInterface;
+
+  const showNotification = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
   const waSummary = generateWhatsAppQuoteSummary(docType, data, profile);
   const waLink = getWhatsAppShareLink(data.clientPhone, waSummary);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(waSummary);
     setCopied(true);
+    showNotification('WhatsApp summary copied to clipboard!');
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -62,13 +73,17 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     setIsExporting(true);
     try {
       if (format === 'pdf') {
-        await exportToPDF(docType, data, profile);
+        const res = await exportToPDF(docType, data, profile);
+        showNotification(isAndroidApp ? 'Saving PDF to Downloads folder...' : 'PDF generated!');
       } else if (format === 'excel') {
         await exportToExcel(docType, data, profile);
+        showNotification('Excel spreadsheet generated!');
       } else if (format === 'word') {
         await exportToWord(docType, data, profile);
+        showNotification('Word document generated!');
       } else if (format === 'txt') {
         await exportToPlainText(docType, data, profile);
+        showNotification('Text export generated!');
       }
     } catch (err) {
       console.error('Export error:', err);
@@ -77,9 +92,29 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     }
   };
 
+  const handleShare = async () => {
+    setIsExporting(true);
+    try {
+      await shareDocumentDirectly(docType, data, profile, 'pdf');
+      showNotification('Opening share sheet...');
+    } catch (err) {
+      console.error('Share error:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
       <div className="relative w-full max-w-4xl bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Toast Alert */}
+        {toastMsg && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-sky-600 text-white text-xs font-semibold rounded-full shadow-lg border border-sky-400 animate-fade-in flex items-center space-x-2">
+            <Check className="w-3.5 h-3.5" />
+            <span>{toastMsg}</span>
+          </div>
+        )}
+
         {/* Modal Header Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-[#151722] border-b border-[#282E3E]">
           <div className="flex items-center space-x-3">
@@ -90,6 +125,11 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               <h2 className="text-lg font-bold text-white flex items-center space-x-2">
                 <span>{docTitle}</span>
                 <span className="text-sky-400 font-mono text-sm">{docNumber}</span>
+                {isAndroidApp && (
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded font-mono flex items-center gap-1">
+                    <Smartphone className="w-3 h-3" /> Android App
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-400">
                 Prepared for {data.clientName} ({data.clientPhone})
@@ -99,12 +139,25 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => printHtmlDocument(docType, data, profile)}
+              onClick={() => {
+                showNotification('Opening Print / PDF Spooler...');
+                printHtmlDocument(docType, data, profile);
+              }}
               className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer"
               title="Print directly or save via Android print spooler"
             >
               <Printer className="w-4 h-4" />
               <span>Print / Save PDF</span>
+            </button>
+
+            <button
+              onClick={handleShare}
+              disabled={isExporting}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50"
+              title="Share PDF via Android Share Sheet (Drive, WhatsApp, Print, Files)"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Share</span>
             </button>
 
             <button

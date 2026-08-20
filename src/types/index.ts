@@ -145,3 +145,16 @@ export interface BusinessProfile {
   sansComplianceNotice: string;
   sunlightMode: boolean;
 }
+
+export interface AndroidBridge {
+  saveFile?: (base64Data: string, filename: string, mimeType: string) => void;
+  printDocument?: () => void;
+  shareFile?: (base64Data: string, filename: string, mimeType: string, title?: string) => void;
+  showToast?: (message: string) => void;
+}
+
+declare global {
+  interface Window {
+    AndroidInterface?: AndroidBridge;
+  }
+}

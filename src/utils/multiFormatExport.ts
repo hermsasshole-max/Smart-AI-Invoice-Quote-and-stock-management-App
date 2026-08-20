@@ -35,8 +35,11 @@ export function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Universal Mobile-Safe File Saver:
- * Uses navigator.share on mobile if supported, or standard <a> download stream
+ * Universal Mobile-Safe & Android WebView File Saver:
+ * 1. Native Android Bridge (window.AndroidInterface.saveFile) if running in Android app
+ * 2. Web Share API (navigator.canShare with files) for native Android share sheet
+ * 3. Standard <a> download stream via Object URL
+ * 4. Fallback Data URI window.open
  */
 export async function saveOrShareFile(
   blob: Blob,
@@ -45,8 +48,19 @@ export async function saveOrShareFile(
   title: string,
   forceDownloadOnly: boolean = false
 ): Promise<ExportResult> {
-  // Try Web Share API on mobile devices if available & not forced to download
-  if (!forceDownloadOnly && navigator.share && navigator.canShare) {
+  // 1. Check for dedicated Android JavascriptInterface bridge (save directly to public Downloads)
+  if (typeof window !== 'undefined' && window.AndroidInterface?.saveFile) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      window.AndroidInterface.saveFile(base64Data, filename, mimeType);
+      return { filename, method: 'download' };
+    } catch (bridgeErr) {
+      console.warn('AndroidInterface.saveFile failed, falling back:', bridgeErr);
+    }
+  }
+
+  // 2. Try Web Share API on mobile/WebView devices if available & not forced to download
+  if (!forceDownloadOnly && typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], filename, { type: mimeType });
       if (navigator.canShare({ files: [file] })) {
@@ -66,7 +80,7 @@ export async function saveOrShareFile(
     }
   }
 
-  // Browser download via object URL
+  // 3. Browser download via object URL
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -83,7 +97,7 @@ export async function saveOrShareFile(
     }, 1000);
     return { filename, method: 'download' };
   } catch (downloadErr) {
-    // Fallback: Open in new tab via Data URL
+    // 4. Fallback: Open in new tab via Data URL
     const dataUrl = await blobToBase64(blob);
     const win = window.open(dataUrl, '_blank');
     if (!win) {
@@ -588,13 +602,24 @@ export function generatePrintableHtml(
 }
 
 /**
- * Open Standalone Print Dialog Window
+ * Open Standalone Print Dialog Window or Android Native Print Adapter
  */
 export function printHtmlDocument(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile
 ): void {
+  // 1. Android Native Print Adapter (PrintManager & WebKit PrintDocumentAdapter)
+  if (typeof window !== 'undefined' && window.AndroidInterface?.printDocument) {
+    try {
+      window.AndroidInterface.printDocument();
+      return;
+    } catch (printErr) {
+      console.warn('AndroidInterface.printDocument error, using web print:', printErr);
+    }
+  }
+
+  // 2. Standard Web print fallback
   const html = generatePrintableHtml(docType, data, profile);
   const printWindow = window.open('', '_blank');
   if (printWindow) {
@@ -630,6 +655,69 @@ export function printHtmlDocument(
       }, 60000);
     }
   }
+}
+
+/**
+ * Direct Native Share (triggers Android Share Sheet / Web Share)
+ */
+export async function shareDocumentDirectly(
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile,
+  format: 'pdf' | 'excel' | 'word' | 'txt' = 'pdf'
+): Promise<ExportResult> {
+  let blob: Blob;
+  let filename: string;
+  let mimeType: string;
+  const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const sanitizedClient = data.clientName.replace(/[^a-zA-Z0-9]/g, '_');
+  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber}`;
+
+  if (format === 'pdf') {
+    const doc = buildJsPDFDocument(docType, data, profile);
+    blob = doc.output('blob');
+    filename = `${docType.toUpperCase()}_${docNumber}_${sanitizedClient}.pdf`;
+    mimeType = 'application/pdf';
+  } else if (format === 'excel') {
+    return await exportToExcel(docType, data, profile, false);
+  } else if (format === 'word') {
+    return await exportToWord(docType, data, profile, false);
+  } else {
+    return await exportToPlainText(docType, data, profile, false);
+  }
+
+  // Check Android bridge share
+  if (typeof window !== 'undefined' && window.AndroidInterface?.shareFile) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      window.AndroidInterface.shareFile(base64Data, filename, mimeType, title);
+      return { filename, method: 'share' };
+    } catch (err) {
+      console.warn('AndroidInterface.shareFile failed:', err);
+    }
+  }
+
+  // Web Share API fallback
+  if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: title,
+          text: `${title} for ${data.clientName}`,
+        });
+        return { filename, method: 'share' };
+      }
+    } catch (shareErr: any) {
+      if (shareErr.name !== 'AbortError') {
+        console.warn('Web Share failed:', shareErr);
+      }
+    }
+  }
+
+  // Fallback to standard save
+  return await saveOrShareFile(blob, filename, mimeType, title, true);
 }
 
 /**
