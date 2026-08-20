@@ -1,6 +1,5 @@
 package com.harrys.aircon;
 
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -35,7 +34,7 @@ public class WebAppInterface {
 
     /**
      * Save Base64 file directly to device's public Downloads folder.
-     * Supports Android 10+ Scoped Storage (MediaStore) and Android 9- FileOutputStream.
+     * Supports Android 10+ Scoped Storage (MediaStore.Downloads) and Android 9- FileOutputStream.
      */
     @JavascriptInterface
     public void saveFile(String base64Data, String filename, String mimeType) {
@@ -55,7 +54,7 @@ public class WebAppInterface {
             boolean savedSuccessfully = false;
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10+ (API 29+): MediaStore Downloads Collection
+                // Android 10+ (API 29–35): MediaStore Downloads Collection (No storage permissions needed)
                 ContentResolver resolver = activity.getContentResolver();
                 ContentValues contentValues = new ContentValues();
                 contentValues.put(MediaStore.Downloads.DISPLAY_NAME, filename);
@@ -85,7 +84,7 @@ public class WebAppInterface {
                     savedSuccessfully = true;
                 }
 
-                // Notify media scanner so the file appears immediately in Files app
+                // Notify media scanner so file appears immediately in Files app
                 MediaScannerConnection.scanFile(
                         activity,
                         new String[]{targetFile.getAbsolutePath()},
@@ -109,6 +108,7 @@ public class WebAppInterface {
 
     /**
      * Native Android Print Adapter (invokes Android PrintManager for Print to PDF / Wi-Fi Printers)
+     * Always executed on UI Thread to prevent PrintManager background thread crashes.
      */
     @JavascriptInterface
     public void printDocument() {
@@ -121,13 +121,13 @@ public class WebAppInterface {
                 if (printManager != null) {
                     PrintDocumentAdapter printAdapter;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        printAdapter = webView.createPrintDocumentAdapter("Harrys_Invoice_Quotation");
+                        printAdapter = webView.createPrintDocumentAdapter("Harrys_Document");
                     } else {
                         printAdapter = webView.createPrintDocumentAdapter();
                     }
 
                     printManager.print(
-                            "Harrys_Field_Document",
+                            "Harrys_Invoice_Quote",
                             printAdapter,
                             new PrintAttributes.Builder().build()
                     );

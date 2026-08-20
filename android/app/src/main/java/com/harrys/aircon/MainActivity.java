@@ -10,8 +10,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -21,30 +23,47 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "HarrysMainActivity";
-    private static final int PERMISSION_REQUEST_CODE = 1001;
-    private static final int FILE_CHOOSER_REQUEST_CODE = 1002;
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
+    private Uri cameraCaptureUri;
+
+    // Modern ActivityResultLauncher for File Chooser & Camera
+    private ActivityResultLauncher<Intent> fileChooserLauncher;
+
+    // Modern ActivityResultLauncher for Runtime Permissions
+    private ActivityResultLauncher<String[]> permissionLauncher;
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Instantiate WebView
+        // 1. Initialize Activity Result Launchers
+        initActivityLaunchers();
+
+        // 2. Instantiate and attach WebView
         webView = new WebView(this);
         setContentView(webView);
 
-        // Configure WebSettings for optimal modern web app execution
+        // 3. Configure WebSettings for optimal modern web app execution & hardware acceleration
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
@@ -56,19 +75,20 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setSupportZoom(true);
         webSettings.setBuiltInZoomControls(false);
         webSettings.setDisplayZoomControls(false);
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
 
-        // Enable cookies
+        // Enable cookies & mixed content
         CookieManager.getInstance().setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
             webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
 
-        // Expose Native Android JavaScript Interface Bridge
+        // 4. Expose Native Android JavaScript Interface Bridge
         WebAppInterface webAppInterface = new WebAppInterface(this);
         webView.addJavascriptInterface(webAppInterface, "AndroidInterface");
 
-        // Set WebViewClient
+        // 5. Configure WebViewClient for external app routing (WhatsApp, Tel, Mailto)
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -78,12 +98,16 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url == null) return false;
                 return handleCustomUri(Uri.parse(url));
             }
 
             private boolean handleCustomUri(Uri uri) {
+                if (uri == null) return false;
                 String scheme = uri.getScheme();
-                if (scheme != null && (scheme.equals("tel") || scheme.equals("mailto") || scheme.equals("whatsapp") || scheme.equals("https://wa.me") || uri.getHost() != null && uri.getHost().contains("wa.me"))) {
+                if (scheme != null && (scheme.equals("tel") || scheme.equals("mailto") ||
+                        scheme.equals("whatsapp") || scheme.equals("https://wa.me") ||
+                        (uri.getHost() != null && uri.getHost().contains("wa.me")))) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         startActivity(intent);
@@ -96,31 +120,83 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Set WebChromeClient for Receipt Image uploads & Camera capture
+        // 6. Configure WebChromeClient with onShowFileChooser & onPermissionRequest handlers
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                // Cancel any pending callback to prevent WebView deadlock
                 if (MainActivity.this.filePathCallback != null) {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
+                    MainActivity.this.filePathCallback = null;
                 }
                 MainActivity.this.filePathCallback = filePathCallback;
 
-                Intent intent = fileChooserParams.createIntent();
+                Intent takePictureIntent = null;
+                cameraCaptureUri = null;
+
+                // Create camera photo file intent if CAMERA permission is granted
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        File photoFile = createImageFile();
+                        if (photoFile != null) {
+                            cameraCaptureUri = FileProvider.getUriForFile(
+                                    MainActivity.this,
+                                    getPackageName() + ".fileprovider",
+                                    photoFile
+                            );
+                            takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraCaptureUri);
+                            takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        }
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Error creating camera image file", ex);
+                    }
+                }
+
+                // Create document/gallery picker intent
+                Intent contentSelectionIntent = fileChooserParams != null
+                        ? fileChooserParams.createIntent()
+                        : new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");
+
+                Intent chooserIntent;
+                if (takePictureIntent != null) {
+                    chooserIntent = new Intent(Intent.ACTION_CHOOSER);
+                    chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
+                    chooserIntent.putExtra(Intent.EXTRA_TITLE, "Select Receipt or Take Photo");
+                    chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{takePictureIntent});
+                } else {
+                    chooserIntent = contentSelectionIntent;
+                }
+
                 try {
-                    startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
+                    fileChooserLauncher.launch(chooserIntent);
+                    return true;
                 } catch (Exception e) {
-                    MainActivity.this.filePathCallback = null;
+                    Log.e(TAG, "Error launching file chooser", e);
+                    if (MainActivity.this.filePathCallback != null) {
+                        MainActivity.this.filePathCallback.onReceiveValue(null);
+                        MainActivity.this.filePathCallback = null;
+                    }
                     return false;
                 }
-                return true;
+            }
+
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    try {
+                        request.grant(request.getResources());
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error granting Web permission request", e);
+                    }
+                });
             }
         });
 
-        // Configure DownloadListener for Blob / HTTP URL downloads
+        // 7. Configure DownloadListener for Blob / HTTP URL downloads
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
             try {
                 if (url.startsWith("blob:") || url.startsWith("data:")) {
-                    // Blob/data URL will be handled via AndroidInterface.saveFile from Web code
                     return;
                 }
 
@@ -148,84 +224,102 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Request storage permissions if needed
-        checkAppPermissions();
+        // 8. Request runtime permissions on startup
+        requestAppPermissions();
 
-        // Load Application (Supports local asset or remote URL)
+        // 9. Load Application
         String appUrl = "http://localhost:3000";
         webView.loadUrl(appUrl);
     }
 
-    public WebView getWebView() {
-        return webView;
-    }
+    private void initActivityLaunchers() {
+        // File Chooser Launcher
+        fileChooserLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (filePathCallback == null) return;
+                    Uri[] results = null;
+                    try {
+                        if (result.getResultCode() == RESULT_OK) {
+                            Intent data = result.getData();
+                            if (data != null) {
+                                String dataString = data.getDataString();
+                                if (dataString != null) {
+                                    results = new Uri[]{Uri.parse(dataString)};
+                                } else if (data.getClipData() != null) {
+                                    int count = data.getClipData().getItemCount();
+                                    results = new Uri[count];
+                                    for (int i = 0; i < count; i++) {
+                                        results[i] = data.getClipData().getItemAt(i).getUri();
+                                    }
+                                }
+                            }
 
-    private void checkAppPermissions() {
-        java.util.List<String> permissionsToRequest = new java.util.ArrayList<>();
-
-        // Camera Permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.CAMERA);
-        }
-
-        // Microphone / Audio Permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO);
-        }
-
-        // Storage / Media Permissions based on Android OS Version
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ (API 33+)
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES);
-            }
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            // Android 9 and below
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE);
-            }
-        }
-
-        if (!permissionsToRequest.isEmpty()) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    permissionsToRequest.toArray(new String[0]),
-                    PERMISSION_REQUEST_CODE
-            );
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
-            if (filePathCallback == null) return;
-            Uri[] results = null;
-            try {
-                if (resultCode == RESULT_OK && data != null) {
-                    String dataString = data.getDataString();
-                    if (dataString != null) {
-                        results = new Uri[]{Uri.parse(dataString)};
-                    } else if (data.getClipData() != null) {
-                        int count = data.getClipData().getItemCount();
-                        results = new Uri[count];
-                        for (int i = 0; i < count; i++) {
-                            results[i] = data.getClipData().getItemAt(i).getUri();
+                            // If no data returned from gallery intent, check camera capture URI
+                            if (results == null && cameraCaptureUri != null) {
+                                results = new Uri[]{cameraCaptureUri};
+                            }
                         }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error handling file chooser result", e);
+                    } finally {
+                        // ALWAYS call onReceiveValue (even with null) to prevent WebView deadlock!
+                        filePathCallback.onReceiveValue(results);
+                        filePathCallback = null;
                     }
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error processing file chooser intent result", e);
-            } finally {
-                // Critical: ALWAYS call onReceiveValue (even with null) and clear reference
-                // to prevent WebView from permanently locking file chooser triggers!
-                filePathCallback.onReceiveValue(results);
-                filePathCallback = null;
+        );
+
+        // Runtime Permissions Launcher
+        permissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                resultMap -> {
+                    boolean cameraGranted = resultMap.containsKey(Manifest.permission.CAMERA) &&
+                            Boolean.TRUE.equals(resultMap.get(Manifest.permission.CAMERA));
+                    if (cameraGranted) {
+                        Log.i(TAG, "Camera permission granted for receipt scanning");
+                    }
+                }
+        );
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalCacheDir() != null ? getExternalCacheDir() : getCacheDir();
+        return File.createTempFile(imageFileName, ".jpg", storageDir);
+    }
+
+    private void requestAppPermissions() {
+        List<String> permissions = new ArrayList<>();
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.CAMERA);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECORD_AUDIO);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_MEDIA_IMAGES);
+            }
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
             }
         }
+
+        if (!permissions.isEmpty()) {
+            permissionLauncher.launch(permissions.toArray(new String[0]));
+        }
+    }
+
+    public WebView getWebView() {
+        return webView;
     }
 
     @Override

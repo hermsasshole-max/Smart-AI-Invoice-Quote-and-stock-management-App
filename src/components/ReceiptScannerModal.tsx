@@ -22,43 +22,62 @@ interface ReceiptScannerModalProps {
 }
 
 /**
- * Client-side Image Compressor using HTML5 Canvas:
- * Prevents WebView Out-Of-Memory (OOM) crashes and payload limit issues
- * by resizing massive camera photos (4000x3000px) to max 1600x1600 at 0.82 JPEG quality.
+ * Offscreen Canvas Image Compressor:
+ * Scales massive high-res camera photos down to a maximum of 1600x1600px
+ * and compresses them to JPEG (0.8 quality) to prevent browser/WebView
+ * Out-Of-Memory (OOM) crashes and payload limit errors.
  */
-async function compressImage(file: File, maxWidth = 1600, maxHeight = 1600, quality = 0.82): Promise<string> {
+async function compressAndScaleImage(
+  file: File,
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.8
+): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Selected file is not an image.'));
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.onerror = () => reject(new Error('Failed to read photo from device storage.'));
     reader.onload = (e) => {
       const img = new Image();
-      img.onerror = () => reject(new Error('Failed to decode image'));
+      img.onerror = () => reject(new Error('Failed to decode image data for OCR.'));
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
+        try {
+          let width = img.width;
+          let height = img.height;
 
-        if (width > maxWidth || height > maxHeight) {
-          if (width / height > maxWidth / maxHeight) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          } else {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
+          // Scale dimensions while maintaining aspect ratio
+          if (width > maxWidth || height > maxHeight) {
+            if (width / height > maxWidth / maxHeight) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
           }
-        }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(e.target?.result as string);
-          return;
-        }
+          // Render into HTML5 offscreen canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext('2d');
 
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedBase64);
+          if (!ctx) {
+            // Fallback to original string if canvas context fails
+            resolve(e.target?.result as string);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedDataUrl);
+        } catch (canvasErr) {
+          reject(new Error('Image canvas rendering failed: ' + (canvasErr as Error).message));
+        }
       };
       img.src = e.target?.result as string;
     };
@@ -98,23 +117,35 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleImageUpload = async (file: File) => {
+  const handleProcessFile = async (file: File) => {
     setErrorMessage(null);
     setScanResult(null);
     setIsCompressing(true);
 
     try {
-      // Compress and downscale on client side to prevent Android OOM crashes
-      const compressedData = await compressImage(file);
-      setSelectedImage(compressedData);
+      // Compress and scale before sending to OCR
+      const compressedBase64 = await compressAndScaleImage(file, 1600, 1600, 0.8);
+      setSelectedImage(compressedBase64);
     } catch (err: any) {
-      console.error('Image compression error:', err);
-      setErrorMessage('Could not process the selected image. Please try another file.');
+      console.error('Photo processing error:', err);
+      setErrorMessage(err.message || 'Could not process the selected image. Please try again.');
     } finally {
       setIsCompressing(false);
-      // Reset input values so same file can be re-selected if needed
+      // Reset input element values so same file can be re-selected if necessary
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (cameraInputRef.current) cameraInputRef.current.value = '';
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleProcessFile(file);
+      }
+    } catch (err: any) {
+      console.error('File input change error:', err);
+      setErrorMessage('Failed to access selected file. Please grant file permissions.');
     }
   };
 
@@ -132,18 +163,24 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         },
         body: JSON.stringify({
           imageBase64: selectedImage,
-          mimeType: selectedImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+          mimeType: 'image/jpeg',
         }),
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to scan receipt image.');
+        let errMessage = 'Failed to extract invoice data.';
+        try {
+          const errData = await response.json();
+          errMessage = errData.error || errMessage;
+        } catch {
+          // Response was not JSON
+        }
+        throw new Error(errMessage);
       }
 
       const data = await response.json();
-      // Add default markup to parsed items
-      if (data.items) {
+      // Apply default business markup to parsed items
+      if (data.items && Array.isArray(data.items)) {
         data.items = data.items.map((item: any) => ({
           ...item,
           markupPct: profile.defaultMarkup || 35,
@@ -151,8 +188,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       }
       setScanResult(data);
     } catch (err: any) {
-      console.error('Scan error:', err);
-      setErrorMessage(err.message || 'Error communicating with AI OCR engine.');
+      console.error('Gemini AI OCR Scan error:', err);
+      setErrorMessage(
+        err.message || 'Error communicating with AI OCR engine. Check your internet connection and try again.'
+      );
     } finally {
       setIsScanning(false);
     }
@@ -246,23 +285,32 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-3 pt-2">
-                  <button
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>Take Photo (Camera)</span>
-                  </button>
+                {isCompressing ? (
+                  <div className="p-4 rounded-xl bg-sky-500/10 text-sky-400 text-xs flex items-center justify-center space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Optimizing photo resolution for mobile performance...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Take Photo (Camera)</span>
+                    </button>
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2.5 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 text-xs sm:text-sm font-semibold flex items-center space-x-2 border border-[#334155] cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Upload Image File</span>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2.5 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 text-xs sm:text-sm font-semibold flex items-center space-x-2 border border-[#334155] cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Upload Image File</span>
+                    </button>
+                  </div>
+                )}
 
                 <input
                   type="file"
@@ -270,14 +318,14 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   accept="image/*"
                   capture="environment"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                  onChange={handleFileInputChange}
                 />
                 <input
                   type="file"
                   ref={fileInputRef}
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                  onChange={handleFileInputChange}
                 />
               </div>
             </div>
@@ -291,6 +339,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   className="max-h-64 object-contain"
                 />
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedImage(null);
                     setScanResult(null);
@@ -305,6 +354,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               {/* Scan Trigger Button */}
               {!scanResult && (
                 <button
+                  type="button"
                   onClick={runOcrScan}
                   disabled={isScanning}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-sky-500/20 cursor-pointer active:scale-95 disabled:opacity-50"
@@ -325,7 +375,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Error Message Banner */}
           {errorMessage && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center space-x-2">
               <AlertCircle className="w-5 h-5 shrink-0" />
@@ -403,6 +453,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-[#282E3E]">
                 <button
+                  type="button"
                   onClick={handleApplyToInventory}
                   className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 text-xs font-bold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
                 >
@@ -412,6 +463,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
                 {onApplyItemsToQuote && (
                   <button
+                    type="button"
                     onClick={handleApplyToQuote}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
                   >
