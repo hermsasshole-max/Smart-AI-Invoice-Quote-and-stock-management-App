@@ -3,16 +3,24 @@ package com.harrys.aircon;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
@@ -25,13 +33,14 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -84,9 +93,8 @@ public class MainActivity extends AppCompatActivity {
             webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
 
-        // 4. Expose Native Android JavaScript Interface Bridge
-        WebAppInterface webAppInterface = new WebAppInterface(this);
-        webView.addJavascriptInterface(webAppInterface, "AndroidInterface");
+        // 4. Expose Native Android JavaScript Interface Bridge (both on MainActivity instance & WebAppInterface)
+        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidInterface");
 
         // 5. Configure WebViewClient for external app routing (WhatsApp, Tel, Mailto)
         webView.setWebViewClient(new WebViewClient() {
@@ -304,18 +312,121 @@ public class MainActivity extends AppCompatActivity {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_MEDIA_IMAGES);
             }
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-            }
+        } else {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
             }
         }
 
         if (!permissions.isEmpty()) {
             permissionLauncher.launch(permissions.toArray(new String[0]));
         }
+    }
+
+    /**
+     * Direct JavascriptInterface implementation for maximum compatibility
+     */
+    @JavascriptInterface
+    public void saveFile(String base64Data, String filename, String mimeType) {
+        if (base64Data == null || filename == null) {
+            Log.e(TAG, "saveFile error: base64Data or filename is null");
+            return;
+        }
+
+        try {
+            String rawBase64 = base64Data.contains(",") ? base64Data.split(",")[1] : base64Data;
+            byte[] fileBytes = Base64.decode(rawBase64, Base64.DEFAULT);
+
+            if (mimeType == null || mimeType.isEmpty()) {
+                mimeType = "application/octet-stream";
+            }
+
+            boolean savedSuccessfully = false;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10+ (API 29–35): MediaStore Downloads Collection (No storage permissions needed)
+                ContentResolver resolver = getContentResolver();
+                ContentValues contentValues = new ContentValues();
+                contentValues.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                contentValues.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+                contentValues.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/HarrysFieldOps");
+
+                Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues);
+                if (uri != null) {
+                    try (OutputStream outputStream = resolver.openOutputStream(uri)) {
+                        if (outputStream != null) {
+                            outputStream.write(fileBytes);
+                            outputStream.flush();
+                            savedSuccessfully = true;
+                        }
+                    }
+                }
+            } else {
+                // Android 9 and below: Direct filesystem writing to public Downloads directory
+                File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs();
+                }
+                File targetFile = new File(downloadsDir, filename);
+                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
+                    fos.write(fileBytes);
+                    fos.flush();
+                    savedSuccessfully = true;
+                }
+
+                // Notify media scanner so file appears immediately in Files app
+                MediaScannerConnection.scanFile(
+                        this,
+                        new String[]{targetFile.getAbsolutePath()},
+                        new String[]{mimeType},
+                        null
+                );
+            }
+
+            if (savedSuccessfully) {
+                final String finalFilename = filename;
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Saved to Downloads: " + finalFilename, Toast.LENGTH_LONG).show()
+                );
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving file to Downloads", e);
+            runOnUiThread(() ->
+                    Toast.makeText(MainActivity.this, "Failed to save file: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+            );
+        }
+    }
+
+    @JavascriptInterface
+    public void printDocument() {
+        runOnUiThread(() -> {
+            try {
+                if (webView == null) return;
+                PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                if (printManager != null) {
+                    PrintDocumentAdapter printAdapter;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        printAdapter = webView.createPrintDocumentAdapter("Harrys_Document");
+                    } else {
+                        printAdapter = webView.createPrintDocumentAdapter();
+                    }
+
+                    printManager.print(
+                            "Harrys_Invoice_Quote",
+                            printAdapter,
+                            new PrintAttributes.Builder().build()
+                    );
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error invoking Android PrintManager", e);
+                Toast.makeText(MainActivity.this, "Print error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     public WebView getWebView() {
