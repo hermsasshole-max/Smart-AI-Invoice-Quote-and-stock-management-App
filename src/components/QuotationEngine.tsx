@@ -10,6 +10,7 @@ import {
 } from '../utils/calculator';
 import { exportToPDF, exportToExcel, exportToWord, exportToPlainText } from '../utils/multiFormatExport';
 import { VoiceInvoiceWizard } from './VoiceInvoiceWizard';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 import {
   FileText,
   Plus,
@@ -36,6 +37,7 @@ import {
   File,
   X,
   Percent,
+  Eye,
 } from 'lucide-react';
 
 export const QuotationEngine: React.FC = () => {
@@ -57,6 +59,7 @@ export const QuotationEngine: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isVoiceWizardOpen, setIsVoiceWizardOpen] = useState(false);
   const [editingQuote, setEditingQuote] = useState<Quotation | null>(null);
+  const [previewQuote, setPreviewQuote] = useState<Quotation | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [openExportMenuId, setOpenExportMenuId] = useState<string | null>(null);
 
@@ -754,6 +757,16 @@ export const QuotationEngine: React.FC = () => {
                         <span>WhatsApp</span>
                       </a>
 
+                      {/* Preview & Save / Export Modal Trigger */}
+                      <button
+                        onClick={() => setPreviewQuote(quote)}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#0284C7]/20 text-[#38BDF8] border border-[#0284C7]/40 hover:bg-[#0284C7]/30 text-xs font-bold flex items-center space-x-1"
+                        title="View Document & Save to Phone"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Preview & Share</span>
+                      </button>
+
                       {/* Multi-Format Export Dropdown */}
                       <div className="relative">
                         <button
@@ -769,6 +782,17 @@ export const QuotationEngine: React.FC = () => {
 
                         {openExportMenuId === quote.id && (
                           <div className="absolute left-0 mt-1 w-44 rounded-xl bg-[#232838] border border-[#334155] shadow-2xl z-30 py-1 font-mono text-xs">
+                            <button
+                              onClick={() => {
+                                setPreviewQuote(quote);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-[#38BDF8] font-bold border-b border-[#334155]"
+                            >
+                              <Share2 className="w-4 h-4" />
+                              <span>Save to Phone / Share</span>
+                            </button>
+
                             <button
                               onClick={() => {
                                 exportToPDF('quote', quote, profile);
@@ -1181,6 +1205,16 @@ export const QuotationEngine: React.FC = () => {
         isOpen={isVoiceWizardOpen}
         onClose={() => setIsVoiceWizardOpen(false)}
         onSuccess={() => setIsVoiceWizardOpen(false)}
+      />
+
+      {/* Document Preview & Android Storage Export Modal */}
+      <DocumentPreviewModal
+        isOpen={!!previewQuote}
+        onClose={() => setPreviewQuote(null)}
+        docType="quote"
+        data={previewQuote}
+        profile={profile}
+        sunlightMode={sunlightMode}
       />
     </div>
   );

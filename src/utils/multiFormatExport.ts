@@ -11,21 +11,97 @@ import {
   HeadingLevel,
   AlignmentType,
   WidthType,
-  BorderStyle,
 } from 'docx';
 import { Quotation, Invoice, BusinessProfile, QuoteLineItem } from '../types';
 import { formatZAR } from './calculator';
 
 export type ExportFormat = 'pdf' | 'xlsx' | 'docx' | 'txt';
 
+export interface ExportResult {
+  success: boolean;
+  method: 'share' | 'download' | 'open' | 'blob';
+  filename: string;
+  blobUrl?: string;
+}
+
 /**
- * Generate PDF for Quotation or Invoice with Harry's Aircon Electrical & Solar Brand Identity
+ * Universal Mobile/Android & Desktop file delivery:
+ * 1. Checks for Android/Mobile Web Share API with files support for native "Save to Device / Drive / WhatsApp / Downloads"
+ * 2. Falls back to direct browser blob anchor download
+ * 3. Falls back to window.open for strict iframe / popup sandbox environments
  */
-export function exportToPDF(
+export async function saveOrShareFile(options: {
+  blob: Blob;
+  filename: string;
+  mimeType: string;
+  title: string;
+  text?: string;
+  forceDirectDownload?: boolean;
+}): Promise<ExportResult> {
+  const { blob, filename, mimeType, title, text, forceDirectDownload } = options;
+
+  // 1. Check if user is on mobile and Web Share API can share files (Native Android / iOS Share Sheet)
+  if (!forceDirectDownload && typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: title || filename,
+          text: text || `${title} from Harry's Aircon Electrical & Solar Services`,
+        });
+        return { success: true, method: 'share', filename };
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // User closed or dismissed the share sheet
+        return { success: true, method: 'share', filename };
+      }
+      console.warn('Native Web Share failed, falling back to download:', err);
+    }
+  }
+
+  // 2. Direct Blob Download Anchor
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      // Revoke after 20s to ensure download stream initiated
+      setTimeout(() => URL.revokeObjectURL(url), 20000);
+    }, 250);
+
+    return { success: true, method: 'download', filename, blobUrl: url };
+  } catch (err) {
+    console.error('Direct download failed:', err);
+    const url = URL.createObjectURL(blob);
+    try {
+      window.open(url, '_blank');
+      return { success: true, method: 'open', filename, blobUrl: url };
+    } catch {
+      return { success: false, method: 'blob', filename, blobUrl: url };
+    }
+  }
+}
+
+/**
+ * Generate jsPDF Document Instance
+ */
+export function buildJsPDFDocument(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile
-) {
+): jsPDF {
   const isInvoice = docType === 'invoice';
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -298,20 +374,48 @@ export function exportToPDF(
     285
   );
 
-  doc.save(`${docNumber}_${data.clientName.replace(/\s+/g, '_')}.pdf`);
+  return doc;
+}
+
+/**
+ * Generate PDF for Quotation or Invoice with Harry's Brand Identity and save/share
+ */
+export async function exportToPDF(
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile,
+  forceDirectDownload = false
+): Promise<ExportResult> {
+  const doc = buildJsPDFDocument(docType, data, profile);
+  const isInvoice = docType === 'invoice';
+  const docTitle = isInvoice ? 'Tax Invoice' : 'Quotation';
+  const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.pdf`;
+
+  const blob = doc.output('blob');
+  return await saveOrShareFile({
+    blob,
+    filename,
+    mimeType: 'application/pdf',
+    title: `${docTitle} ${docNumber} - ${data.clientName}`,
+    text: `Here is your official ${docTitle} ${docNumber} from Harry's Aircon Electrical and Solar Services for ${formatZAR(data.totalAmount)}.`,
+    forceDirectDownload,
+  });
 }
 
 /**
  * Generate Excel (.xlsx) spreadsheet with Official Brand Headers
  */
-export function exportToExcel(
+export async function exportToExcel(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
-  profile: BusinessProfile
-) {
+  profile: BusinessProfile,
+  forceDirectDownload = false
+): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.xlsx`;
 
   const rows: any[][] = [
     [profile.companyName.toUpperCase()],
@@ -400,7 +504,19 @@ export function exportToExcel(
     { wch: 18 },
   ];
 
-  XLSX.writeFile(workbook, `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.xlsx`);
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  return await saveOrShareFile({
+    blob,
+    filename,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    title: `${docTitle} ${docNumber} Spreadsheet`,
+    text: `Spreadsheet export for ${docTitle} ${docNumber}`,
+    forceDirectDownload,
+  });
 }
 
 /**
@@ -409,12 +525,13 @@ export function exportToExcel(
 export async function exportToWord(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
-  profile: BusinessProfile
-) {
+  profile: BusinessProfile,
+  forceDirectDownload = false
+): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const headerFill = '1B1E28'; // Deep Slate
+  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.docx`;
   const tableFill = isInvoice ? '0284C7' : '0E7490'; // Cyan / Teal
 
   const tableRows: TableRow[] = [
@@ -620,25 +737,29 @@ export async function exportToWord(
   });
 
   const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.docx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return await saveOrShareFile({
+    blob,
+    filename,
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    title: `${docTitle} ${docNumber} Word Document`,
+    text: `Word Doc export for ${docTitle} ${docNumber}`,
+    forceDirectDownload,
+  });
 }
 
 /**
  * Generate Plain Text (.txt) summary
  */
-export function exportToPlainText(
+export async function exportToPlainText(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
-  profile: BusinessProfile
-) {
+  profile: BusinessProfile,
+  forceDirectDownload = false
+): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.txt`;
 
   const lines = [
     '======================================================================',
@@ -725,11 +846,13 @@ export function exportToPlainText(
 
   const textContent = lines.join('\n');
   const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return await saveOrShareFile({
+    blob,
+    filename,
+    mimeType: 'text/plain',
+    title: `${docTitle} ${docNumber} Plain Text`,
+    text: `Plain text summary for ${docTitle} ${docNumber}`,
+    forceDirectDownload,
+  });
 }
 
