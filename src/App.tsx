@@ -1,71 +1,75 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { QuotationEngine } from './components/QuotationEngine';
 import { InvoicingPipeline } from './components/InvoicingPipeline';
-import { ReceiptScannerModal } from './components/ReceiptScannerModal';
-import { InventoryManager } from './components/InventoryManager';
 import { ClientsDirectory } from './components/ClientsDirectory';
-import { SqlSchemaViewer } from './components/SqlSchemaViewer';
+import { InventoryManager } from './components/InventoryManager';
 import { SettingsManager } from './components/SettingsManager';
+import { SqlSchemaViewer } from './components/SqlSchemaViewer';
+import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 
-const MainContent: React.FC = () => {
-  const { activeTab, sunlightMode } = useApp();
+const AppContent: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const { sunlightMode } = useApp();
 
   return (
     <div
       className={`min-h-screen flex flex-col transition-colors duration-200 ${
-        sunlightMode ? 'bg-[#FFFBEB] text-black font-sans' : 'bg-[#0A0A0B] text-[#E0E0E0] font-sans'
+        sunlightMode ? 'bg-[#F1F5F9] text-[#0F172A]' : 'bg-[#0E1017] text-slate-100'
       }`}
     >
-      <Navbar />
-      <main className="flex-1 pb-12">
-        {activeTab === 'dashboard' && <Dashboard />}
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        openReceiptScanner={() => setIsScannerOpen(true)}
+      />
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6">
+        {activeTab === 'dashboard' && (
+          <Dashboard
+            setActiveTab={setActiveTab}
+            openReceiptScanner={() => setIsScannerOpen(true)}
+          />
+        )}
         {activeTab === 'quotes' && <QuotationEngine />}
         {activeTab === 'invoices' && <InvoicingPipeline />}
-        {activeTab === 'scanner' && <ReceiptScannerModal />}
-        {activeTab === 'inventory' && <InventoryManager />}
         {activeTab === 'clients' && <ClientsDirectory />}
+        {activeTab === 'inventory' && <InventoryManager />}
         {activeTab === 'schema' && <SqlSchemaViewer />}
         {activeTab === 'settings' && <SettingsManager />}
       </main>
 
-      {/* Technical Data Grid Telemetry Footer */}
       <footer
-        className={`border-t px-4 md:px-6 py-2.5 flex flex-col sm:flex-row justify-between items-center text-[10px] font-mono shrink-0 gap-2 ${
+        className={`py-4 border-t text-center text-xs font-mono transition-colors ${
           sunlightMode
-            ? 'bg-amber-200 border-amber-400 text-black font-bold'
-            : 'bg-[#111113] border-[#2D2D30] text-[#707070]'
+            ? 'bg-white border-[#CBD5E1] text-slate-600'
+            : 'bg-[#151722] border-[#282E3E] text-slate-500'
         }`}
       >
-        <div className="flex flex-wrap items-center gap-4 uppercase tracking-wider">
-          <span className="text-[#A0A0A5]">GPS LOC: <span className={sunlightMode ? 'text-black' : 'text-[#E0E0E0]'}>-33.9249° S, 18.4241° E</span></span>
-          <span className="opacity-40">|</span>
-          <span className="text-[#A0A0A5]">WEATHER: <span className={sunlightMode ? 'text-black' : 'text-[#E0E0E0]'}>24°C CLEAR</span></span>
-          <span className="opacity-40">|</span>
-          <span className="text-[#A0A0A5]">LOAD SHEDDING: <span className="text-[#00FF41] font-bold">STAGE 0 (STABLE)</span></span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-[#00FF41] font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00FF41] animate-ping"></span>
-            SQLITE SYNCED: JUST NOW
-          </span>
-          <span className="opacity-40">|</span>
-          <span>BATTERY: 92%</span>
-          <span className="opacity-40">|</span>
-          <span className="uppercase text-[#A0A0A5]">SOUTH AFRICA (SAST UTC+2)</span>
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+          <span>Harry's Air Conditioning & Electrical Services (Pty) Ltd</span>
+          <span>SANS 10142-1 Compliance • ZAR Financial Engine</span>
         </div>
       </footer>
+
+      {/* Global Receipt Scanner Modal */}
+      <ReceiptScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+      />
     </div>
   );
 };
 
-export default function App() {
+export const App: React.FC = () => {
   return (
     <AppProvider>
-      <MainContent />
+      <AppContent />
     </AppProvider>
   );
-}
+};
+
+export default App;

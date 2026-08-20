@@ -1,40 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-    <meta name="description" content="An application built with Google AI Studio." />
-    <meta property="og:title" content="My Google AI Studio App" />
-    <meta property="og:description" content="An application built with Google AI Studio." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <script>
-      window.addEventListener('error', function(e) {
-        var el = document.getElementById('runtime-error-display');
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'runtime-error-display';
-          el.style.cssText = 'color:#ff4444;background:#18181b;border:2px solid #ff4444;border-radius:8px;padding:20px;margin:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;z-index:999999;position:relative;';
-          document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(el); });
-        }
-        el.innerHTML = '<b>Runtime Error:</b>\n' + (e.message || e.toString()) + '\n\n<b>File:</b> ' + (e.filename || 'unknown') + ':' + (e.lineno || '') + ':' + (e.colno || '') + '\n\n<b>Stack:</b>\n' + (e.error && e.error.stack ? e.error.stack : 'N/A');
-      });
-      window.addEventListener('unhandledrejection', function(e) {
-        var el = document.getElementById('runtime-error-display');
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'runtime-error-display';
-          el.style.cssText = 'color:#ff4444;background:#18181b;border:2px solid #ff4444;border-radius:8px;padding:20px;margin:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;z-index:999999;position:relative;';
-          document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(el); });
-        }
-        el.innerHTML = '<b>Unhandled Promise Rejection:</b>\n' + (e.reason && e.reason.stack ? e.reason.stack : (e.reason || e));
-      });
-    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230284C7'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1B1E28" />
+    <title>Harrys Aircon, Electrical & Solar Services</title>
   </head>
-  <body>
+  <body class="bg-[#12141C] text-[#F8FAFC] min-h-screen selection:bg-[#0284C7] selection:text-white">
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

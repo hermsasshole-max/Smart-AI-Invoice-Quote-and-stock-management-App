@@ -1,590 +1,392 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { InventoryItem, ServiceCategory } from '../types';
-import { formatZAR, calculateSellingPrice, calculateMarkupPct } from '../utils/calculator';
+import { InventoryItem } from '../types';
+import { formatZAR, calculateSellingPrice } from '../utils/calculator';
 import {
   Package,
   Plus,
-  Search,
-  AlertTriangle,
-  Flame,
-  Zap,
-  Sun,
-  Shield,
   Trash2,
   Edit2,
-  RefreshCw,
+  Search,
+  AlertCircle,
   TrendingUp,
-  CheckCircle2,
-  Scale,
-  Sliders,
-  Filter,
   X,
+  Check,
 } from 'lucide-react';
 
 export const InventoryManager: React.FC = () => {
-  const {
-    inventory,
-    addInventoryItem,
-    updateInventoryItem,
-    deleteInventoryItem,
-    adjustStockOnHand,
-    updateCanisterWeight,
-    lowStockItems,
-    sunlightMode,
-    profile,
-    setActiveTab,
-  } = useApp();
+  const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, profile, sunlightMode } = useApp();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'All' | ServiceCategory>('All');
-  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // New Item Form State
-  const [newSku, setNewSku] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newCategory, setNewCategory] = useState<ServiceCategory>('Electrical');
-  const [newUnit, setNewUnit] = useState<'ea' | 'm' | 'roll' | 'kg' | 'canister' | 'box' | 'pair' | 'lot'>('ea');
-  const [newCostPrice, setNewCostPrice] = useState<number>(100);
-  const [newMarkupPct, setNewMarkupPct] = useState<number>(profile.rates.defaultMaterialMarkupPct || 30);
-  const [newStockOnHand, setNewStockOnHand] = useState<number>(5);
-  const [newMinStock, setNewMinStock] = useState<number>(2);
-  const [newSupplier, setNewSupplier] = useState('Voltex');
-  const [newCanisterWeight, setNewCanisterWeight] = useState<number | undefined>(undefined);
+  const [sku, setSku] = useState('');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<'Electrical' | 'Air Conditioning' | 'Solar & Backup' | 'Security & CCTV' | 'Hardware'>('Electrical');
+  const [costPrice, setCostPrice] = useState<number>(0);
+  const [defaultMarkup, setDefaultMarkup] = useState<number>(35);
+  const [unit, setUnit] = useState('ea');
+  const [stockQty, setStockQty] = useState<number>(10);
+  const [minStockLevel, setMinStockLevel] = useState<number>(2);
+  const [supplier, setSupplier] = useState('Voltex');
 
-  // Filter items
-  const filteredInventory = inventory.filter((item) => {
-    const matchCategory = selectedCategory === 'All' || item.category === selectedCategory;
-    const matchSearch =
-      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.supplierRef && item.supplierRef.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchLowStock = !showLowStockOnly || item.stockOnHand <= item.minStockAlert;
-    return matchCategory && matchSearch && matchLowStock;
+  const filteredItems = inventory.filter((item) => {
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.supplier?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCat = filterCategory === 'All' || item.category === filterCategory;
+    return matchesSearch && matchesCat;
   });
 
-  const handleAddNewItem = () => {
-    if (!newDescription.trim()) {
-      alert('Please provide an item description.');
-      return;
-    }
-
-    const calculatedSelling = calculateSellingPrice(newCostPrice, newMarkupPct);
-
-    addInventoryItem({
-      sku: newSku.trim() || `SKU-${Math.floor(10000 + Math.random() * 90000)}`,
-      description: newDescription.trim(),
-      category: newCategory,
-      unit: newUnit,
-      costPrice: newCostPrice,
-      markupPct: newMarkupPct,
-      sellingPrice: calculatedSelling,
-      stockOnHand: newStockOnHand,
-      minStockAlert: newMinStock,
-      supplierRef: newSupplier,
-      canisterWeightKg: newCanisterWeight,
-    });
-
-    setIsAddingNew(false);
-    setNewSku('');
-    setNewDescription('');
-    setNewCostPrice(100);
+  const openAdd = () => {
+    setEditingId(null);
+    setSku('SKU-' + Math.floor(1000 + Math.random() * 9000));
+    setName('');
+    setCategory('Electrical');
+    setCostPrice(100);
+    setDefaultMarkup(profile.defaultMarkup || 35);
+    setUnit('ea');
+    setStockQty(10);
+    setMinStockLevel(2);
+    setSupplier('Voltex');
+    setIsModalOpen(true);
   };
 
-  const handleSaveItemEdit = (item: InventoryItem) => {
-    if (!item.description.trim()) {
-      alert('Description cannot be empty.');
+  const openEdit = (item: InventoryItem) => {
+    setEditingId(item.id);
+    setSku(item.sku);
+    setName(item.name);
+    setCategory(item.category as any);
+    setCostPrice(item.costPrice);
+    setDefaultMarkup(item.defaultMarkup);
+    setUnit(item.unit);
+    setStockQty(item.stockQty);
+    setMinStockLevel(item.minStockLevel);
+    setSupplier(item.supplier || '');
+    setIsModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!name || costPrice <= 0) {
+      alert('Please provide valid name and cost price.');
       return;
     }
-    const sellingPrice = calculateSellingPrice(item.costPrice, item.markupPct);
-    updateInventoryItem(item.id, {
-      ...item,
-      sellingPrice,
-    });
-    setEditingItem(null);
+
+    const sellingPrice = calculateSellingPrice(costPrice, defaultMarkup);
+
+    if (editingId) {
+      updateInventoryItem(editingId, {
+        sku,
+        name,
+        category,
+        costPrice,
+        defaultMarkup,
+        sellingPrice,
+        unit,
+        stockQty,
+        minStockLevel,
+        supplier,
+      });
+    } else {
+      addInventoryItem({
+        sku,
+        name,
+        category,
+        costPrice,
+        defaultMarkup,
+        sellingPrice,
+        unit,
+        stockQty,
+        minStockLevel,
+        supplier,
+      });
+    }
+
+    setIsModalOpen(false);
   };
 
   return (
-    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#F8FAFC]'}`}>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155] pb-4">
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase tracking-wider">
-              ZAR PRICE BOOK & VAN STOCK
+          <h2 className="text-xl sm:text-2xl font-black text-white flex items-center space-x-2">
+            <span>Van Stock & Materials Catalog</span>
+            <span className="text-xs px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30 font-mono">
+              {inventory.length} SKUs
             </span>
-            <span className="text-[11px] font-mono text-[#94A3B8]">STOCK DEDUCTIONS • OCR SCANNING</span>
-          </div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-white">
-            Inventory & Price Book
           </h2>
-          <p className="text-xs font-mono text-[#94A3B8] mt-0.5">
-            Maintain South African trade cost prices, automated retail markups, refrigerant gas weights, and on-site van stock levels.
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Track wholesale trade cost prices, tiered contractor markups, and reorder levels across service vehicles.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 font-mono">
-          <button
-            onClick={() => setActiveTab('scanner')}
-            className="px-3.5 py-2 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1.5 shadow"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Scan Receipt / Invoice</span>
-          </button>
-
-          <button
-            id="btn-add-inventory-item"
-            onClick={() => setIsAddingNew(!isAddingNew)}
-            className={`px-4 py-2 rounded-lg font-bold text-xs uppercase flex items-center space-x-1.5 transition-all shadow ${
-              isAddingNew
-                ? 'bg-[#232838] text-[#94A3B8] border border-[#334155]'
-                : sunlightMode
-                ? 'bg-amber-400 text-black border-2 border-black font-extrabold'
-                : 'bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] shadow-lg shadow-[#38BDF833]'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            <span>{isAddingNew ? 'Cancel' : '+ Add Catalog Item'}</span>
-          </button>
-        </div>
+        <button
+          onClick={openAdd}
+          className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Catalog Item</span>
+        </button>
       </div>
 
-      {/* Add New Item Drawer */}
-      {isAddingNew && (
-        <div
-          className={`p-5 rounded-2xl border space-y-4 shadow-2xl ${
-            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#232838] border-[#334155]'
-          }`}
-        >
-          <h3 className="font-bold text-xs uppercase tracking-widest text-[#38BDF8] flex items-center space-x-2 font-mono">
-            <Package className="w-4 h-4 text-[#38BDF8]" />
-            <span>ADD NEW ITEM TO ZAR PRICE BOOK</span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">SKU / Code</label>
-              <input
-                type="text"
-                placeholder="e.g. ELEC-CB-63A"
-                value={newSku}
-                onChange={(e) => setNewSku(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Description / Spec *</label>
-              <input
-                type="text"
-                placeholder="e.g. CBI 63A Double Pole Main Switch 240V"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Category</label>
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value as ServiceCategory)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-bold focus:border-[#38BDF8] focus:outline-none"
-              >
-                <option value="Electrical">Electrical</option>
-                <option value="HVAC">HVAC</option>
-                <option value="Solar">Solar</option>
-                <option value="Refrigeration">Refrigeration</option>
-                <option value="Security">Security</option>
-                <option value="Consumables">Consumables</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Unit of Measure</label>
-              <select
-                value={newUnit}
-                onChange={(e) => setNewUnit(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
-              >
-                <option value="ea">Each (ea)</option>
-                <option value="m">Meter (m)</option>
-                <option value="roll">Roll (roll)</option>
-                <option value="kg">Kilogram (kg)</option>
-                <option value="canister">Gas Canister (canister)</option>
-                <option value="box">Box (box)</option>
-                <option value="lot">Lot (lot)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Cost Price (Excl VAT)</label>
-              <input
-                type="number"
-                value={newCostPrice}
-                onChange={(e) => setNewCostPrice(Number(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Markup %</label>
-              <input
-                type="number"
-                value={newMarkupPct}
-                onChange={(e) => setNewMarkupPct(Number(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#10B981] font-bold focus:border-[#38BDF8] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Stock on Hand</label>
-              <input
-                type="number"
-                value={newStockOnHand}
-                onChange={(e) => setNewStockOnHand(Number(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-2 border-t border-[#334155] font-mono">
-            <button
-              onClick={() => setIsAddingNew(false)}
-              className="px-3 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#94A3B8] text-xs font-bold uppercase hover:text-white"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddNewItem}
-              className="px-5 py-2 rounded-lg bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] font-bold text-xs uppercase shadow-lg shadow-[#38BDF833]"
-            >
-              Save to Catalog
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Search & Category Filter Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="relative flex-1 font-mono">
-          <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5" />
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by description, SKU, or supplier (Voltex, Metraclark, ARB)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-lg bg-[#232838] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by part name, SKU, or supplier..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1B1E28] border border-[#282E3E] text-white text-xs sm:text-sm focus:outline-none focus:border-sky-500"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-          {(['All', 'Electrical', 'HVAC', 'Solar', 'Refrigeration', 'Security', 'Consumables'] as const).map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat as any)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all ${
-                selectedCategory === cat
-                  ? 'bg-[#38BDF8] text-[#1B1E28] shadow'
-                  : 'bg-[#232838] border border-[#334155] text-[#94A3B8] hover:text-[#F8FAFC]'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-
-          <button
-            onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center space-x-1 transition-all ${
-              showLowStockOnly
-                ? 'bg-[#EF4444] text-white shadow'
-                : 'bg-[#232838] border border-[#334155] text-[#94A3B8] hover:text-[#F8FAFC]'
-            }`}
-          >
-            <AlertTriangle className="w-3 h-3" />
-            <span>Low Stock ({lowStockItems.length})</span>
-          </button>
-        </div>
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="px-3 py-2.5 rounded-xl bg-[#1B1E28] border border-[#282E3E] text-white text-xs sm:text-sm font-semibold focus:outline-none focus:border-sky-500"
+        >
+          <option value="All">All Categories</option>
+          <option value="Electrical">Electrical</option>
+          <option value="Air Conditioning">Air Conditioning</option>
+          <option value="Solar & Backup">Solar & Backup</option>
+          <option value="Security & CCTV">Security & CCTV</option>
+          <option value="Hardware">Hardware</option>
+        </select>
       </div>
 
-      {/* Inventory Items Grid */}
-      <div className="space-y-3">
-        {filteredInventory.length === 0 ? (
-          <div className="p-8 text-center text-[#94A3B8] border border-dashed border-[#334155] rounded-xl text-xs font-mono uppercase">
-            No inventory items matching current search or filters.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredInventory.map((item) => {
-              const isLow = item.stockOnHand <= item.minStockAlert;
-              return (
-                <div
-                  key={item.id}
-                  className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
-                    isLow
-                      ? sunlightMode
-                        ? 'bg-rose-100 border-2 border-rose-600 text-black'
-                        : 'bg-[#232838] border-red-500/50'
-                      : sunlightMode
-                      ? 'bg-white border-2 border-black text-black'
-                      : 'bg-[#232838] border-[#334155] text-[#F8FAFC] hover:border-[#38BDF8]/50'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-1 mb-1 font-mono">
-                      <span className="text-[10px] font-bold text-[#38BDF8] bg-[#1B1E28] px-1.5 py-0.5 rounded border border-[#38BDF8]/30">
-                        {item.sku}
-                      </span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1B1E28] text-[#94A3B8] border border-[#334155]">
+      {/* Inventory Table */}
+      <div className={`rounded-2xl border overflow-hidden ${sunlightMode ? 'bg-white border-slate-300' : 'bg-[#1B1E28] border-[#282E3E]'}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#12141C] text-slate-400 font-mono uppercase text-[10px] border-b border-[#282E3E]">
+                <th className="p-3.5">SKU & Item Description</th>
+                <th className="p-3.5">Category</th>
+                <th className="p-3.5">Supplier</th>
+                <th className="p-3.5 text-right">Cost Price (Excl)</th>
+                <th className="p-3.5 text-center">Markup</th>
+                <th className="p-3.5 text-right">Selling Rate</th>
+                <th className="p-3.5 text-center">Van Stock</th>
+                <th className="p-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#282E3E]">
+              {filteredItems.map((item) => {
+                const isLow = item.stockQty <= item.minStockLevel;
+
+                return (
+                  <tr key={item.id} className="hover:bg-[#151824] transition-all">
+                    <td className="p-3.5">
+                      <div className="font-bold text-white text-sm">{item.name}</div>
+                      <span className="font-mono text-[10px] text-slate-400">{item.sku}</span>
+                    </td>
+                    <td className="p-3.5">
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30">
                         {item.category}
                       </span>
-                    </div>
-
-                    <h4 className="font-bold text-sm text-white line-clamp-2 mt-1 font-sans">
-                      {item.description}
-                    </h4>
-
-                    {item.canisterWeightKg !== undefined && (
-                      <div className="mt-2 p-2 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30 text-xs font-mono text-[#38BDF8] flex items-center justify-between">
-                        <div className="flex items-center space-x-1">
-                          <Scale className="w-3.5 h-3.5 text-[#38BDF8]" />
-                          <span>Gas Canister: {item.canisterWeightKg} kg</span>
-                        </div>
+                    </td>
+                    <td className="p-3.5 text-slate-400 font-medium">{item.supplier || 'N/A'}</td>
+                    <td className="p-3.5 text-right font-mono text-slate-300 font-semibold">
+                      {formatZAR(item.costPrice)}
+                    </td>
+                    <td className="p-3.5 text-center font-mono text-amber-400 font-bold">
+                      +{item.defaultMarkup}%
+                    </td>
+                    <td className="p-3.5 text-right font-mono text-emerald-400 font-black text-sm">
+                      {formatZAR(item.sellingPrice)}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <span
+                        className={`inline-flex items-center space-x-1 font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
+                          isLow
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                            : 'bg-emerald-500/10 text-emerald-400'
+                        }`}
+                      >
+                        {isLow && <AlertCircle className="w-3 h-3" />}
+                        <span>
+                          {item.stockQty} {item.unit}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right">
+                      <div className="flex justify-end space-x-1.5">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-[#282E3E]"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => {
-                            const newW = prompt('Enter new cylinder gross weight (kg):', String(item.canisterWeightKg));
-                            if (newW) updateCanisterWeight(item.id, parseFloat(newW) || item.canisterWeightKg!);
+                            if (confirm(`Delete ${item.name}?`)) {
+                              deleteInventoryItem(item.id);
+                            }
                           }}
-                          className="text-[10px] font-bold text-[#38BDF8] underline uppercase"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10"
                         >
-                          Weigh
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-                    <div className="mt-2 pt-2 border-t border-[#334155] grid grid-cols-2 gap-2 text-xs font-mono">
-                      <div>
-                        <span className="text-[10px] text-[#94A3B8] uppercase block">Trade Cost</span>
-                        <span className="font-bold text-[#F8FAFC]">{formatZAR(item.costPrice)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-[#94A3B8] uppercase block">Retail Quote (+{item.markupPct}%)</span>
-                        <span className="font-bold text-[#10B981]">{formatZAR(item.sellingPrice)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stock On Hand & Stepper Controls */}
-                  <div className="pt-2 border-t border-[#334155] flex items-center justify-between font-mono">
-                    <div>
-                      <div className="text-[10px] text-[#94A3B8] uppercase">Stock on Hand</div>
-                      <div className={`text-xs font-bold ${isLow ? 'text-red-400' : 'text-[#F8FAFC]'}`}>
-                        {item.stockOnHand} {item.unit} {isLow && '⚠️ LOW'}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => adjustStockOnHand(item.id, -1)}
-                        className="w-7 h-7 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] hover:bg-[#232838] font-bold text-xs flex items-center justify-center hover:border-[#38BDF8]"
-                        title="Deduct 1 unit"
-                      >
-                        -1
-                      </button>
-
-                      <button
-                        onClick={() => adjustStockOnHand(item.id, 1)}
-                        className="w-7 h-7 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#10B981] hover:bg-[#232838] font-bold text-xs flex items-center justify-center hover:border-[#10B981]"
-                        title="Add 1 unit"
-                      >
-                        +1
-                      </button>
-
-                      <button
-                        onClick={() => setEditingItem(JSON.parse(JSON.stringify(item)))}
-                        className="w-7 h-7 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] hover:bg-[#232838] flex items-center justify-center hover:border-[#38BDF8]"
-                        title="Edit catalog item"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        className="w-7 h-7 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#94A3B8] hover:text-red-400 hover:border-red-500/40 flex items-center justify-center"
-                        title="Delete item"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {filteredItems.length === 0 && (
+          <div className="p-12 text-center text-slate-400 text-xs">
+            No inventory items match your filter criteria.
           </div>
         )}
       </div>
 
-      {/* Edit Item Modal */}
-      {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-xl p-5 rounded-2xl bg-[#232838] border border-[#334155] shadow-2xl space-y-4 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#334155] pb-2">
-              <div className="flex items-center space-x-2">
-                <Package className="w-4 h-4 text-[#38BDF8]" />
-                <h3 className="font-bold text-sm text-white uppercase">Edit Catalog Item: {editingItem.sku}</h3>
-              </div>
-              <button onClick={() => setEditingItem(null)} className="text-[#94A3B8] hover:text-white">
-                <X className="w-4 h-4" />
+      {/* Add / Edit Item Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-[#282E3E]">
+              <h3 className="font-bold text-white text-base">
+                {editingId ? 'Edit Inventory Item' : 'Add New Inventory SKU'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">SKU Code</label>
+                  <input
+                    type="text"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
+                  >
+                    <option value="Electrical">Electrical</option>
+                    <option value="Air Conditioning">Air Conditioning</option>
+                    <option value="Solar & Backup">Solar & Backup</option>
+                    <option value="Security & CCTV">Security & CCTV</option>
+                    <option value="Hardware">Hardware</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">SKU / Code</label>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Item Description *</label>
                 <input
                   type="text"
-                  value={editingItem.sku}
-                  onChange={(e) => setEditingItem({ ...editingItem, sku: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Alliance 12000 BTU Inverter Split Unit"
+                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Trade Category</label>
-                <select
-                  value={editingItem.category}
-                  onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value as ServiceCategory })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#38BDF8] font-bold focus:border-[#38BDF8] focus:outline-none"
-                >
-                  <option value="Electrical">Electrical</option>
-                  <option value="HVAC">HVAC</option>
-                  <option value="Solar">Solar</option>
-                  <option value="Refrigeration">Refrigeration</option>
-                  <option value="Security">Security</option>
-                  <option value="Consumables">Consumables</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Cost Price (ZAR) *</label>
+                  <input
+                    type="number"
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-amber-400 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Markup (%)</label>
+                  <input
+                    type="number"
+                    value={defaultMarkup}
+                    onChange={(e) => setDefaultMarkup(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono font-bold"
+                  />
+                </div>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Description / Spec *</label>
+              <div className="p-3 rounded-xl bg-[#12141C] border border-[#282E3E] flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-mono">Calculated Selling Price:</span>
+                <span className="font-mono font-black text-emerald-400 text-sm">
+                  {formatZAR(calculateSellingPrice(costPrice, defaultMarkup))}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Unit</label>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="ea, m, roll"
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-center"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">In Van</label>
+                  <input
+                    type="number"
+                    value={stockQty}
+                    onChange={(e) => setStockQty(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-center font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Min Stock</label>
+                  <input
+                    type="number"
+                    value={minStockLevel}
+                    onChange={(e) => setMinStockLevel(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-center"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Supplier</label>
                 <input
                   type="text"
-                  value={editingItem.description}
-                  onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Cost Price (ZAR)</label>
-                <input
-                  type="number"
-                  value={editingItem.costPrice}
-                  onChange={(e) => {
-                    const cost = Number(e.target.value) || 0;
-                    const markup = editingItem.markupPct;
-                    setEditingItem({
-                      ...editingItem,
-                      costPrice: cost,
-                      sellingPrice: calculateSellingPrice(cost, markup),
-                    });
-                  }}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Markup %</label>
-                <input
-                  type="number"
-                  value={editingItem.markupPct}
-                  onChange={(e) => {
-                    const markup = Number(e.target.value) || 0;
-                    const cost = editingItem.costPrice;
-                    setEditingItem({
-                      ...editingItem,
-                      markupPct: markup,
-                      sellingPrice: calculateSellingPrice(cost, markup),
-                    });
-                  }}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#10B981] font-bold focus:border-[#38BDF8] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Stock On Hand</label>
-                <input
-                  type="number"
-                  value={editingItem.stockOnHand}
-                  onChange={(e) => setEditingItem({ ...editingItem, stockOnHand: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] font-bold focus:border-[#38BDF8] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] uppercase text-[#94A3B8] block mb-1">Min Stock Alert Level</label>
-                <input
-                  type="number"
-                  value={editingItem.minStockAlert}
-                  onChange={(e) => setEditingItem({ ...editingItem, minStockAlert: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1B1E28] border border-[#334155] text-[#F8FAFC] focus:border-[#38BDF8] focus:outline-none"
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                  placeholder="Voltex, ARB, Plumblink, ACDC Express"
+                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#334155]">
-              <span className="text-[#10B981] font-bold">
-                Calculated Selling Price: {formatZAR(editingItem.sellingPrice)}
-              </span>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setEditingItem(null)}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-[#94A3B8] hover:text-white border border-[#334155]"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSaveItemEdit(editingItem)}
-                  className="px-5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#34D399] text-[#1B1E28] font-bold uppercase shadow"
-                >
-                  Save Item
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Item Confirmation Modal */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md p-5 rounded-2xl bg-[#232838] border border-red-500/40 space-y-4 shadow-2xl font-mono">
-            <div className="flex items-center space-x-2 text-red-400">
-              <AlertTriangle className="w-5 h-5" />
-              <h3 className="font-bold text-sm uppercase">Delete Catalog Item</h3>
-            </div>
-            <p className="text-xs text-[#94A3B8]">
-              Are you sure you want to remove this item from your catalog?
-            </p>
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex justify-end space-x-3 pt-3 border-t border-[#282E3E]">
               <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="px-3.5 py-1.5 rounded-lg bg-[#1B1E28] text-xs text-[#94A3B8] hover:text-white border border-[#334155]"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] text-slate-300 text-xs font-bold"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  deleteInventoryItem(deleteConfirmId);
-                  setDeleteConfirmId(null);
-                }}
-                className="px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase shadow"
+                onClick={handleSave}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20"
               >
-                Delete
+                Save Item
               </button>
             </div>
           </div>

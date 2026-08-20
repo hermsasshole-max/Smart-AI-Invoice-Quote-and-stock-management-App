@@ -1,183 +1,159 @@
-import { QuoteLineItem, BusinessProfile } from '../types';
+import { BusinessProfile, Quotation, Invoice, QuoteLineItem } from '../types';
 
 /**
- * Format number as South African Rand (ZAR)
- * Example: R 1,450.00
+ * Format numbers as South African Rand (ZAR)
  */
 export function formatZAR(amount: number | undefined | null): string {
   if (amount === undefined || amount === null || isNaN(amount)) {
     return 'R 0.00';
   }
-  return `R ${Number(amount).toLocaleString('en-ZA', {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
-}
-
-/**
- * Clean South African phone number for WhatsApp international format
- * Example: '082 456 7890' -> '27824567890'
- */
-export function formatWhatsAppNumber(phone: string): string {
-  if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('0')) {
-    return `27${digits.substring(1)}`;
-  }
-  if (digits.startsWith('27')) {
-    return digits;
-  }
-  return digits;
-}
-
-/**
- * Generate a direct WhatsApp link with pre-composed professional message
- */
-export function getWhatsAppShareLink(phone: string, message: string): string {
-  const cleanPhone = formatWhatsAppNumber(phone);
-  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  }).format(amount);
 }
 
 /**
  * Calculate selling price from cost price and markup percentage
  */
 export function calculateSellingPrice(costPrice: number, markupPct: number): number {
-  return Number((costPrice * (1 + markupPct / 100)).toFixed(2));
+  const cost = Number(costPrice) || 0;
+  const markup = Number(markupPct) || 0;
+  return Number((cost * (1 + markup / 100)).toFixed(2));
 }
 
 /**
- * Calculate markup percentage from cost price and selling price
+ * Calculate line item total
  */
-export function calculateMarkupPct(costPrice: number, sellingPrice: number): number {
-  if (costPrice <= 0) return 0;
-  return Number((((sellingPrice - costPrice) / costPrice) * 100).toFixed(1));
+export function calculateLineTotal(quantity: number, unitPrice: number): number {
+  const qty = Number(quantity) || 0;
+  const price = Number(unitPrice) || 0;
+  return Number((qty * price).toFixed(2));
 }
 
 /**
- * Calculate quote or invoice totals based on South African technical contracting standards
+ * Calculate complete quotation / invoice financial breakdown
  */
-export interface CalculationResult {
-  materialsTotal: number;
-  labourTotal: number;
-  travelTotal: number;
-  calloutFee: number;
-  subtotal: number;
-  discountPct: number;
-  discountAmount: number;
-  subtotalAfterDiscount: number;
-  vatAmount: number;
-  totalAmount: number;
-}
+export function calculateDocumentTotals(
+  items: QuoteLineItem[],
+  calloutFee: number = 0,
+  labourHours: number = 0,
+  labourRatePerHour: number = 0,
+  travelDistanceKm: number = 0,
+  travelRatePerKm: number = 0,
+  discountPct: number = 0,
+  vatEnabled: boolean = true,
+  vatPercentage: number = 15
+) {
+  const itemsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+  const labourTotal = Number(((Number(labourHours) || 0) * (Number(labourRatePerHour) || 0)).toFixed(2));
+  const travelTotal = Number(((Number(travelDistanceKm) || 0) * (Number(travelRatePerKm) || 0)).toFixed(2));
+  const callout = Number(calloutFee) || 0;
 
-export function calculateTotals(params: {
-  items: QuoteLineItem[];
-  calloutFee: number;
-  masterLabourHours: number;
-  masterLabourRate: number;
-  assistantLabourHours: number;
-  assistantLabourRate: number;
-  travelKm: number;
-  travelRate: number;
-  travelIncludedKm?: number;
-  isAfterHours: boolean;
-  afterHoursMultiplier: number;
-  discountPct?: number;
-  vatEnabled: boolean;
-  vatRate: number;
-}): CalculationResult {
-  const {
-    items = [],
-    calloutFee = 0,
-    masterLabourHours = 0,
-    masterLabourRate = 0,
-    assistantLabourHours = 0,
-    assistantLabourRate = 0,
-    travelKm = 0,
-    travelRate = 0,
-    travelIncludedKm = 25,
-    isAfterHours = false,
-    afterHoursMultiplier = 1.5,
-    discountPct = 0,
-    vatEnabled = true,
-    vatRate = 15,
-  } = params;
+  const rawSubtotal = Number((itemsTotal + labourTotal + travelTotal + callout).toFixed(2));
+  const discountRate = Number(discountPct) || 0;
+  const discountAmount = Number(((rawSubtotal * discountRate) / 100).toFixed(2));
+  const subtotalAfterDiscount = Number((rawSubtotal - discountAmount).toFixed(2));
 
-  // 1. Materials Total from line items
-  const materialsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-
-  // 2. Base Labour Total
-  const multiplier = isAfterHours ? afterHoursMultiplier : 1.0;
-  const masterLabour = masterLabourHours * masterLabourRate * multiplier;
-  const assistantLabour = assistantLabourHours * assistantLabourRate * multiplier;
-  const labourTotal = masterLabour + assistantLabour;
-
-  // 3. Travel Total: km beyond included radius
-  const billableKm = Math.max(0, travelKm - travelIncludedKm);
-  const travelTotal = billableKm * travelRate;
-
-  // 4. Callout fee (subject to multiplier if emergency/after-hours)
-  const finalCalloutFee = isAfterHours ? calloutFee * multiplier : calloutFee;
-
-  // 5. Subtotal before Discount & VAT
-  const subtotal = materialsTotal + labourTotal + travelTotal + finalCalloutFee;
-
-  // 6. Discount calculation
-  const safeDiscountPct = Math.max(0, Math.min(100, Number(discountPct) || 0));
-  const discountAmount = Number(((subtotal * safeDiscountPct) / 100).toFixed(2));
-  const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
-
-  // 7. 15% South African VAT
-  const vatAmount = vatEnabled ? Number((subtotalAfterDiscount * (vatRate / 100)).toFixed(2)) : 0;
-
-  // 8. Grand Total
+  const vatRate = vatEnabled ? (Number(vatPercentage) || 15) / 100 : 0;
+  const vatAmount = vatEnabled ? Number((subtotalAfterDiscount * vatRate).toFixed(2)) : 0;
   const totalAmount = Number((subtotalAfterDiscount + vatAmount).toFixed(2));
 
   return {
-    materialsTotal: Number(materialsTotal.toFixed(2)),
-    labourTotal: Number(labourTotal.toFixed(2)),
-    travelTotal: Number(travelTotal.toFixed(2)),
-    calloutFee: Number(finalCalloutFee.toFixed(2)),
-    subtotal: Number(subtotal.toFixed(2)),
-    discountPct: safeDiscountPct,
-    discountAmount: Number(discountAmount.toFixed(2)),
-    subtotalAfterDiscount: Number(subtotalAfterDiscount.toFixed(2)),
-    vatAmount: Number(vatAmount.toFixed(2)),
-    totalAmount: Number(totalAmount.toFixed(2)),
+    itemsTotal,
+    labourTotal,
+    travelTotal,
+    calloutFee: callout,
+    subtotal: rawSubtotal,
+    discountPct: discountRate,
+    discountAmount,
+    subtotalAfterDiscount,
+    vatEnabled,
+    vatAmount,
+    totalAmount,
   };
 }
 
 /**
- * Generate formatted text summary for WhatsApp sharing
+ * Generate formatted WhatsApp message for quotes & invoices
  */
 export function generateWhatsAppQuoteSummary(
-  profile: BusinessProfile,
-  quoteNumber: string,
-  clientName: string,
-  serviceType: string,
-  totals: CalculationResult,
-  vatEnabled: boolean
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile
 ): string {
-  return `*${profile.companyName}*
-*QUOTATION: ${quoteNumber}*
-----------------------------------------
-*Client:* ${clientName}
-*Service:* ${serviceType}
-*Date:* ${new Date().toISOString().split('T')[0]}
+  const isInvoice = docType === 'invoice';
+  const docTitle = isInvoice ? 'Tax Invoice' : 'Official Quotation';
+  const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const dueDateStr = isInvoice
+    ? `*Due Date:* ${(data as Invoice).dueDate || 'Upon Presentation'}`
+    : `*Valid Until:* ${(data as Quotation).expiryDate || '30 Days'}`;
 
-*Cost Breakdown:*
-• Call-out / Diagnostic: ${formatZAR(totals.calloutFee)}
-• Labour: ${formatZAR(totals.labourTotal)}
-• Materials & Consumables: ${formatZAR(totals.materialsTotal)}
-• Travel: ${formatZAR(totals.travelTotal)}
-----------------------------------------
-*Subtotal:* ${formatZAR(totals.subtotal)}
-${vatEnabled ? `*VAT (15%):* ${formatZAR(totals.vatAmount)}\n` : ''}*TOTAL:* ${formatZAR(totals.totalAmount)}
-----------------------------------------
-*Banking Details for Acceptance:*
-Bank: ${profile.bankName}
-Account: ${profile.accountNumber}
-Branch Code: ${profile.branchCode}
-Reference: ${quoteNumber}
+  let msg = `⚡ *${profile.companyName.toUpperCase()}*\n`;
+  msg += `_${profile.tagline || "Electrical • Air Conditioning • Solar • Security"}_\n\n`;
+  msg += `📋 *${docTitle}:* ${docNumber}\n`;
+  msg += `👤 *Client:* ${data.clientName}\n`;
+  msg += `📍 *Site:* ${data.clientAddress}\n`;
+  msg += `📅 *Date:* ${data.date}\n`;
+  msg += `${dueDateStr}\n`;
+  msg += `🔧 *Scope:* ${data.serviceType} - ${data.scopeOfWork || 'On-site technical work'}\n\n`;
 
-Please reply with "ACCEPTED" to schedule on-site execution.`;
+  msg += `*Itemized Summary:*\n`;
+  (data.items || []).forEach((item, index) => {
+    msg += `${index + 1}. ${item.description} (${item.quantity} ${item.unit || 'ea'}) - ${formatZAR(item.total)}\n`;
+  });
+
+  if (data.calloutFee > 0) {
+    msg += `• Standard Callout & Diagnostics: ${formatZAR(data.calloutFee)}\n`;
+  }
+  if (data.labourTotal > 0) {
+    msg += `• Technical Labour (${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour)}/hr): ${formatZAR(data.labourTotal)}\n`;
+  }
+  if (data.travelTotal > 0) {
+    msg += `• Logistics & Travel (${data.travelDistanceKm} km): ${formatZAR(data.travelTotal)}\n`;
+  }
+
+  msg += `\n--------------------------------\n`;
+  msg += `*Subtotal:* ${formatZAR(data.subtotal)}\n`;
+  if (data.discountAmount && data.discountAmount > 0) {
+    msg += `*Discount (${data.discountPct}%):* -${formatZAR(data.discountAmount)}\n`;
+  }
+  if (data.vatEnabled) {
+    msg += `*VAT (15%):* ${formatZAR(data.vatAmount)}\n`;
+  }
+  msg += `💰 *TOTAL AMOUNT: ${formatZAR(data.totalAmount)}*\n`;
+
+  if (isInvoice) {
+    const inv = data as Invoice;
+    if (inv.amountPaid > 0) {
+      msg += `*Amount Paid:* ${formatZAR(inv.amountPaid)}\n`;
+      msg += `*Balance Outstanding:* ${formatZAR(inv.totalAmount - inv.amountPaid)}\n`;
+    }
+  }
+
+  msg += `--------------------------------\n\n`;
+  msg += `🏦 *Banking Details (EFT Settlement):*\n`;
+  msg += `• Bank: *${profile.bankName || 'Tyme Bank Business'}*\n`;
+  msg += `• Account Name: *${profile.accountName || 'Harrys Aircon and Electrical'}*\n`;
+  msg += `• Account Number: *${profile.accountNumber || '53002734919'}*\n`;
+  msg += `• Branch Code: *${profile.branchCode || '678910'}*\n`;
+  msg += `• Reference: *${docNumber}*\n\n`;
+  msg += `📞 Contact: ${profile.phone} | ${profile.email}\n`;
+  msg += `_${profile.sansComplianceNotice}_`;
+
+  return msg;
+}
+
+/**
+ * Format phone number for WhatsApp URL
+ */
+export function getWhatsAppShareLink(phone: string, text: string): string {
+  // Format clean international SA number: replace leading 0 with 27
+  let clean = phone.replace(/[^0-9]/g, '');
+  if (clean.startsWith('0') && clean.length === 10) {
+    clean = '27' + clean.slice(1);
+  }
+  return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
 }

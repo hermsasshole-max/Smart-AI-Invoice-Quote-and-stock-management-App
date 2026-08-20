@@ -1,55 +1,96 @@
-export type ServiceCategory = 'Electrical' | 'HVAC' | 'Solar' | 'Security' | 'Consumables';
+export type ServiceCategory =
+  | 'Electrical'
+  | 'Air Conditioning'
+  | 'Solar & Backup'
+  | 'Security & CCTV'
+  | 'Automation & Gate Motors'
+  | 'Maintenance & Repairs';
 
-export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'converted';
-export type JobStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
-export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue';
+export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'invoiced' | 'declined';
+export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue';
 
-export interface BusinessProfile {
-  companyName: string;
-  tagline?: string;
-  website?: string;
-  regNumber: string;
-  registrationNumber?: string;
-  vatNumber: string;
-  email: string;
-  phone: string;
-  whatsapp: string;
-  address: string;
-  bankName: string;
-  accountName?: string;
-  accountNumber: string;
-  branchCode: string;
-  accountType: string;
-  defaultVatRate: number; // 15% in SA
-  logoUrl?: string; // Base64 or URL for custom letterhead
-  rates: {
-    calloutDiagnostic: number; // R750 default
-    masterLabourRate: number; // R550 / hr default
-    assistantLabourRate: number; // R150 / hr default
-    travelRatePerKm: number; // R9.50 / km default
-    travelIncludedKm: number; // 25 km included in callout
-    afterHoursMultiplier: number; // 1.5x
-    defaultMaterialMarkupPct: number; // 30%
-  };
+export interface QuoteLineItem {
+  id: string;
+  description: string;
+  category: ServiceCategory | 'General';
+  costPrice: number;
+  markupPct: number;
+  unitPrice: number;
+  quantity: number;
+  unit: string;
+  total: number;
+  notes?: string;
 }
 
-export interface InventoryItem {
+export interface Quotation {
   id: string;
-  sku: string;
-  barcode?: string;
-  description: string;
-  category: ServiceCategory;
-  unit: 'ea' | 'm' | 'roll' | 'kg' | 'box' | 'set' | 'pair' | 'canister';
-  costPrice: number; // ZAR cost price from trade supplier
-  markupPct: number; // e.g. 30%
-  sellingPrice: number; // ZAR selling price
-  stockOnHand: number;
-  minStockAlert: number;
-  supplierRef?: string; // e.g. "Voltex", "Metraclark", "ARB"
+  quoteNumber: string;
+  date: string;
+  expiryDate: string;
+  clientId: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  clientAddress: string;
+  serviceType: ServiceCategory;
+  scopeOfWork: string;
+  items: QuoteLineItem[];
+  calloutFee: number;
+  labourHours: number;
+  labourRatePerHour: number;
+  labourTotal: number;
+  travelDistanceKm: number;
+  travelRatePerKm: number;
+  travelTotal: number;
+  subtotal: number;
+  discountPct: number;
+  discountAmount: number;
+  vatEnabled: boolean;
+  vatAmount: number;
+  totalAmount: number;
+  status: QuoteStatus;
   notes?: string;
-  lastUpdated: string;
-  // HVAC specific: canister tracking
-  canisterWeightKg?: number;
+  terms?: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  quoteId?: string;
+  date: string;
+  dueDate: string;
+  clientId: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  clientAddress: string;
+  serviceType: ServiceCategory;
+  scopeOfWork: string;
+  items: QuoteLineItem[];
+  calloutFee: number;
+  labourHours: number;
+  labourRatePerHour: number;
+  labourTotal: number;
+  travelDistanceKm: number;
+  travelRatePerKm: number;
+  travelTotal: number;
+  subtotal: number;
+  discountPct: number;
+  discountAmount: number;
+  vatEnabled: boolean;
+  vatAmount: number;
+  totalAmount: number;
+  amountPaid: number;
+  status: InvoiceStatus;
+  notes?: string;
+  terms?: string;
+  payments?: {
+    id: string;
+    date: string;
+    amount: number;
+    method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+    reference?: string;
+  }[];
 }
 
 export interface Client {
@@ -57,144 +98,50 @@ export interface Client {
   name: string;
   company?: string;
   phone: string;
-  email: string;
-  siteAddress: string;
-  serviceType: ServiceCategory;
+  email?: string;
+  address: string;
+  suburb?: string;
+  city?: string;
   notes?: string;
-  createdAt: string;
+  tags?: string[];
+  totalBilled?: number;
 }
 
-export interface QuoteLineItem {
+export interface InventoryItem {
   id: string;
-  inventoryId?: string;
-  type: 'material' | 'labour' | 'callout' | 'travel' | 'custom';
-  description: string;
-  quantity: number;
-  unit: string;
-  unitCost: number;
-  unitPrice: number;
-  total: number;
-  category?: ServiceCategory;
-}
-
-export interface Quotation {
-  id: string;
-  quoteNumber: string;
-  clientId: string;
-  clientName: string;
-  clientPhone: string;
-  clientEmail: string;
-  clientAddress: string;
-  serviceType: ServiceCategory;
-  date: string;
-  expiryDate: string;
-  items: QuoteLineItem[];
-  // Cost breakdown
-  calloutFee: number;
-  masterLabourHours: number;
-  masterLabourRate: number;
-  assistantLabourHours: number;
-  assistantLabourRate: number;
-  travelKm: number;
-  travelRate: number;
-  isAfterHours: boolean;
-  afterHoursMultiplier: number;
-  materialsTotal: number;
-  labourTotal: number;
-  travelTotal: number;
-  subtotal: number;
-  discountPct?: number;
-  discountAmount?: number;
-  vatEnabled: boolean;
-  vatRate: number;
-  vatAmount: number;
-  totalAmount: number;
-  status: QuoteStatus;
-  notes?: string;
-  scopeOfWork?: string;
-  terms: string;
-  createdAt: string;
-}
-
-export interface Job {
-  id: string;
-  jobNumber: string;
-  quoteId?: string;
-  clientId: string;
-  clientName: string;
-  clientPhone: string;
-  clientAddress: string;
-  title: string;
-  serviceType: ServiceCategory;
-  status: JobStatus;
-  scheduledDate: string;
-  completedDate?: string;
-  allocatedItems: QuoteLineItem[];
-  notes?: string;
-  createdAt: string;
-}
-
-export interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  quoteId?: string;
-  jobId?: string;
-  clientId: string;
-  clientName: string;
-  clientPhone: string;
-  clientEmail: string;
-  clientAddress: string;
-  serviceType: ServiceCategory;
-  date: string;
-  dueDate: string;
-  items: QuoteLineItem[];
-  calloutFee: number;
-  labourTotal: number;
-  travelTotal: number;
-  materialsTotal: number;
-  subtotal: number;
-  discountPct?: number;
-  discountAmount?: number;
-  vatEnabled: boolean;
-  vatRate: number;
-  vatAmount: number;
-  totalAmount: number;
-  amountPaid: number;
-  status: InvoiceStatus;
-  paymentMethod?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
-  paidDate?: string;
-  notes?: string;
-  scopeOfWork?: string;
-  createdAt: string;
-}
-
-export interface ScannedSupplierItem {
   sku: string;
-  description: string;
-  quantity: number;
+  name: string;
+  category: ServiceCategory | 'Consumables' | 'Cabling' | 'Switchgear' | 'Hardware' | 'General';
+  costPrice: number;
+  defaultMarkup: number;
+  sellingPrice: number;
   unit: string;
-  unitCostPrice: number;
-  lineTotal: number;
-  vatAmount?: number;
-  category?: ServiceCategory;
-  // Matching status with existing local inventory
-  matchedItemId?: string;
-  existingCostPrice?: number;
-  existingStock?: number;
-  priceChangePct?: number; // e.g. +8.5%
-  action: 'update_stock_and_price' | 'update_stock_only' | 'create_new' | 'skip';
-  newSellingPrice?: number;
+  stockQty: number;
+  minStockLevel: number;
+  supplier?: string;
+  location?: string;
 }
 
-export interface ScannedInvoiceResult {
-  supplierName: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  vatNumber?: string;
-  items: ScannedSupplierItem[];
-  subtotal: number;
-  vatTotal: number;
-  grandTotal: number;
-  notes?: string;
-  rawImagePreview?: string;
+export interface BusinessProfile {
+  companyName: string;
+  tagline: string;
+  regNumber: string;
+  vatNumber: string;
+  phone: string;
+  email: string;
+  address: string;
+  website: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  branchCode: string;
+  accountType: string;
+  defaultLabourRate: number;
+  defaultCalloutFee: number;
+  defaultTravelRate: number;
+  defaultMarkup: number;
+  vatEnabled: boolean;
+  vatPercentage: number;
+  sansComplianceNotice: string;
+  sunlightMode: boolean;
 }

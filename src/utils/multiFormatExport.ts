@@ -1,32 +1,29 @@
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import {
   Document,
   Packer,
   Paragraph,
+  TextRun,
   Table,
   TableRow,
   TableCell,
-  TextRun,
-  HeadingLevel,
-  AlignmentType,
   WidthType,
+  AlignmentType,
+  BorderStyle,
+  HeadingLevel,
 } from 'docx';
-import { Quotation, Invoice, BusinessProfile, QuoteLineItem } from '../types';
+import { BusinessProfile, Quotation, Invoice } from '../types';
 import { formatZAR } from './calculator';
 
-export type ExportFormat = 'pdf' | 'xlsx' | 'docx' | 'txt';
-
 export interface ExportResult {
-  success: boolean;
-  method: 'share' | 'download' | 'open' | 'blob' | 'dataUrl';
   filename: string;
-  blobUrl?: string;
-  dataUrl?: string;
+  method: 'share' | 'download' | 'open';
 }
 
 /**
- * Convert Blob to Base64 Data URL string
+ * Convert Blob to Base64 data URL
  */
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -38,365 +35,281 @@ export function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Universal Mobile/Android & Desktop file delivery:
- * 1. Checks for Android/Mobile Web Share API with files support for native "Save to Device / Drive / WhatsApp / Downloads"
- * 2. Falls back to direct browser blob anchor download
- * 3. Falls back to Base64 Data URI anchor download for iframe sandbox bypass
- * 4. Falls back to window.open for direct view/save
+ * Universal Mobile-Safe File Saver:
+ * Uses navigator.share on mobile if supported, or standard <a> download stream
  */
-export async function saveOrShareFile(options: {
-  blob: Blob;
-  filename: string;
-  mimeType: string;
-  title: string;
-  text?: string;
-  forceDirectDownload?: boolean;
-}): Promise<ExportResult> {
-  const { blob, filename, mimeType, title, text, forceDirectDownload } = options;
-
-  let dataUrl: string | undefined;
-  try {
-    dataUrl = await blobToBase64(blob);
-  } catch (err) {
-    console.warn('Could not generate base64 data url:', err);
-  }
-
-  // 1. Check if user is on mobile and Web Share API can share files (Native Android / iOS Share Sheet)
-  if (!forceDirectDownload && typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+export async function saveOrShareFile(
+  blob: Blob,
+  filename: string,
+  mimeType: string,
+  title: string,
+  forceDownloadOnly: boolean = false
+): Promise<ExportResult> {
+  // Try Web Share API on mobile devices if available & not forced to download
+  if (!forceDownloadOnly && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], filename, { type: mimeType });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: title || filename,
-          text: text || `${title} from Harry's Aircon Electrical & Solar Services`,
+          title: title,
+          text: `${title} - ${filename}`,
         });
-        return { success: true, method: 'share', filename, dataUrl };
+        return { filename, method: 'share' };
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        // User closed or dismissed the share sheet
-        return { success: true, method: 'share', filename, dataUrl };
+    } catch (shareErr: any) {
+      if (shareErr.name !== 'AbortError') {
+        console.warn('Navigator share error, falling back to download:', shareErr);
+      } else {
+        return { filename, method: 'share' };
       }
-      console.warn('Native Web Share failed, falling back to direct download:', err);
     }
   }
 
-  // 2. Direct Blob / DataURI Download Anchor
+  // Browser download via object URL
   try {
-    const url = dataUrl || URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-
     setTimeout(() => {
       if (document.body.contains(a)) {
         document.body.removeChild(a);
       }
-      if (!dataUrl && url.startsWith('blob:')) {
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-      }
-    }, 300);
-
-    return { success: true, method: 'download', filename, blobUrl: url, dataUrl };
-  } catch (err) {
-    console.error('Direct anchor download failed, attempting window.open:', err);
-    const url = dataUrl || URL.createObjectURL(blob);
-    try {
-      const win = window.open(url, '_blank');
-      if (win) {
-        return { success: true, method: 'open', filename, blobUrl: url, dataUrl };
-      }
-    } catch (e) {
-      console.warn('window.open blocked:', e);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    return { filename, method: 'download' };
+  } catch (downloadErr) {
+    // Fallback: Open in new tab via Data URL
+    const dataUrl = await blobToBase64(blob);
+    const win = window.open(dataUrl, '_blank');
+    if (!win) {
+      window.location.href = dataUrl;
     }
-    return { success: false, method: 'blob', filename, blobUrl: url, dataUrl };
+    return { filename, method: 'open' };
   }
 }
 
 /**
- * Generate jsPDF Document Instance
+ * Build jsPDF Document Instance
  */
 export function buildJsPDFDocument(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile
 ): jsPDF {
-  const isInvoice = docType === 'invoice';
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
 
-  // Official Brand Colors
-  const headerBgColor = [27, 30, 40]; // Deep Slate #1B1E28
-  const cyanBrandColor = [56, 189, 248]; // Vibrant Cyan #38BDF8
-  const tableHeaderBg = isInvoice ? [2, 132, 199] : [14, 116, 144]; // Deep Cyan / Teal #0284C7
-  const goldAccentColor = [245, 158, 11]; // Electric Amber / Gold #F59E0B
-  const darkTextColor = [30, 41, 59];
-  const mutedTextColor = [100, 116, 139];
-
-  // Top Deep Navy Header Banner
-  doc.setFillColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
-  doc.rect(0, 0, 210, 44, 'F');
-
-  // Accent Cyan Horizontal Stripe
-  doc.setFillColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
-  doc.rect(0, 44, 210, 1.5, 'F');
-
-  // Custom Logo or Fallback Text
-  let textStartX = 14;
-  if (profile.logoUrl && profile.logoUrl.startsWith('data:image/')) {
-    try {
-      const format = profile.logoUrl.includes('image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(profile.logoUrl, format, 14, 8, 28, 28);
-      textStartX = 46;
-    } catch {
-      textStartX = 14;
-    }
-  }
-
-  // Company Name & Subheader
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.text(profile.companyName || "HARRY'S AIRCON ELECTRICAL AND SOLAR SERVICES PTY. LTD.", textStartX, 13);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
-  doc.text(profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered", textStartX, 18);
-
-  doc.setFontSize(7.5);
-  doc.setTextColor(203, 213, 225); // #CBD5E1
-  doc.text(`Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'}`, textStartX, 23);
-  doc.text(`Email: ${profile.email || 'amicovolt@outlook.com'} | Tel: ${profile.phone || '071 689 6139 / 078 797 6058'}`, textStartX, 28);
-  doc.text(`Address: ${profile.address || '69A North Street, Rayton'} | ${profile.website || 'https://harryselectrical.co.za'}`, textStartX, 33);
-
-  // Document Title & Reference on Right Header
+  const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const docDate = data.date;
   const docSecondaryDate = isInvoice
-    ? `Due: ${(data as Invoice).dueDate || 'Immediate'}`
-    : `Valid: ${(data as Quotation).expiryDate || '30 Days'}`;
+    ? (data as Invoice).dueDate || 'Upon Presentation'
+    : (data as Quotation).expiryDate || '30 Days from issue';
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(goldAccentColor[0], goldAccentColor[1], goldAccentColor[2]);
-  doc.text(docTitle, 140, 15);
+  // Primary Header Banner (#1B1E28)
+  doc.setFillColor(27, 30, 40);
+  doc.rect(0, 0, 210, 42, 'F');
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  // Accent Line (#38BDF8)
+  doc.setFillColor(56, 189, 248);
+  doc.rect(0, 42, 210, 2, 'F');
+
+  // Company Name
   doc.setTextColor(255, 255, 255);
-  doc.text(`Ref #: ${docNumber}`, 140, 21);
-  doc.text(`Date: ${docDate}`, 140, 26);
-  doc.text(docSecondaryDate, 140, 31);
-
-  // Status Badge
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(profile.companyName.toUpperCase(), 14, 15);
+
+  // Tagline
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(56, 189, 248);
+  doc.text(profile.tagline || "Electrical • Air Conditioning • Solar • Security", 14, 21);
+
+  // Contact Info
   doc.setFontSize(8);
-  if (isInvoice && data.status === 'paid') {
-    doc.setTextColor(34, 197, 94); // Green
-  } else {
-    doc.setTextColor(cyanBrandColor[0], cyanBrandColor[1], cyanBrandColor[2]);
-  }
-  doc.text(`STATUS: ${data.status.toUpperCase()}`, 140, 37);
+  doc.setTextColor(203, 213, 225);
+  doc.text(`Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}`, 14, 27);
+  doc.text(`Tel: ${profile.phone} | Email: ${profile.email}`, 14, 32);
+  doc.text(`Address: ${profile.address}`, 14, 37);
 
-  // Client Details Section
-  let y = 51;
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, y, 182, 26, 2, 2, 'F');
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(14, y, 182, 26, 2, 2, 'D');
-
+  // Document Title Badge (Right Side)
+  doc.setFillColor(245, 158, 11);
+  doc.roundedRect(140, 10, 56, 10, 2, 2, 'F');
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(docTitle, 168, 16.5, { align: 'center' });
+
+  // Metadata Details
   doc.setFontSize(8.5);
-  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
-  doc.text(isInvoice ? 'BILLED TO / SITE LOCATION:' : 'CLIENT & SITE DETAILS:', 18, y + 6);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text(`Client: ${data.clientName}`, 18, y + 12);
-  doc.text(`Phone: ${data.clientPhone}`, 18, y + 17);
-  doc.text(`Site: ${data.clientAddress}`, 18, y + 22);
-
-  doc.text(`Service Category: ${data.serviceType}`, 115, y + 12);
-  if (data.clientEmail) {
-    doc.text(`Email: ${data.clientEmail}`, 115, y + 17);
-  }
-
-  // Scope of Work / Notes Section (if provided)
-  y = 81;
-  if (data.scopeOfWork || data.notes) {
-    const scopeText = data.scopeOfWork || data.notes || '';
-    doc.setFillColor(254, 243, 199); // light amber tint
-    const splitScope = doc.splitTextToSize(scopeText, 174);
-    const boxHeight = Math.max(15, splitScope.length * 4.2 + 8);
-
-    doc.roundedRect(14, y, 182, boxHeight, 1.5, 1.5, 'F');
-    doc.setDrawColor(245, 158, 11);
-    doc.roundedRect(14, y, 182, boxHeight, 1.5, 1.5, 'D');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(180, 83, 9);
-    doc.text('SCOPE OF WORK / SERVICE SPECIFICATIONS:', 18, y + 5);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(55, 65, 81);
-    doc.text(splitScope, 18, y + 9.5);
-
-    y += boxHeight + 4;
-  }
-
-  // Items Table Header
-  doc.setFillColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
-  doc.rect(14, y, 182, 7.5, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
-  doc.text('ITEM / SERVICE DESCRIPTION', 18, y + 5);
-  doc.text('QTY', 122, y + 5);
-  doc.text('RATE (ZAR)', 142, y + 5);
-  doc.text('TOTAL (ZAR)', 172, y + 5);
+  doc.text(`Ref #: ${docNumber}`, 140, 26);
+  doc.text(`Date: ${data.date}`, 140, 31);
+  doc.text(`${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`, 140, 36);
 
-  y += 9.5;
+  // Client Details & Scope Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, 48, 182, 34, 2, 2, 'FD');
+
+  doc.setTextColor(2, 132, 199);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text(isInvoice ? 'BILLED TO & SITE LOCATION' : 'CLIENT & SITE DETAILS', 18, 55);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.text(data.clientName, 18, 62);
+
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Phone: ${data.clientPhone} ${data.clientEmail ? '| Email: ' + data.clientEmail : ''}`, 18, 68);
+  doc.text(`Site Address: ${data.clientAddress}`, 18, 74);
 
-  // Line items
-  (data.items || []).forEach((item: QuoteLineItem) => {
-    if (y > 255) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.setFontSize(8);
-    const desc = doc.splitTextToSize(item.description, 98);
-    doc.text(desc, 18, y);
-    doc.text(`${item.quantity} ${item.unit || 'ea'}`, 122, y);
-    doc.text(formatZAR(item.unitPrice), 142, y);
-    doc.text(formatZAR(item.total), 172, y);
-    y += Math.max(5, desc.length * 4.2 + 2);
+  // Scope info (Right column inside box)
+  doc.setTextColor(2, 132, 199);
+  doc.setFont('helvetica', 'bold');
+  doc.text('JOB SPECIFICATION', 110, 55);
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Category: ${data.serviceType}`, 110, 62);
+  
+  const splitScope = doc.splitTextToSize(data.scopeOfWork || 'On-site technical scope', 80);
+  doc.text(splitScope.slice(0, 2), 110, 68);
+
+  // Table items preparation
+  const tableRows: any[] = [];
+  (data.items || []).forEach((item) => {
+    tableRows.push([
+      item.description,
+      `${item.quantity} ${item.unit || 'ea'}`,
+      formatZAR(item.unitPrice),
+      formatZAR(item.total),
+    ]);
   });
 
-  // Callout, Labour, Travel Breakdown
   if (data.calloutFee > 0) {
-    if (y > 255) { doc.addPage(); y = 20; }
-    doc.text('Standard Callout & Technical Diagnostics', 18, y);
-    doc.text('1 ea', 122, y);
-    doc.text(formatZAR(data.calloutFee), 142, y);
-    doc.text(formatZAR(data.calloutFee), 172, y);
-    y += 5.5;
+    tableRows.push(['Standard Callout & Technical Diagnostics', '1 ea', formatZAR(data.calloutFee), formatZAR(data.calloutFee)]);
   }
-
   if (data.labourTotal > 0) {
-    if (y > 255) { doc.addPage(); y = 20; }
-    doc.text('Technical Labour & Installation Execution', 18, y);
-    doc.text('1 lot', 122, y);
-    doc.text(formatZAR(data.labourTotal), 142, y);
-    doc.text(formatZAR(data.labourTotal), 172, y);
-    y += 5.5;
+    tableRows.push([`Technical Labour & Installation Execution (${data.labourHours} hrs)`, '1 lot', formatZAR(data.labourTotal), formatZAR(data.labourTotal)]);
   }
-
   if (data.travelTotal > 0) {
-    if (y > 255) { doc.addPage(); y = 20; }
-    doc.text('Travel & Logistics Surcharge', 18, y);
-    doc.text('1 trip', 122, y);
-    doc.text(formatZAR(data.travelTotal), 142, y);
-    doc.text(formatZAR(data.travelTotal), 172, y);
-    y += 5.5;
+    tableRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`, '1 trip', formatZAR(data.travelTotal), formatZAR(data.travelTotal)]);
   }
 
-  // Divider
-  y += 2;
-  doc.setDrawColor(203, 213, 225);
-  doc.line(14, y, 196, y);
-  y += 4;
+  // Draw autoTable
+  autoTable(doc, {
+    startY: 86,
+    head: [['Item / Description', 'Qty', 'Unit Rate (ZAR)', 'Total (ZAR)']],
+    body: tableRows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [2, 132, 199],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 9,
+    },
+    styles: {
+      fontSize: 8.5,
+      textColor: [15, 23, 42],
+      cellPadding: 3,
+    },
+    columnStyles: {
+      0: { cellWidth: 100 },
+      1: { cellWidth: 22, halign: 'center' },
+      2: { cellWidth: 30, halign: 'right' },
+      3: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: 14, right: 14 },
+  });
 
-  if (y > 235) {
-    doc.addPage();
-    y = 20;
-  }
+  const finalY = (doc as any).lastAutoTable.finalY + 6;
 
-  // Totals Box on Right
-  const summaryBoxY = y;
-  doc.setFillColor(248, 250, 252);
-  const boxH = data.discountAmount && data.discountAmount > 0 ? 38 : 32;
-  doc.roundedRect(116, summaryBoxY, 80, boxH, 2, 2, 'F');
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(116, summaryBoxY, 80, boxH, 2, 2, 'D');
+  // Banking Details Box (Left)
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, finalY, 105, 36, 2, 2, 'FD');
+
+  doc.setTextColor(2, 132, 199);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('BANKING DETAILS (EFT SETTLEMENT)', 18, finalY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text('Subtotal (Excl VAT):', 120, summaryBoxY + 6);
-  doc.text(formatZAR(data.subtotal), 170, summaryBoxY + 6);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 18, finalY + 12);
+  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 18, finalY + 17);
+  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 18, finalY + 22);
+  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 18, finalY + 27);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(2, 132, 199);
+  doc.text(`Reference: ${docNumber}`, 18, finalY + 32);
 
-  let currentSummaryOffset = 11;
+  // Financial Totals (Right)
+  let totalsY = finalY + 4;
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Subtotal (Excl VAT):', 130, totalsY);
+  doc.text(formatZAR(data.subtotal), 196, totalsY, { align: 'right' });
+
   if (data.discountAmount && data.discountAmount > 0) {
+    totalsY += 6;
     doc.setTextColor(220, 38, 38);
-    doc.text(`Discount (${data.discountPct || 0}%):`, 120, summaryBoxY + currentSummaryOffset);
-    doc.text(`-${formatZAR(data.discountAmount)}`, 170, summaryBoxY + currentSummaryOffset);
-    currentSummaryOffset += 5;
-    doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
+    doc.text(`Discount (${data.discountPct}%):`, 130, totalsY);
+    doc.text(`-${formatZAR(data.discountAmount)}`, 196, totalsY, { align: 'right' });
   }
 
   if (data.vatEnabled) {
-    doc.text('VAT @ 15%:', 120, summaryBoxY + currentSummaryOffset);
-    doc.text(formatZAR(data.vatAmount), 170, summaryBoxY + currentSummaryOffset);
-    currentSummaryOffset += 6;
+    totalsY += 6;
+    doc.setTextColor(71, 85, 105);
+    doc.text('South African VAT (15%):', 130, totalsY);
+    doc.text(formatZAR(data.vatAmount), 196, totalsY, { align: 'right' });
   }
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
-  doc.text('TOTAL AMOUNT:', 120, summaryBoxY + currentSummaryOffset);
-  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
-  doc.text(formatZAR(data.totalAmount), 170, summaryBoxY + currentSummaryOffset);
+  // Total Line
+  totalsY += 8;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(130, totalsY - 2, 196, totalsY - 2);
 
-  // Banking Details on Left
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
-  doc.text('BANKING DETAILS (EFT SETTLEMENT):', 14, summaryBoxY + 6);
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('TOTAL AMOUNT:', 130, totalsY + 3);
+  doc.setTextColor(2, 132, 199);
+  doc.text(formatZAR(data.totalAmount), 196, totalsY + 3, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
+  // Footer Terms & SANS Notice
+  const footerY = 272;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(14, footerY, 196, footerY);
+
   doc.setFontSize(7.5);
-  doc.setTextColor(darkTextColor[0], darkTextColor[1], darkTextColor[2]);
-  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 14, summaryBoxY + 11);
-  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 14, summaryBoxY + 16);
-  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 14, summaryBoxY + 21);
-  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 14, summaryBoxY + 26);
-  doc.text(`Payment Reference: ${docNumber}`, 14, summaryBoxY + 31);
-
-  // Terms & Conditions (if present or default)
-  const quoteTerms = (data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.';
-  y = summaryBoxY + boxH + 4;
-  if (y <= 270) {
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7);
-    doc.setTextColor(mutedTextColor[0], mutedTextColor[1], mutedTextColor[2]);
-    doc.text(`Terms & Conditions: ${quoteTerms}`, 14, y);
-  }
-
-  // Footer text
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(mutedTextColor[0], mutedTextColor[1], mutedTextColor[2]);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 116, 139);
   doc.text(
-    "Thank you for choosing Harry's Aircon Electrical & Solar Services. Certified SANS 10142 compliance & workmanship warranty.",
+    `Terms: ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. Materials remain property of contractor until settled.'}`,
     14,
-    285
+    footerY + 5
+  );
+  doc.text(
+    `${profile.sansComplianceNotice} | Registered SANS 10142 Electrical & SAQCC HVAC Contractor`,
+    14,
+    footerY + 10
   );
 
   return doc;
@@ -658,14 +571,13 @@ export function generatePrintableHtml(
       <!-- Footer Terms -->
       <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-style: italic; line-height: 1.5;">
         <div><strong>Terms:</strong> ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.'}</div>
-        <div style="margin-top: 4px;">Certified SANS 10142 compliance & workmanship warranty from Harry's Aircon Electrical & Solar Services.</div>
+        <div style="margin-top: 4px;">Certified SANS 10142 compliance & workmanship warranty from Harry\'s Aircon Electrical & Solar Services.</div>
       </div>
     </div>
   </div>
 
   <script>
     window.addEventListener('load', () => {
-      // Auto trigger print when loaded
       setTimeout(() => {
         try { window.print(); } catch(e) {}
       }, 500);
@@ -676,7 +588,7 @@ export function generatePrintableHtml(
 }
 
 /**
- * Open Standalone Print Dialog Window (Bypasses iframe sandboxes)
+ * Open Standalone Print Dialog Window
  */
 export function printHtmlDocument(
   docType: 'quote' | 'invoice',
@@ -699,7 +611,7 @@ export function printHtmlDocument(
     iframe.style.height = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
-    
+
     const doc = iframe.contentWindow?.document;
     if (doc) {
       doc.open();
@@ -731,10 +643,9 @@ export async function openPdfInNewTab(
   const doc = buildJsPDFDocument(docType, data, profile);
   const blob = doc.output('blob');
   const dataUrl = await blobToBase64(blob);
-  
+
   const win = window.open(dataUrl, '_blank');
   if (!win) {
-    // If popup blocked, create link and click
     const a = document.createElement('a');
     a.href = dataUrl;
     a.target = '_blank';
@@ -754,192 +665,163 @@ export async function exportToPDF(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDirectDownload = false
+  forceDownloadOnly: boolean = false
 ): Promise<ExportResult> {
   const doc = buildJsPDFDocument(docType, data, profile);
-  const isInvoice = docType === 'invoice';
-  const docTitle = isInvoice ? 'Tax Invoice' : 'Quotation';
-  const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.pdf`;
-
   const blob = doc.output('blob');
-  return await saveOrShareFile({
-    blob,
-    filename,
-    mimeType: 'application/pdf',
-    title: `${docTitle} ${docNumber} - ${data.clientName}`,
-    text: `Here is your official ${docTitle} ${docNumber} from Harry's Aircon Electrical and Solar Services for ${formatZAR(data.totalAmount)}.`,
-    forceDirectDownload,
-  });
+  const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber}`;
+
+  return await saveOrShareFile(blob, filename, 'application/pdf', title, forceDownloadOnly);
 }
 
 /**
- * Generate Excel (.xlsx) spreadsheet with Official Brand Headers
+ * Export Quotation or Invoice as Microsoft Excel (.xlsx) Spreadsheet
  */
 export async function exportToExcel(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDirectDownload = false
+  forceDownloadOnly: boolean = false
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
-  const docTitle = isInvoice ? 'TAX INVOICE' : 'QUOTATION';
+  const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.xlsx`;
 
-  const rows: any[][] = [
+  const headerRows = [
     [profile.companyName.toUpperCase()],
-    [profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"],
-    [`Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'} | Email: ${profile.email || 'amicovolt@outlook.com'} | Tel: ${profile.phone || '071 689 6139 / 078 797 6058'}`],
-    [`Address: ${profile.address || '69A North Street, Rayton'} | Web: ${profile.website || 'https://harryselectrical.co.za'}`],
+    [profile.tagline],
+    [`Reg: ${profile.regNumber}`, `VAT: ${profile.vatNumber}`, `Tel: ${profile.phone}`, `Email: ${profile.email}`],
+    [`Address: ${profile.address}`],
     [],
-    [docTitle, '', '', `Ref Number:`, docNumber],
-    [`Date:`, data.date, '', isInvoice ? `Due Date:` : `Valid Until:`, isInvoice ? (data as Invoice).dueDate : (data as Quotation).expiryDate],
-    [`Status:`, data.status.toUpperCase(), '', `Service Category:`, data.serviceType],
+    [`DOCUMENT: ${docTitle}`, `REF NUMBER: ${docNumber}`, `DATE: ${data.date}`],
+    [`CLIENT: ${data.clientName}`, `PHONE: ${data.clientPhone}`, `SITE: ${data.clientAddress}`],
+    [`SERVICE CATEGORY: ${data.serviceType}`],
+    [`SCOPE: ${data.scopeOfWork || 'On-site technical work'}`],
     [],
-    [`CLIENT & SITE INFORMATION:`],
-    [`Name:`, data.clientName, '', `Contact:`, data.clientPhone],
-    [`Email:`, data.clientEmail || 'N/A', '', `Site Address:`, data.clientAddress],
-    [],
+    ['Item / Description', 'Category', 'Quantity', 'Unit', 'Unit Price (ZAR)', 'Total (ZAR)'],
   ];
 
-  if (data.scopeOfWork || data.notes) {
-    rows.push([`SCOPE OF WORK / SERVICE SPECIFICATIONS:`]);
-    rows.push([data.scopeOfWork || data.notes || '']);
-    rows.push([]);
-  }
-
-  // Line items header
-  rows.push([`#`, `Item / Description`, `Type`, `Quantity`, `Unit`, `Unit Price (ZAR)`, `Line Total (ZAR)`]);
-
-  let idx = 1;
-  (data.items || []).forEach((item: QuoteLineItem) => {
-    rows.push([
-      idx++,
-      item.description,
-      item.type.toUpperCase(),
-      item.quantity,
-      item.unit || 'ea',
-      item.unitPrice,
-      item.total,
-    ]);
-  });
+  const itemRows = (data.items || []).map((item) => [
+    item.description,
+    item.category,
+    item.quantity,
+    item.unit || 'ea',
+    item.unitPrice,
+    item.total,
+  ]);
 
   if (data.calloutFee > 0) {
-    rows.push([idx++, 'Standard Callout & Diagnostics', 'CALLOUT', 1, 'ea', data.calloutFee, data.calloutFee]);
+    itemRows.push(['Standard Callout & Technical Diagnostics', 'Callout', 1, 'ea', data.calloutFee, data.calloutFee]);
   }
   if (data.labourTotal > 0) {
-    rows.push([idx++, 'Technical Labour & Installation', 'LABOUR', 1, 'lot', data.labourTotal, data.labourTotal]);
+    itemRows.push([`Technical Labour (${data.labourHours} hrs)`, 'Labour', 1, 'lot', data.labourTotal, data.labourTotal]);
   }
   if (data.travelTotal > 0) {
-    rows.push([idx++, 'Travel & Transport Surcharge', 'TRAVEL', 1, 'trip', data.travelTotal, data.travelTotal]);
+    itemRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`, 'Travel', 1, 'trip', data.travelTotal, data.travelTotal]);
   }
 
-  rows.push([]);
-  rows.push(['', '', '', '', '', 'Subtotal (Excl VAT):', data.subtotal]);
+  const totalsRows = [
+    [],
+    ['', '', '', '', 'Subtotal (Excl VAT):', data.subtotal],
+    ...(data.discountAmount && data.discountAmount > 0
+      ? [['', '', '', '', `Discount (${data.discountPct}%):`, -data.discountAmount]]
+      : []),
+    ...(data.vatEnabled ? [['', '', '', '', 'VAT (15%):', data.vatAmount]] : []),
+    ['', '', '', '', 'TOTAL AMOUNT (ZAR):', data.totalAmount],
+    [],
+    ['BANKING DETAILS (EFT SETTLEMENT):'],
+    [`Bank: ${profile.bankName || 'Tyme Bank Business'}`],
+    [`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`],
+    [`Account Number: ${profile.accountNumber || '53002734919'}`],
+    [`Branch Code: ${profile.branchCode || '678910'}`],
+    [`Reference: ${docNumber}`],
+  ];
 
-  if (data.discountAmount && data.discountAmount > 0) {
-    rows.push(['', '', '', '', '', `Discount (${data.discountPct}%):`, -data.discountAmount]);
-  }
+  const wsData = [...headerRows, ...itemRows, ...totalsRows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  if (data.vatEnabled) {
-    rows.push(['', '', '', '', '', 'VAT @ 15%:', data.vatAmount]);
-  }
-
-  rows.push(['', '', '', '', '', 'GRAND TOTAL (ZAR):', data.totalAmount]);
-  rows.push([]);
-  rows.push(['BANKING DETAILS (EFT SETTLEMENT):']);
-  rows.push(['Bank Name:', profile.bankName || 'Tyme Bank Business']);
-  rows.push(['Account Name:', profile.accountName || 'Harrys Aircon and Electrical']);
-  rows.push(['Account Number:', profile.accountNumber || '53002734919']);
-  rows.push(['Branch Code:', profile.branchCode || '678910']);
-  rows.push(['Account Type:', profile.accountType || 'Current']);
-  rows.push(['Reference:', docNumber]);
-  rows.push([]);
-  rows.push(['TERMS & CONDITIONS:']);
-  rows.push([(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.']);
-
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, isInvoice ? 'Invoice' : 'Quotation');
-
-  // Auto-fit column widths
-  worksheet['!cols'] = [
-    { wch: 6 },
+  ws['!cols'] = [
     { wch: 45 },
-    { wch: 14 },
+    { wch: 20 },
     { wch: 10 },
     { wch: 8 },
     { wch: 18 },
     { wch: 18 },
   ];
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, docType === 'invoice' ? 'Tax Invoice' : 'Quotation');
+
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([excelBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 
-  return await saveOrShareFile({
+  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+  const title = `${docType === 'invoice' ? 'Tax Invoice Spreadsheet' : 'Quotation Spreadsheet'} ${docNumber}`;
+
+  return await saveOrShareFile(
     blob,
     filename,
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    title: `${docTitle} ${docNumber} Spreadsheet`,
-    text: `Spreadsheet export for ${docTitle} ${docNumber}`,
-    forceDirectDownload,
-  });
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    title,
+    forceDownloadOnly
+  );
 }
 
 /**
- * Generate Word (.docx) formatted document with Harry's Brand Theme
+ * Export Quotation or Invoice as Microsoft Word (.docx) Document
  */
 export async function exportToWord(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDirectDownload = false
+  forceDownloadOnly: boolean = false
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.docx`;
-  const tableFill = isInvoice ? '0284C7' : '0E7490'; // Cyan / Teal
+  const docSecondaryDate = isInvoice
+    ? (data as Invoice).dueDate || 'Upon Presentation'
+    : (data as Quotation).expiryDate || '30 Days from issue';
 
-  const tableRows: TableRow[] = [
-    new TableRow({
-      tableHeader: true,
-      children: [
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: 'Description', bold: true, color: 'FFFFFF' })] })],
-          shading: { fill: tableFill },
-          width: { size: 50, type: WidthType.PERCENTAGE },
-        }),
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: 'Qty', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.CENTER })],
-          shading: { fill: tableFill },
-          width: { size: 15, type: WidthType.PERCENTAGE },
-        }),
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: 'Rate (ZAR)', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.RIGHT })],
-          shading: { fill: tableFill },
-          width: { size: 17, type: WidthType.PERCENTAGE },
-        }),
-        new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: 'Total (ZAR)', bold: true, color: 'FFFFFF' })], alignment: AlignmentType.RIGHT })],
-          shading: { fill: tableFill },
-          width: { size: 18, type: WidthType.PERCENTAGE },
-        }),
-      ],
-    }),
-  ];
+  const tableHeader = new TableRow({
+    children: [
+      new TableCell({
+        children: [new Paragraph({ children: [new TextRun({ text: 'Item / Description', bold: true, color: 'FFFFFF' })] })],
+        shading: { fill: '0284C7' },
+        width: { size: 50, type: WidthType.PERCENTAGE },
+      }),
+      new TableCell({
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Qty', bold: true, color: 'FFFFFF' })] })],
+        shading: { fill: '0284C7' },
+        width: { size: 15, type: WidthType.PERCENTAGE },
+      }),
+      new TableCell({
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Unit Rate (ZAR)', bold: true, color: 'FFFFFF' })] })],
+        shading: { fill: '0284C7' },
+        width: { size: 17, type: WidthType.PERCENTAGE },
+      }),
+      new TableCell({
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Total (ZAR)', bold: true, color: 'FFFFFF' })] })],
+        shading: { fill: '0284C7' },
+        width: { size: 18, type: WidthType.PERCENTAGE },
+      }),
+    ],
+  });
 
-  (data.items || []).forEach((item: QuoteLineItem) => {
+  const tableRows: TableRow[] = [tableHeader];
+
+  (data.items || []).forEach((item) => {
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: item.description })] }),
-          new TableCell({ children: [new Paragraph({ text: `${item.quantity} ${item.unit || 'ea'}`, alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(item.unitPrice), alignment: AlignmentType.RIGHT })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(item.total), alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ children: [new Paragraph(item.description)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: `${item.quantity} ${item.unit || 'ea'}` })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(item.unitPrice) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(item.total), bold: true })] })] }),
         ],
       })
     );
@@ -949,10 +831,10 @@ export async function exportToWord(
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: 'Standard Callout & Technical Diagnostics' })] }),
-          new TableCell({ children: [new Paragraph({ text: '1 ea', alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.calloutFee), alignment: AlignmentType.RIGHT })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.calloutFee), alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ children: [new Paragraph('Standard Callout & Technical Diagnostics')] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 ea' })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.calloutFee) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.calloutFee), bold: true })] })] }),
         ],
       })
     );
@@ -962,10 +844,10 @@ export async function exportToWord(
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: 'Technical Labour & Installation Execution' })] }),
-          new TableCell({ children: [new Paragraph({ text: '1 lot', alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.labourTotal), alignment: AlignmentType.RIGHT })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.labourTotal), alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ children: [new Paragraph(`Technical Labour & Execution (${data.labourHours} hrs)`)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 lot' })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.labourTotal) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.labourTotal), bold: true })] })] }),
         ],
       })
     );
@@ -975,10 +857,10 @@ export async function exportToWord(
     tableRows.push(
       new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ text: 'Travel & Transport Surcharge' })] }),
-          new TableCell({ children: [new Paragraph({ text: '1 trip', alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.travelTotal), alignment: AlignmentType.RIGHT })] }),
-          new TableCell({ children: [new Paragraph({ text: formatZAR(data.travelTotal), alignment: AlignmentType.RIGHT })] }),
+          new TableCell({ children: [new Paragraph(`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`)] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, text: '1 trip' })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, text: formatZAR(data.travelTotal) })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatZAR(data.travelTotal), bold: true })] })] }),
         ],
       })
     );
@@ -990,114 +872,114 @@ export async function exportToWord(
         properties: {},
         children: [
           new Paragraph({
-            text: profile.companyName,
+            text: profile.companyName.toUpperCase(),
             heading: HeadingLevel.HEADING_1,
-            spacing: { after: 60 },
           }),
           new Paragraph({
             children: [
               new TextRun({
-                text: `${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}\n`,
+                text: profile.tagline || 'From Electrical to Aircons, security to automation, we\'ve got you covered',
                 italics: true,
                 color: '0284C7',
-                size: 20,
-              }),
-              new TextRun({
-                text: `Address: ${profile.address} | Tel: ${profile.phone} | Email: ${profile.email} | Web: ${profile.website || 'https://harryselectrical.co.za'}`,
-                color: '64748B',
-                size: 18,
               }),
             ],
-            spacing: { after: 200 },
+          }),
+          new Paragraph({
+            text: `Reg: ${profile.regNumber} | VAT: ${profile.vatNumber} | Tel: ${profile.phone} | Email: ${profile.email}`,
+          }),
+          new Paragraph({ text: `Address: ${profile.address}` }),
+          new Paragraph({ text: '' }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `${docTitle}: `, bold: true, size: 28, color: '0284C7' }),
+              new TextRun({ text: docNumber, bold: true, size: 28 }),
+            ],
+          }),
+          new Paragraph({
+            text: `Date: ${data.date} | ${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate} | Status: ${data.status.toUpperCase()}`,
+          }),
+          new Paragraph({ text: '' }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Client: ', bold: true }),
+              new TextRun(data.clientName),
+              new TextRun({ text: ' | Phone: ', bold: true }),
+              new TextRun(data.clientPhone),
+            ],
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: docTitle, bold: true, size: 28, color: tableFill }),
+              new TextRun({ text: 'Site Address: ', bold: true }),
+              new TextRun(data.clientAddress),
             ],
-            spacing: { after: 100 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Document Number: `, bold: true }),
-              new TextRun({ text: `${docNumber}    ` }),
-              new TextRun({ text: `Date: `, bold: true }),
-              new TextRun({ text: `${data.date}    ` }),
-              new TextRun({ text: isInvoice ? `Due: ` : `Valid: `, bold: true }),
-              new TextRun({ text: isInvoice ? (data as Invoice).dueDate : (data as Quotation).expiryDate }),
+              new TextRun({ text: 'Scope: ', bold: true }),
+              new TextRun(`${data.serviceType} - ${data.scopeOfWork || 'On-site technical scope'}`),
             ],
-            spacing: { after: 200 },
           }),
-          new Paragraph({
-            text: 'Client & Site Location Details:',
-            heading: HeadingLevel.HEADING_2,
-            spacing: { after: 80 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Client Name: ${data.clientName}\n` }),
-              new TextRun({ text: `Contact Number: ${data.clientPhone}\n` }),
-              new TextRun({ text: `Email: ${data.clientEmail || 'N/A'}\n` }),
-              new TextRun({ text: `Site Location: ${data.clientAddress}\n` }),
-              new TextRun({ text: `Service Category: ${data.serviceType}\n` }),
-            ],
-            spacing: { after: 200 },
-          }),
-          ...(data.scopeOfWork || data.notes
-            ? [
-                new Paragraph({
-                  text: 'Scope of Work / Service Specifications:',
-                  heading: HeadingLevel.HEADING_2,
-                  spacing: { after: 80 },
-                }),
-                new Paragraph({
-                  text: data.scopeOfWork || data.notes || '',
-                  spacing: { after: 200 },
-                }),
-              ]
-            : []),
+          new Paragraph({ text: '' }),
           new Table({
             rows: tableRows,
             width: { size: 100, type: WidthType.PERCENTAGE },
           }),
-          new Paragraph({ text: '', spacing: { after: 200 } }),
+          new Paragraph({ text: '' }),
           new Paragraph({
-            children: [
-              new TextRun({ text: `Subtotal (Excl VAT): ${formatZAR(data.subtotal)}\n` }),
-              ...(data.discountAmount && data.discountAmount > 0
-                ? [new TextRun({ text: `Discount (${data.discountPct}%): -${formatZAR(data.discountAmount)}\n`, color: 'DC2626' })]
-                : []),
-              ...(data.vatEnabled ? [new TextRun({ text: `VAT (15%): ${formatZAR(data.vatAmount)}\n` })] : []),
-              new TextRun({ text: `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}\n`, bold: true, size: 24, color: tableFill }),
-            ],
             alignment: AlignmentType.RIGHT,
-            spacing: { after: 200 },
-          }),
-          new Paragraph({
-            text: 'Banking Details (EFT Settlement):',
-            heading: HeadingLevel.HEADING_2,
-            spacing: { after: 80 },
-          }),
-          new Paragraph({
             children: [
-              new TextRun({ text: `Bank: ${profile.bankName || 'Tyme Bank Business'}\n` }),
-              new TextRun({ text: `Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}\n` }),
-              new TextRun({ text: `Account Number: ${profile.accountNumber || '53002734919'}\n` }),
-              new TextRun({ text: `Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})\n` }),
-              new TextRun({ text: `Payment Reference: ${docNumber}\n` }),
+              new TextRun({ text: `Subtotal (Excl VAT): ${formatZAR(data.subtotal)}`, bold: true }),
             ],
-            spacing: { after: 150 },
           }),
+          ...(data.discountAmount && data.discountAmount > 0
+            ? [
+                new Paragraph({
+                  alignment: AlignmentType.RIGHT,
+                  children: [
+                    new TextRun({
+                      text: `Discount (${data.discountPct}%): -${formatZAR(data.discountAmount)}`,
+                      color: 'DC2626',
+                    }),
+                  ],
+                }),
+              ]
+            : []),
+          ...(data.vatEnabled
+            ? [
+                new Paragraph({
+                  alignment: AlignmentType.RIGHT,
+                  children: [
+                    new TextRun({ text: `VAT (15%): ${formatZAR(data.vatAmount)}` }),
+                  ],
+                }),
+              ]
+            : []),
           new Paragraph({
-            text: 'Terms & Conditions:',
-            heading: HeadingLevel.HEADING_2,
-            spacing: { after: 80 },
+            alignment: AlignmentType.RIGHT,
+            children: [
+              new TextRun({
+                text: `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}`,
+                bold: true,
+                size: 28,
+                color: '0284C7',
+              }),
+            ],
           }),
+          new Paragraph({ text: '' }),
+          new Paragraph({
+            children: [new TextRun({ text: 'BANKING DETAILS (EFT SETTLEMENT):', bold: true, color: '0284C7' })],
+          }),
+          new Paragraph({ text: `Bank: ${profile.bankName || 'Tyme Bank Business'}` }),
+          new Paragraph({ text: `Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}` }),
+          new Paragraph({ text: `Account Number: ${profile.accountNumber || '53002734919'}` }),
+          new Paragraph({ text: `Branch Code: ${profile.branchCode || '678910'}` }),
+          new Paragraph({ text: `Reference: ${docNumber}` }),
+          new Paragraph({ text: '' }),
           new Paragraph({
             children: [
               new TextRun({
-                text: (data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.',
+                text: `Terms: ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion.'}`,
                 italics: true,
-                color: '64748B',
               }),
             ],
           }),
@@ -1107,122 +989,94 @@ export async function exportToWord(
   });
 
   const blob = await Packer.toBlob(doc);
-  return await saveOrShareFile({
+  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+  const title = `${docType === 'invoice' ? 'Tax Invoice Word Document' : 'Quotation Word Document'} ${docNumber}`;
+
+  return await saveOrShareFile(
     blob,
     filename,
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    title: `${docTitle} ${docNumber} Word Document`,
-    text: `Word Doc export for ${docTitle} ${docNumber}`,
-    forceDirectDownload,
-  });
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    title,
+    forceDownloadOnly
+  );
 }
 
 /**
- * Generate Plain Text (.txt) summary
+ * Export Quotation or Invoice as Clean Plain Text (.txt) Document
  */
 export async function exportToPlainText(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDirectDownload = false
+  forceDownloadOnly: boolean = false
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docNumber}_${data.clientName.replace(/\s+/g, '_')}.txt`;
+  const docSecondaryDate = isInvoice
+    ? (data as Invoice).dueDate || 'Upon Presentation'
+    : (data as Quotation).expiryDate || '30 Days from issue';
 
-  const lines = [
-    '======================================================================',
-    ` ${profile.companyName.toUpperCase()}`,
-    ` ${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}`,
-    ` Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4790284912'}`,
-    ` Phone: ${profile.phone || '071 689 6139 / 078 797 6058'} | Email: ${profile.email || 'amicovolt@outlook.com'}`,
-    ` Address: ${profile.address || '69A North Street, Rayton'} | ${profile.website || 'https://harryselectrical.co.za'}`,
-    '======================================================================',
-    '',
-    ` DOCUMENT: ${docTitle}`,
-    ` NUMBER:   ${docNumber}`,
-    ` DATE:     ${data.date}`,
-    ` ${isInvoice ? 'DUE DATE:' : 'VALID UNTIL:'} ${isInvoice ? (data as Invoice).dueDate : (data as Quotation).expiryDate}`,
-    ` STATUS:   ${data.status.toUpperCase()}`,
-    '',
-    '----------------------------------------------------------------------',
-    ' CLIENT & SITE LOCATION',
-    '----------------------------------------------------------------------',
-    ` Client Name:      ${data.clientName}`,
-    ` Phone Number:     ${data.clientPhone}`,
-    ` Email:            ${data.clientEmail || 'N/A'}`,
-    ` Site Address:     ${data.clientAddress}`,
-    ` Service Category: ${data.serviceType}`,
-    '',
-  ];
+  let text = `================================================================================\n`;
+  text += `${profile.companyName.toUpperCase()}\n`;
+  text += `${profile.tagline}\n`;
+  text += `Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}\n`;
+  text += `Tel: ${profile.phone} | Email: ${profile.email}\n`;
+  text += `Address: ${profile.address}\n`;
+  text += `================================================================================\n\n`;
+  text += `DOCUMENT:       ${docTitle}\n`;
+  text += `REFERENCE NO:   ${docNumber}\n`;
+  text += `DATE ISSUED:    ${data.date}\n`;
+  text += `${isInvoice ? 'DUE DATE:' : 'VALID UNTIL:'}   ${docSecondaryDate}\n`;
+  text += `STATUS:         ${data.status.toUpperCase()}\n\n`;
+  text += `CLIENT DETAILS:\n`;
+  text += `Name:           ${data.clientName}\n`;
+  text += `Phone:          ${data.clientPhone}\n`;
+  if (data.clientEmail) text += `Email:          ${data.clientEmail}\n`;
+  text += `Site Address:   ${data.clientAddress}\n`;
+  text += `Category:       ${data.serviceType}\n`;
+  text += `Scope of Work:  ${data.scopeOfWork || 'On-site technical scope'}\n\n`;
+  text += `--------------------------------------------------------------------------------\n`;
+  text += `ITEMIZED PRICING SCHEDULE:\n`;
+  text += `--------------------------------------------------------------------------------\n`;
 
-  if (data.scopeOfWork || data.notes) {
-    lines.push('----------------------------------------------------------------------');
-    lines.push(' SCOPE OF WORK / SERVICE SPECIFICATIONS');
-    lines.push('----------------------------------------------------------------------');
-    lines.push(data.scopeOfWork || data.notes || '');
-    lines.push('');
-  }
-
-  lines.push('----------------------------------------------------------------------');
-  lines.push(' ITEMIZED BREAKDOWN');
-  lines.push('----------------------------------------------------------------------');
-  lines.push(' Description                                    Qty    Rate     Total');
-  lines.push('----------------------------------------------------------------------');
-
-  (data.items || []).forEach((item: QuoteLineItem) => {
-    const desc = item.description.padEnd(45).substring(0, 45);
-    const qty = `${item.quantity} ${item.unit || 'ea'}`.padEnd(7);
-    const rate = formatZAR(item.unitPrice).padStart(8);
-    const total = formatZAR(item.total).padStart(10);
-    lines.push(` ${desc} ${qty} ${rate} ${total}`);
+  (data.items || []).forEach((item, index) => {
+    text += `${index + 1}. ${item.description}\n`;
+    text += `   Qty: ${item.quantity} ${item.unit || 'ea'} | Unit Rate: ${formatZAR(item.unitPrice)} | Total: ${formatZAR(item.total)}\n`;
   });
 
   if (data.calloutFee > 0) {
-    lines.push(` Callout & Diagnostic Baseline               1 ea    ${formatZAR(data.calloutFee).padStart(8)} ${formatZAR(data.calloutFee).padStart(10)}`);
+    text += `• Standard Callout & Diagnostics: ${formatZAR(data.calloutFee)}\n`;
   }
   if (data.labourTotal > 0) {
-    lines.push(` Technical Labour & Installation Execution   1 lot   ${formatZAR(data.labourTotal).padStart(8)} ${formatZAR(data.labourTotal).padStart(10)}`);
+    text += `• Technical Labour (${data.labourHours} hrs @ ${formatZAR(data.labourRatePerHour)}/hr): ${formatZAR(data.labourTotal)}\n`;
   }
   if (data.travelTotal > 0) {
-    lines.push(` Travel & Transport Surcharge                1 trip  ${formatZAR(data.travelTotal).padStart(8)} ${formatZAR(data.travelTotal).padStart(10)}`);
+    text += `• Logistics & Travel (${data.travelDistanceKm} km): ${formatZAR(data.travelTotal)}\n`;
   }
 
-  lines.push('----------------------------------------------------------------------');
-  lines.push(` Subtotal (Excl VAT):                                ${formatZAR(data.subtotal).padStart(14)}`);
-
+  text += `--------------------------------------------------------------------------------\n`;
+  text += `Subtotal (Excl VAT):               ${formatZAR(data.subtotal)}\n`;
   if (data.discountAmount && data.discountAmount > 0) {
-    lines.push(` Discount (${data.discountPct}%):                                 -${formatZAR(data.discountAmount).padStart(13)}`);
+    text += `Discount (${data.discountPct}%):                  -${formatZAR(data.discountAmount)}\n`;
   }
-
   if (data.vatEnabled) {
-    lines.push(` VAT (15%):                                          ${formatZAR(data.vatAmount).padStart(14)}`);
+    text += `VAT (15%):                         ${formatZAR(data.vatAmount)}\n`;
   }
+  text += `TOTAL AMOUNT:                      ${formatZAR(data.totalAmount)}\n`;
+  text += `================================================================================\n\n`;
+  text += `BANKING DETAILS (EFT SETTLEMENT):\n`;
+  text += `Bank:           ${profile.bankName || 'Tyme Bank Business'}\n`;
+  text += `Account Name:   ${profile.accountName || 'Harrys Aircon and Electrical'}\n`;
+  text += `Account Number: ${profile.accountNumber || '53002734919'}\n`;
+  text += `Branch Code:    ${profile.branchCode || '678910'}\n`;
+  text += `Reference:      ${docNumber}\n\n`;
+  text += `TERMS & CONDITIONS:\n`;
+  text += `${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. Certified SANS 10142 compliance.'}\n`;
 
-  lines.push(` TOTAL AMOUNT:                                       ${formatZAR(data.totalAmount).padStart(14)}`);
-  lines.push('======================================================================');
-  lines.push('');
-  lines.push(' BANKING DETAILS FOR EFT:');
-  lines.push(` Bank:           ${profile.bankName || 'Tyme Bank Business'}`);
-  lines.push(` Account Name:   ${profile.accountName || 'Harrys Aircon and Electrical'}`);
-  lines.push(` Account Number: ${profile.accountNumber || '53002734919'}`);
-  lines.push(` Branch Code:    ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`);
-  lines.push(` Reference:      ${docNumber}`);
-  lines.push('');
-  lines.push(' TERMS & CONDITIONS:');
-  lines.push(` ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.'}`);
-  lines.push('======================================================================');
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+  const title = `${docType === 'invoice' ? 'Tax Invoice Text' : 'Quotation Text'} ${docNumber}`;
 
-  const textContent = lines.join('\n');
-  const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-  return await saveOrShareFile({
-    blob,
-    filename,
-    mimeType: 'text/plain',
-    title: `${docTitle} ${docNumber} Plain Text`,
-    text: `Plain text summary for ${docTitle} ${docNumber}`,
-    forceDirectDownload,
-  });
+  return await saveOrShareFile(blob, filename, 'text/plain', title, forceDownloadOnly);
 }
-

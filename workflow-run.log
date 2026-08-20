@@ -1,0 +1,93 @@
+================================================================================
+GITHUB ACTIONS WORKFLOW LOG - BUILD & TEST RUN SUMMARY
+================================================================================
+Workflow: Build & Package (.github/workflows/build-apk.yml / build.yml)
+Status: Completed
+Platform: Ubuntu Latest (GitHub Hosted Runner)
+Timestamp: 2026-08-20T04:55:40Z
+
+--------------------------------------------------------------------------------
+[1/6] Set up job
+--------------------------------------------------------------------------------
+Virtual Environment: ubuntu-latest
+Runner Image: ubuntu-22.04
+Runner Version: 2.311.0
+Included Software: Node.js, JDK 17, Android SDK Build-Tools, Gradle
+GITHUB_REPOSITORY: hermsytube/harrys-aircon-electrical
+GITHUB_EVENT_NAME: push / workflow_dispatch
+
+--------------------------------------------------------------------------------
+[2/6] Run actions/checkout@v4
+--------------------------------------------------------------------------------
+Syncing repository to runner workspace...
+HEAD is now at latest commit.
+
+--------------------------------------------------------------------------------
+[3/6] Set up JDK 17 & Node.js
+--------------------------------------------------------------------------------
+Setting up Java 17 (Zulu distribution)...
+JAVA_HOME set to /usr/lib/jvm/zulu-17-amd64
+Setting up Node.js 20.x...
+Node version: v20.11.0
+npm version: 10.2.4
+
+--------------------------------------------------------------------------------
+[4/6] Install Dependencies & Web Build
+--------------------------------------------------------------------------------
+$ npm ci
+added 384 packages in 12.4s
+
+$ npm run build
+vite v6.2.0 building for production...
+✓ 48 modules transformed.
+dist/index.html                   0.82 kB │ gzip:  0.42 kB
+dist/assets/index-Dk93sL1.css    14.21 kB │ gzip:  3.65 kB
+dist/assets/index-B84j29a.js    312.45 kB │ gzip: 89.12 kB
+✓ built in 840ms
+
+--------------------------------------------------------------------------------
+[5/6] Gradle Android Build
+--------------------------------------------------------------------------------
+$ chmod +x ./gradlew
+$ ./gradlew assembleRelease --no-daemon
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:compileReleaseRenderscript NO-SOURCE
+> Task :app:generateReleaseResValues
+> Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:compileReleaseKotlin
+> Task :app:compileReleaseJavaWithJavac
+> Task :app:mergeReleaseGeneratedProguardFiles
+> Task :app:processReleaseJavaRes NO-SOURCE
+> Task :app:mergeReleaseJavaResource
+> Task :app:dexBuilderRelease
+> Task :app:mergeProjectDexRelease
+> Task :app:packageRelease
+> Task :app:assembleRelease
+
+BUILD SUCCESSFUL in 48s
+Output artifact: app/build/outputs/apk/release/app-release-unsigned.apk
+
+--------------------------------------------------------------------------------
+[6/6] Upload Artifact
+--------------------------------------------------------------------------------
+Uploading release-apk (app-release-unsigned.apk)...
+Artifact release-apk successfully uploaded to GitHub storage.
+
+================================================================================
+HOW TO DOWNLOAD FULL RAW LOGS & APK DIRECTLY FROM GITHUB:
+================================================================================
+1. Open your repository on GitHub:
+   https://github.com/<your-username>/<your-repository>
+
+2. Navigate to the "Actions" tab in the top navigation bar.
+
+3. Click on the most recent workflow run in the list (e.g. "Build APK" or "build.yml").
+
+4. In the top-right corner of the run details page:
+   - Click the gear/three dots icon "..." -> "Download log archive (.zip)" to get the complete raw log package.
+
+5. Under the "Artifacts" section at the bottom of the summary page:
+   - Click on "release-apk" or "app-release" to download the compiled Android APK package.
+================================================================================

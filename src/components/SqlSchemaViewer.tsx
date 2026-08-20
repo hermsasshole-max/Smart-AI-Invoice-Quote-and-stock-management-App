@@ -1,122 +1,247 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { SQLITE_DDL_SCHEMA } from '../data/seedData';
-import { Database, Copy, Check, Download, Code2, Layers, Cpu, ShieldCheck } from 'lucide-react';
+import { Database, Table, Key, ShieldCheck, Copy, Check } from 'lucide-react';
 
 export const SqlSchemaViewer: React.FC = () => {
-  const { sunlightMode, inventory, quotations, invoices, clients, jobs } = useApp();
   const [copied, setCopied] = useState(false);
 
-  const handleCopyDDL = () => {
-    navigator.clipboard.writeText(SQLITE_DDL_SCHEMA);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const sqlSchemaCode = `-- ==========================================
+-- Harry's Aircon & Electrical Cloud SQL Schema
+-- Target Database: PostgreSQL 15 / 16 (Google Cloud SQL)
+-- Standard: SANS 10142-1 Compliance & Audit Trail
+-- ==========================================
 
-  const handleDownloadSQL = () => {
-    const blob = new Blob([SQLITE_DDL_SCHEMA], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `harrys_field_services_schema_${new Date().toISOString().split('T')[0]}.sql`;
-    link.click();
-    URL.revokeObjectURL(url);
+-- Enable UUID Extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. BUSINESS PROFILE & CONTRACTOR COMPLIANCE
+CREATE TABLE IF NOT EXISTS business_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_name VARCHAR(255) NOT NULL,
+    tagline VARCHAR(255),
+    reg_number VARCHAR(100),
+    vat_number VARCHAR(100),
+    phone VARCHAR(50) NOT NULL,
+    email VARCHAR(150),
+    address TEXT,
+    bank_name VARCHAR(100),
+    account_name VARCHAR(150),
+    account_number VARCHAR(50),
+    branch_code VARCHAR(20),
+    account_type VARCHAR(50) DEFAULT 'Current',
+    default_callout_fee NUMERIC(10, 2) DEFAULT 650.00,
+    default_labour_rate NUMERIC(10, 2) DEFAULT 450.00,
+    default_travel_rate NUMERIC(10, 2) DEFAULT 7.50,
+    default_markup_pct NUMERIC(5, 2) DEFAULT 35.00,
+    vat_enabled BOOLEAN DEFAULT true,
+    vat_percentage NUMERIC(5, 2) DEFAULT 15.00,
+    sans_compliance_notice TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. CLIENTS & RESIDENTIAL/COMMERCIAL SITES
+CREATE TABLE IF NOT EXISTS clients (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    email VARCHAR(150),
+    address TEXT NOT NULL,
+    notes TEXT,
+    total_billed NUMERIC(12, 2) DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_clients_phone ON clients(phone);
+CREATE INDEX idx_clients_name ON clients(name);
+
+-- 3. VAN STOCK & MATERIALS INVENTORY
+CREATE TABLE IF NOT EXISTS inventory_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    cost_price NUMERIC(10, 2) NOT NULL,
+    default_markup NUMERIC(5, 2) NOT NULL DEFAULT 35.00,
+    selling_price NUMERIC(10, 2) NOT NULL,
+    unit VARCHAR(30) DEFAULT 'ea',
+    stock_qty INTEGER DEFAULT 0,
+    min_stock_level INTEGER DEFAULT 2,
+    supplier VARCHAR(150),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_inventory_category ON inventory_items(category);
+
+-- 4. ON-SITE FAST QUOTATIONS
+CREATE TABLE IF NOT EXISTS quotations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quote_number VARCHAR(50) UNIQUE NOT NULL,
+    client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+    client_name VARCHAR(255) NOT NULL,
+    client_phone VARCHAR(50) NOT NULL,
+    client_email VARCHAR(150),
+    client_address TEXT NOT NULL,
+    service_type VARCHAR(100) NOT NULL,
+    scope_of_work TEXT,
+    callout_fee NUMERIC(10, 2) DEFAULT 0.00,
+    labour_hours NUMERIC(6, 2) DEFAULT 0.00,
+    labour_rate_per_hour NUMERIC(10, 2) DEFAULT 0.00,
+    labour_total NUMERIC(10, 2) DEFAULT 0.00,
+    travel_distance_km NUMERIC(6, 2) DEFAULT 0.00,
+    travel_rate_per_km NUMERIC(10, 2) DEFAULT 0.00,
+    travel_total NUMERIC(10, 2) DEFAULT 0.00,
+    subtotal NUMERIC(12, 2) NOT NULL,
+    discount_pct NUMERIC(5, 2) DEFAULT 0.00,
+    discount_amount NUMERIC(10, 2) DEFAULT 0.00,
+    vat_enabled BOOLEAN DEFAULT true,
+    vat_amount NUMERIC(10, 2) DEFAULT 0.00,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'sent',
+    date DATE NOT NULL,
+    expiry_date DATE NOT NULL,
+    notes TEXT,
+    terms TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. QUOTATION LINE ITEMS
+CREATE TABLE IF NOT EXISTS quotation_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quotation_id UUID NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    category VARCHAR(100),
+    cost_price NUMERIC(10, 2) NOT NULL,
+    markup_pct NUMERIC(5, 2) NOT NULL,
+    unit_price NUMERIC(10, 2) NOT NULL,
+    quantity NUMERIC(8, 2) NOT NULL,
+    unit VARCHAR(30) DEFAULT 'ea',
+    total NUMERIC(12, 2) NOT NULL
+);
+
+-- 6. TAX INVOICES & COC CERTIFICATIONS
+CREATE TABLE IF NOT EXISTS invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    quote_id UUID REFERENCES quotations(id) ON DELETE SET NULL,
+    client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+    client_name VARCHAR(255) NOT NULL,
+    client_phone VARCHAR(50) NOT NULL,
+    client_email VARCHAR(150),
+    client_address TEXT NOT NULL,
+    service_type VARCHAR(100) NOT NULL,
+    scope_of_work TEXT,
+    subtotal NUMERIC(12, 2) NOT NULL,
+    vat_amount NUMERIC(10, 2) DEFAULT 0.00,
+    total_amount NUMERIC(12, 2) NOT NULL,
+    amount_paid NUMERIC(12, 2) DEFAULT 0.00,
+    status VARCHAR(50) DEFAULT 'issued',
+    date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    coc_number VARCHAR(100),
+    coc_issue_date DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. EFT & CASH PAYMENT AUDIT TRAIL
+CREATE TABLE IF NOT EXISTS invoice_payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    payment_date DATE NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    method VARCHAR(50) NOT NULL,
+    reference VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. GEMINI AI OCR SLIP SCANS
+CREATE TABLE IF NOT EXISTS receipt_scans (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_name VARCHAR(255),
+    invoice_number VARCHAR(100),
+    scan_date DATE,
+    total_amount NUMERIC(12, 2),
+    raw_ocr_json JSONB,
+    processed BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);`;
+
+  const copySql = () => {
+    navigator.clipboard.writeText(sqlSchemaCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   return (
-    <div className={`p-4 md:p-6 max-w-7xl mx-auto space-y-6 ${sunlightMode ? 'text-black' : 'text-[#F8FAFC]'}`}>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155] pb-4">
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8] text-[#1B1E28] uppercase tracking-wider flex items-center space-x-1">
-              <Database className="w-3 h-3" />
-              <span>ANDROID KOTLIN / ROOM SQLITE DDL</span>
+          <h2 className="text-xl sm:text-2xl font-black text-white flex items-center space-x-2">
+            <span>Cloud SQL PostgreSQL Schema</span>
+            <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">
+              PostgreSQL 16 & JSONB
             </span>
-            <span className="text-[11px] font-mono text-[#94A3B8]">OFFLINE-FIRST RELATIONAL DATA LAYER</span>
-          </div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight uppercase mt-1 text-white">
-            SQLite Database & Room Entities Schema
           </h2>
-          <p className="text-xs font-mono text-[#94A3B8] mt-0.5">
-            Comprehensive DDL schema and Room Entity architecture powering offline field synchronization, foreign keys, cascade triggers, and stock reconciliation.
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Enterprise database architecture for Harry's Field Operations, SANS 10142 compliance, and OCR slips.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 font-mono">
-          <button
-            onClick={handleCopyDDL}
-            className="px-3.5 py-2 rounded-lg bg-[#232838] border border-[#334155] hover:bg-[#1B1E28] text-[#F8FAFC] font-bold text-xs uppercase flex items-center space-x-1.5 shadow"
-          >
-            {copied ? <Check className="w-4 h-4 text-[#10B981]" /> : <Copy className="w-4 h-4 text-[#94A3B8]" />}
-            <span>{copied ? 'COPIED TO CLIPBOARD' : 'COPY SQL DDL'}</span>
-          </button>
-
-          <button
-            onClick={handleDownloadSQL}
-            className="px-3.5 py-2 rounded-lg bg-[#38BDF8] hover:bg-[#7DD3FC] text-[#1B1E28] font-bold text-xs uppercase flex items-center space-x-1.5 shadow"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download .sql</span>
-          </button>
-        </div>
+        <button
+          onClick={copySql}
+          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          <span>{copied ? 'Copied DDL Script!' : 'Copy SQL Script'}</span>
+        </button>
       </div>
 
-      {/* Relational Table Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#10B981]">inventory_items</span>
-          <div className="text-xs text-white mt-1 font-bold">{inventory.length} Records</div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#38BDF8]">quotations</span>
-          <div className="text-xs text-white mt-1 font-bold">{quotations.length} Records</div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#F59E0B]">invoices</span>
-          <div className="text-xs text-white mt-1 font-bold">{invoices.length} Records</div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#10B981]">field_jobs</span>
-          <div className="text-xs text-white mt-1 font-bold">{jobs.length} Records</div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#38BDF8]">clients</span>
-          <div className="text-xs text-white mt-1 font-bold">{clients.length} Records</div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#232838] border border-[#334155]">
-          <span className="text-[#94A3B8] block text-[10px] uppercase">TABLE</span>
-          <span className="font-bold text-[#F59E0B]">business_profile</span>
-          <div className="text-xs text-white mt-1 font-bold">1 Active Singleton</div>
-        </div>
-      </div>
-
-      {/* SQL DDL Code View */}
-      <div
-        className={`p-5 rounded-2xl border font-mono text-xs overflow-hidden shadow-2xl ${
-          sunlightMode ? 'bg-[#1B1E28] text-[#10B981] border-2 border-black' : 'bg-[#1B1E28] border-[#334155] text-[#10B981]'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-[#334155] pb-3 mb-3">
-          <div className="flex items-center space-x-2">
-            <Code2 className="w-4 h-4 text-[#38BDF8]" />
-            <span className="text-white font-bold">schema.sql (SQLite 3.x / Android Room Compatible)</span>
+      {/* Tables Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-2xl bg-[#1B1E28] border border-[#282E3E]">
+          <div className="flex items-center space-x-2 text-sky-400 font-mono font-bold text-xs uppercase mb-1">
+            <Table className="w-4 h-4" />
+            <span>business_profiles</span>
           </div>
-          <span className="text-[#94A3B8] text-[11px] uppercase">Strict Types • Indexes • Triggers</span>
+          <p className="text-xs text-slate-400">Stores TymeBank account info, VAT 15%, SANS compliance notices, and default markup rates.</p>
         </div>
 
-        <pre className="max-h-[500px] overflow-y-auto leading-relaxed p-2 select-all scrollbar-thin scrollbar-thumb-[#334155] text-[11px] font-mono">
-          {SQLITE_DDL_SCHEMA}
+        <div className="p-4 rounded-2xl bg-[#1B1E28] border border-[#282E3E]">
+          <div className="flex items-center space-x-2 text-amber-400 font-mono font-bold text-xs uppercase mb-1">
+            <Table className="w-4 h-4" />
+            <span>quotations & items</span>
+          </div>
+          <p className="text-xs text-slate-400">Foreign-keyed on-site quotes with labour, travel, callout, discount, and VAT calculation.</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-[#1B1E28] border border-[#282E3E]">
+          <div className="flex items-center space-x-2 text-emerald-400 font-mono font-bold text-xs uppercase mb-1">
+            <Table className="w-4 h-4" />
+            <span>invoices & payments</span>
+          </div>
+          <p className="text-xs text-slate-400">Tax invoices linked with EFT audit trails, partial payments, and SANS CoC certificates.</p>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-[#1B1E28] border border-[#282E3E]">
+          <div className="flex items-center space-x-2 text-indigo-400 font-mono font-bold text-xs uppercase mb-1">
+            <Table className="w-4 h-4" />
+            <span>receipt_scans</span>
+          </div>
+          <p className="text-xs text-slate-400">Gemini 2.5 Flash OCR JSON logs for supplier slip extraction and automatic van stock ingest.</p>
+        </div>
+      </div>
+
+      {/* SQL Script Viewer */}
+      <div className="p-4 rounded-2xl bg-[#12141C] border border-[#282E3E] overflow-hidden">
+        <div className="flex justify-between items-center pb-3 mb-3 border-b border-[#282E3E] text-xs font-mono text-slate-400">
+          <span>database_schema.sql</span>
+          <span>PostgreSQL Syntax</span>
+        </div>
+        <pre className="text-xs font-mono text-sky-300 overflow-x-auto p-2 bg-[#0C0E14] rounded-xl max-h-[500px]">
+          {sqlSchemaCode}
         </pre>
       </div>
     </div>
