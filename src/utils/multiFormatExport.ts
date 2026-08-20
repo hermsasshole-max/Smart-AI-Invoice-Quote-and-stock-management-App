@@ -19,16 +19,30 @@ export type ExportFormat = 'pdf' | 'xlsx' | 'docx' | 'txt';
 
 export interface ExportResult {
   success: boolean;
-  method: 'share' | 'download' | 'open' | 'blob';
+  method: 'share' | 'download' | 'open' | 'blob' | 'dataUrl';
   filename: string;
   blobUrl?: string;
+  dataUrl?: string;
+}
+
+/**
+ * Convert Blob to Base64 Data URL string
+ */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 /**
  * Universal Mobile/Android & Desktop file delivery:
  * 1. Checks for Android/Mobile Web Share API with files support for native "Save to Device / Drive / WhatsApp / Downloads"
  * 2. Falls back to direct browser blob anchor download
- * 3. Falls back to window.open for strict iframe / popup sandbox environments
+ * 3. Falls back to Base64 Data URI anchor download for iframe sandbox bypass
+ * 4. Falls back to window.open for direct view/save
  */
 export async function saveOrShareFile(options: {
   blob: Blob;
@@ -40,6 +54,13 @@ export async function saveOrShareFile(options: {
 }): Promise<ExportResult> {
   const { blob, filename, mimeType, title, text, forceDirectDownload } = options;
 
+  let dataUrl: string | undefined;
+  try {
+    dataUrl = await blobToBase64(blob);
+  } catch (err) {
+    console.warn('Could not generate base64 data url:', err);
+  }
+
   // 1. Check if user is on mobile and Web Share API can share files (Native Android / iOS Share Sheet)
   if (!forceDirectDownload && typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
     try {
@@ -50,20 +71,20 @@ export async function saveOrShareFile(options: {
           title: title || filename,
           text: text || `${title} from Harry's Aircon Electrical & Solar Services`,
         });
-        return { success: true, method: 'share', filename };
+        return { success: true, method: 'share', filename, dataUrl };
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         // User closed or dismissed the share sheet
-        return { success: true, method: 'share', filename };
+        return { success: true, method: 'share', filename, dataUrl };
       }
-      console.warn('Native Web Share failed, falling back to download:', err);
+      console.warn('Native Web Share failed, falling back to direct download:', err);
     }
   }
 
-  // 2. Direct Blob Download Anchor
+  // 2. Direct Blob / DataURI Download Anchor
   try {
-    const url = URL.createObjectURL(blob);
+    const url = dataUrl || URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
@@ -77,20 +98,24 @@ export async function saveOrShareFile(options: {
       if (document.body.contains(a)) {
         document.body.removeChild(a);
       }
-      // Revoke after 20s to ensure download stream initiated
-      setTimeout(() => URL.revokeObjectURL(url), 20000);
-    }, 250);
+      if (!dataUrl && url.startsWith('blob:')) {
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
+    }, 300);
 
-    return { success: true, method: 'download', filename, blobUrl: url };
+    return { success: true, method: 'download', filename, blobUrl: url, dataUrl };
   } catch (err) {
-    console.error('Direct download failed:', err);
-    const url = URL.createObjectURL(blob);
+    console.error('Direct anchor download failed, attempting window.open:', err);
+    const url = dataUrl || URL.createObjectURL(blob);
     try {
-      window.open(url, '_blank');
-      return { success: true, method: 'open', filename, blobUrl: url };
-    } catch {
-      return { success: false, method: 'blob', filename, blobUrl: url };
+      const win = window.open(url, '_blank');
+      if (win) {
+        return { success: true, method: 'open', filename, blobUrl: url, dataUrl };
+      }
+    } catch (e) {
+      console.warn('window.open blocked:', e);
     }
+    return { success: false, method: 'blob', filename, blobUrl: url, dataUrl };
   }
 }
 
@@ -375,6 +400,351 @@ export function buildJsPDFDocument(
   );
 
   return doc;
+}
+
+/**
+ * Generate standalone printable HTML page for Quotation or Invoice
+ */
+export function generatePrintableHtml(
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile
+): string {
+  const isInvoice = docType === 'invoice';
+  const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
+  const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const docSecondaryDate = isInvoice
+    ? (data as Invoice).dueDate || 'Upon Presentation'
+    : (data as Quotation).expiryDate || '30 Days from issue';
+
+  const rowsHtml = (data.items || [])
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500; color: #0F172A;">${item.description}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">${item.quantity} ${item.unit || 'ea'}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(item.unitPrice)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700; color: #0F172A;">${formatZAR(item.total)}</td>
+      </tr>`
+    )
+    .join('');
+
+  const calloutRow =
+    data.calloutFee > 0
+      ? `<tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Standard Callout & Technical Diagnostics</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 ea</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.calloutFee)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.calloutFee)}</td>
+        </tr>`
+      : '';
+
+  const labourRow =
+    data.labourTotal > 0
+      ? `<tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Technical Labour & Installation Execution</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 lot</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.labourTotal)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.labourTotal)}</td>
+        </tr>`
+      : '';
+
+  const travelRow =
+    data.travelTotal > 0
+      ? `<tr>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-weight: 500;">Travel & Logistics Surcharge</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: center; font-family: monospace;">1 trip</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace;">${formatZAR(data.travelTotal)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #E2E8F0; text-align: right; font-family: monospace; font-weight: 700;">${formatZAR(data.travelTotal)}</td>
+        </tr>`
+      : '';
+
+  const discountHtml =
+    data.discountAmount && data.discountAmount > 0
+      ? `<div style="display: flex; justify-content: space-between; color: #DC2626; margin-bottom: 4px; font-weight: 600;">
+          <span>Discount (${data.discountPct}%):</span>
+          <span>-${formatZAR(data.discountAmount)}</span>
+        </div>`
+      : '';
+
+  const vatHtml = data.vatEnabled
+    ? `<div style="display: flex; justify-content: space-between; color: #475569; margin-bottom: 4px;">
+        <span>South African VAT (15%):</span>
+        <span style="font-weight: 700; color: #0F172A;">${formatZAR(data.vatAmount)}</span>
+      </div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${docTitle} ${docNumber} - ${data.clientName}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1E293B;
+      background: #F8FAFC;
+      margin: 0;
+      padding: 16px;
+    }
+    .print-actions {
+      max-width: 800px;
+      margin: 0 auto 16px auto;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #1B1E28;
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .btn-print {
+      background: #0284C7;
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-print:hover { background: #0369A1; }
+    .print-sheet {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .print-actions { display: none !important; }
+      .print-sheet { border: none !important; box-shadow: none !important; border-radius: 0 !important; width: 100% !important; max-width: 100% !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions">
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Tap to Print / Save as PDF
+    </button>
+    <span style="color: #94A3B8; font-size: 13px; font-family: monospace;">
+      On Android: In the print dialog, select <strong>"Save as PDF"</strong> to save to phone.
+    </span>
+  </div>
+
+  <div class="print-sheet">
+    <!-- Header -->
+    <div style="background: #1B1E28; color: #ffffff; padding: 24px; border-bottom: 4px solid #38BDF8;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <h1 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
+            ${profile.companyName}
+          </h1>
+          <p style="margin: 0 0 12px 0; font-size: 12px; color: #38BDF8; font-weight: 500;">
+            ${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}
+          </p>
+          <div style="font-size: 11px; color: #CBD5E1; line-height: 1.5; font-family: monospace;">
+            <div>Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}</div>
+            <div>Tel: ${profile.phone} | Email: ${profile.email}</div>
+            <div>Address: ${profile.address} | Web: ${profile.website || 'https://harryselectrical.co.za'}</div>
+          </div>
+        </div>
+
+        <div style="text-align: right; font-family: monospace;">
+          <div style="display: inline-block; padding: 6px 12px; background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; font-size: 14px; font-weight: 900; margin-bottom: 8px;">
+            ${docTitle}
+          </div>
+          <div style="font-size: 12px; color: #CBD5E1; line-height: 1.5;">
+            <div><span style="color: #94A3B8;">Ref #:</span> <strong style="color: #ffffff;">${docNumber}</strong></div>
+            <div><span style="color: #94A3B8;">Date:</span> ${data.date}</div>
+            <div><span style="color: #94A3B8;">${isInvoice ? 'Due Date:' : 'Valid Until:'}</span> ${docSecondaryDate}</div>
+            <div style="color: #38BDF8; font-weight: 700; text-transform: uppercase; margin-top: 4px;">Status: ${data.status}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client & Site -->
+    <div style="padding: 20px 24px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #0284C7; font-family: monospace;">
+            ${isInvoice ? 'Billed To / Site Location' : 'Client & Site Details'}
+          </h4>
+          <div style="font-size: 13px; line-height: 1.5; color: #334155;">
+            <div style="font-weight: 700; color: #0F172A; font-size: 14px;">${data.clientName}</div>
+            <div>📞 ${data.clientPhone}</div>
+            ${data.clientEmail ? `<div>✉️ ${data.clientEmail}</div>` : ''}
+            <div>📍 ${data.clientAddress}</div>
+          </div>
+        </div>
+
+        <div>
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #0284C7; font-family: monospace;">
+            Job Specifications
+          </h4>
+          <div style="font-size: 13px; line-height: 1.5; color: #334155;">
+            <div><span style="color: #64748B;">Category:</span> <strong>${data.serviceType}</strong></div>
+            ${
+              data.scopeOfWork
+                ? `<div style="margin-top: 8px; padding: 10px; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 6px; color: #92400E; font-size: 12px;">
+                    <strong style="display: block; font-size: 10px; text-transform: uppercase; font-family: monospace; color: #B45309; margin-bottom: 2px;">Scope of Work</strong>
+                    ${data.scopeOfWork}
+                  </div>`
+                : ''
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div style="padding: 24px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background: #0284C7; color: #ffffff; font-family: monospace; text-transform: uppercase; font-size: 11px;">
+            <th style="padding: 10px 12px; text-align: left; border-radius: 4px 0 0 4px;">Item / Description</th>
+            <th style="padding: 10px 12px; text-align: center;">Qty</th>
+            <th style="padding: 10px 12px; text-align: right;">Rate (ZAR)</th>
+            <th style="padding: 10px 12px; text-align: right; border-radius: 0 4px 4px 0;">Total (ZAR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          ${calloutRow}
+          ${labourRow}
+          ${travelRow}
+        </tbody>
+      </table>
+
+      <!-- Totals & Banking -->
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; padding-top: 16px; border-top: 2px solid #E2E8F0;">
+        <div style="background: #F1F5F9; padding: 14px; border-radius: 8px; border: 1px solid #E2E8F0; font-family: monospace; font-size: 11px;">
+          <div style="font-weight: 700; color: #0284C7; text-transform: uppercase; margin-bottom: 8px;">
+            🏦 Banking Details (EFT Settlement)
+          </div>
+          <div style="line-height: 1.6; color: #334155;">
+            <div>Bank: <strong>${profile.bankName || 'Tyme Bank Business'}</strong></div>
+            <div>Account Name: <strong>${profile.accountName || 'Harrys Aircon and Electrical'}</strong></div>
+            <div>Account Number: <strong>${profile.accountNumber || '53002734919'}</strong></div>
+            <div>Branch Code: <strong>${profile.branchCode || '678910'}</strong> (${profile.accountType || 'Current'})</div>
+            <div>Reference: <strong style="color: #0284C7;">${docNumber}</strong></div>
+          </div>
+        </div>
+
+        <div style="font-family: monospace; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; color: #475569; margin-bottom: 4px;">
+            <span>Subtotal (Excl VAT):</span>
+            <span style="font-weight: 700; color: #0F172A;">${formatZAR(data.subtotal)}</span>
+          </div>
+          ${discountHtml}
+          ${vatHtml}
+          <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0F172A; padding-top: 8px; border-top: 2px solid #CBD5E1; margin-top: 4px;">
+            <span>TOTAL:</span>
+            <span style="color: #0284C7;">${formatZAR(data.totalAmount)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Terms -->
+      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-style: italic; line-height: 1.5;">
+        <div><strong>Terms:</strong> ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.'}</div>
+        <div style="margin-top: 4px;">Certified SANS 10142 compliance & workmanship warranty from Harry's Aircon Electrical & Solar Services.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      // Auto trigger print when loaded
+      setTimeout(() => {
+        try { window.print(); } catch(e) {}
+      }, 500);
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Open Standalone Print Dialog Window (Bypasses iframe sandboxes)
+ */
+export function printHtmlDocument(
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile
+): void {
+  const html = generatePrintableHtml(docType, data, profile);
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  } else {
+    // If popup blocked, create invisible iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+      iframe.contentWindow?.focus();
+      try {
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.warn('Iframe print error:', err);
+      }
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 60000);
+    }
+  }
+}
+
+/**
+ * Open PDF Directly in a New Browser Tab (Data URI / Blob)
+ */
+export async function openPdfInNewTab(
+  docType: 'quote' | 'invoice',
+  data: Quotation | Invoice,
+  profile: BusinessProfile
+): Promise<void> {
+  const doc = buildJsPDFDocument(docType, data, profile);
+  const blob = doc.output('blob');
+  const dataUrl = await blobToBase64(blob);
+  
+  const win = window.open(dataUrl, '_blank');
+  if (!win) {
+    // If popup blocked, create link and click
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 500);
+  }
 }
 
 /**

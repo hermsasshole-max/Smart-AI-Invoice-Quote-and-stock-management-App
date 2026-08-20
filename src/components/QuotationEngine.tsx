@@ -8,7 +8,13 @@ import {
   generateWhatsAppQuoteSummary,
   calculateSellingPrice,
 } from '../utils/calculator';
-import { exportToPDF, exportToExcel, exportToWord, exportToPlainText } from '../utils/multiFormatExport';
+import {
+  exportToPDF,
+  exportToExcel,
+  exportToWord,
+  exportToPlainText,
+  printHtmlDocument,
+} from '../utils/multiFormatExport';
 import { VoiceInvoiceWizard } from './VoiceInvoiceWizard';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import {
@@ -38,6 +44,7 @@ import {
   X,
   Percent,
   Eye,
+  Printer,
 } from 'lucide-react';
 
 export const QuotationEngine: React.FC = () => {
@@ -791,6 +798,17 @@ export const QuotationEngine: React.FC = () => {
                             >
                               <Share2 className="w-4 h-4" />
                               <span>Save to Phone / Share</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                printHtmlDocument('quote', quote, profile);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-amber-400 font-semibold border-b border-[#334155]"
+                            >
+                              <Printer className="w-4 h-4 text-amber-400" />
+                              <span>Print / Save as PDF</span>
                             </button>
 
                             <button

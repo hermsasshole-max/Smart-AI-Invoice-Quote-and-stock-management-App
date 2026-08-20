@@ -6,6 +6,8 @@ import {
   exportToExcel,
   exportToWord,
   exportToPlainText,
+  printHtmlDocument,
+  openPdfInNewTab,
   ExportResult,
 } from '../utils/multiFormatExport';
 import {
@@ -29,6 +31,10 @@ import {
   Phone,
   Mail,
   Zap,
+  Copy,
+  Check,
+  FolderDown,
+  Info,
 } from 'lucide-react';
 
 interface DocumentPreviewModalProps {
@@ -49,6 +55,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   sunlightMode,
 }) => {
   const [isExporting, setIsExporting] = useState<string | null>(null);
+  const [copiedText, setCopiedText] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   if (!isOpen || !data) return null;
@@ -99,24 +106,24 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
       if (result.method === 'share') {
         setStatusMessage({
-          text: 'Shared or saved to device successfully via Android / System Share!',
+          text: 'Shared or saved to device via Android / System Share!',
           type: 'success',
         });
       } else if (result.method === 'download') {
         setStatusMessage({
-          text: `Downloaded ${result.filename} to your phone/device Downloads folder.`,
+          text: `Saved ${result.filename} to your device Downloads folder.`,
           type: 'success',
         });
       } else if (result.method === 'open') {
         setStatusMessage({
-          text: 'Document opened in a new tab for instant viewing and offline saving.',
+          text: 'Document opened in a new tab for instant viewing or manual download.',
           type: 'info',
         });
       }
     } catch (err: any) {
       console.error('Export error:', err);
       setStatusMessage({
-        text: `Export initiated. If blocked by browser permissions, use "Print / Save as PDF" or "WhatsApp" button.`,
+        text: `Export initiated. Use "Print / Save as PDF" or "WhatsApp" if your browser restricts direct downloads.`,
         type: 'info',
       });
     } finally {
@@ -125,13 +132,88 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    try {
+      printHtmlDocument(docType, data, profile);
+      setStatusMessage({
+        text: 'Print window opened. In the print dialog, select "Save as PDF" to save directly to your phone.',
+        type: 'info',
+      });
+    } catch (e) {
+      window.print();
+    }
+  };
+
+  const handleOpenPdfTab = async () => {
+    try {
+      setIsExporting('view-tab');
+      await openPdfInNewTab(docType, data, profile);
+      setStatusMessage({
+        text: 'PDF opened in new tab. You can now view or tap 3-dots -> Download.',
+        type: 'success',
+      });
+    } catch (e) {
+      console.error(e);
+      handlePrint();
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const handleCopyFormattedText = () => {
+    const textLines = [
+      `*${profile.companyName.toUpperCase()}*`,
+      `${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}`,
+      `Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}`,
+      `Tel: ${profile.phone} | Email: ${profile.email}`,
+      `Address: ${profile.address}`,
+      `-----------------------------------------`,
+      `*${docTitle.toUpperCase()}: ${docNumber}*`,
+      `Date: ${data.date} | ${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`,
+      `Client: ${data.clientName} (${data.clientPhone})`,
+      `Site: ${data.clientAddress}`,
+      `Category: ${data.serviceType}`,
+      `-----------------------------------------`,
+      `*ITEMIZED SUMMARY:*`,
+    ];
+
+    (data.items || []).forEach((it) => {
+      textLines.push(`• ${it.description} (${it.quantity} ${it.unit || 'ea'}) - ${formatZAR(it.total)}`);
+    });
+
+    if (data.calloutFee > 0) textLines.push(`• Callout Diagnostics: ${formatZAR(data.calloutFee)}`);
+    if (data.labourTotal > 0) textLines.push(`• Labour: ${formatZAR(data.labourTotal)}`);
+    if (data.travelTotal > 0) textLines.push(`• Travel Surcharge: ${formatZAR(data.travelTotal)}`);
+
+    textLines.push(`-----------------------------------------`);
+    textLines.push(`Subtotal: ${formatZAR(data.subtotal)}`);
+    if (data.discountAmount && data.discountAmount > 0) {
+      textLines.push(`Discount (${data.discountPct}%): -${formatZAR(data.discountAmount)}`);
+    }
+    if (data.vatEnabled) {
+      textLines.push(`VAT (15%): ${formatZAR(data.vatAmount)}`);
+    }
+    textLines.push(`*TOTAL AMOUNT: ${formatZAR(data.totalAmount)}*`);
+    textLines.push(`-----------------------------------------`);
+    textLines.push(`*BANKING DETAILS (EFT):*`);
+    textLines.push(`Bank: ${profile.bankName || 'Tyme Bank Business'}`);
+    textLines.push(`Acc Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`);
+    textLines.push(`Acc No: ${profile.accountNumber || '53002734919'}`);
+    textLines.push(`Branch: ${profile.branchCode || '678910'}`);
+    textLines.push(`Ref: ${docNumber}`);
+
+    navigator.clipboard.writeText(textLines.join('\n'));
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 3000);
+    setStatusMessage({
+      text: 'Full document copied to clipboard! You can paste directly into WhatsApp, Email, or Notes.',
+      type: 'success',
+    });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
       <div
-        className={`relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden ${
+        className={`relative w-full max-w-4xl max-h-[94vh] flex flex-col rounded-2xl border shadow-2xl overflow-hidden ${
           sunlightMode
             ? 'bg-white border-black text-black'
             : 'bg-[#1B1E28] border-[#334155] text-[#F8FAFC]'
@@ -173,22 +255,32 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </button>
         </div>
 
-        {/* Android Storage & Delivery Banner */}
+        {/* Android Storage & Delivery Banner with Clear Guidance */}
         <div className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-[#0284C7]/20 via-[#38BDF8]/10 to-transparent border-b border-[#334155] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
           <div className="flex items-center space-x-2 text-[#38BDF8]">
             <Smartphone className="w-4 h-4 shrink-0 text-[#38BDF8]" />
             <span>
-              <strong>Android & Mobile Storage Ready:</strong> Tap <strong>Save to Phone / Share</strong> to save directly into your Downloads folder, Google Drive, or send via WhatsApp.
+              <strong>Phone Storage Ready:</strong> Android browsers save files directly to your <strong>Downloads</strong> folder without needing OS storage permissions.
             </span>
           </div>
           <div className="flex items-center space-x-1.5 shrink-0 text-[11px] text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Standard Browser Access</span>
+            <span>Zero OS Permission Required</span>
           </div>
         </div>
 
-        {/* Quick Action Export Buttons */}
-        <div className="px-4 sm:px-6 py-3 border-b border-[#334155] bg-[#232838]/60 flex flex-wrap items-center gap-2">
+        {/* Primary Action Export Toolbar */}
+        <div className="px-4 sm:px-6 py-3 border-b border-[#334155] bg-[#232838]/80 flex flex-wrap items-center gap-2">
+          {/* Print / Save as PDF (Android Native Spooler) */}
+          <button
+            onClick={handlePrint}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#D97706] hover:from-[#D97706] hover:to-[#B45309] text-slate-950 font-bold font-mono text-xs flex items-center space-x-2 shadow-lg shadow-[#F59E0B33]"
+            title="Open Print Dialog to Save as PDF on Android"
+          >
+            <Printer className="w-4 h-4 text-slate-950 fill-current" />
+            <span>Print / Save as PDF</span>
+          </button>
+
           {/* Native Android Share / Save to Phone */}
           <button
             onClick={() => handleExport('pdf', false)}
@@ -209,6 +301,17 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           >
             <FileText className="w-4 h-4 text-red-400" />
             <span>PDF (.pdf)</span>
+          </button>
+
+          {/* View in New Tab */}
+          <button
+            onClick={handleOpenPdfTab}
+            disabled={!!isExporting}
+            className="px-3 py-2 rounded-xl bg-sky-600/15 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-mono text-xs font-semibold flex items-center space-x-1.5"
+            title="Open PDF in a new browser tab"
+          >
+            <ExternalLink className="w-4 h-4 text-sky-400" />
+            <span>Open in Tab</span>
           </button>
 
           {/* Excel Spreadsheet */}
@@ -233,15 +336,23 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <span>Word (.docx)</span>
           </button>
 
-          {/* Plain Text */}
+          {/* Copy Text to Clipboard */}
           <button
-            onClick={() => handleExport('txt', true)}
-            disabled={!!isExporting}
-            className="px-3 py-2 rounded-xl bg-slate-700/50 hover:bg-slate-700 border border-slate-600 text-slate-300 font-mono text-xs font-semibold flex items-center space-x-1.5"
-            title="Download Plain Text (.txt)"
+            onClick={handleCopyFormattedText}
+            className="px-3 py-2 rounded-xl bg-purple-600/15 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 font-mono text-xs font-semibold flex items-center space-x-1.5"
+            title="Copy entire formatted document text to clipboard"
           >
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span>Text (.txt)</span>
+            {copiedText ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-emerald-400">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-purple-400" />
+                <span>Copy Text</span>
+              </>
+            )}
           </button>
 
           {/* WhatsApp Direct Share */}
@@ -249,22 +360,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             href={getWhatsAppShareLink(data.clientPhone, whatsappText)}
             target="_blank"
             rel="noreferrer"
-            className="px-3 py-2 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-mono text-xs font-bold flex items-center space-x-1.5"
+            className="px-3 py-2 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-mono text-xs font-bold flex items-center space-x-1.5 ml-auto"
             title="Send to client via WhatsApp"
           >
             <MessageSquare className="w-4 h-4" />
             <span>WhatsApp</span>
           </a>
-
-          {/* Print / Save as PDF */}
-          <button
-            onClick={handlePrint}
-            className="px-3 py-2 rounded-xl bg-[#1B1E28] hover:bg-[#334155] border border-[#334155] text-[#F8FAFC] font-mono text-xs flex items-center space-x-1.5 ml-auto"
-            title="Open browser print dialog / Save as PDF"
-          >
-            <Printer className="w-4 h-4 text-[#94A3B8]" />
-            <span>Print</span>
-          </button>
         </div>
 
         {/* Feedback Alert if applicable */}
@@ -475,16 +576,26 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 sm:px-6 py-3 border-t border-[#334155] bg-[#232838] flex items-center justify-between text-xs font-mono">
-          <span className="text-[#94A3B8]">
-            Storage & Export: PDF, Excel, Word, Text & WhatsApp supported.
-          </span>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[#334155] hover:bg-[#475569] text-[#F8FAFC] font-semibold"
-          >
-            Close
-          </button>
+        <div className="px-4 sm:px-6 py-3 border-t border-[#334155] bg-[#232838] flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+          <div className="flex items-center space-x-2 text-[#94A3B8]">
+            <FolderDown className="w-4 h-4 text-[#38BDF8]" />
+            <span>Files save to your phone's <strong>Downloads</strong> or <strong>Google Drive</strong>.</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handlePrint}
+              className="px-3 py-1.5 rounded-lg bg-[#0284C7] hover:bg-[#0369A1] text-white font-semibold flex items-center space-x-1.5"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print to PDF</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-lg bg-[#334155] hover:bg-[#475569] text-[#F8FAFC] font-semibold"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
