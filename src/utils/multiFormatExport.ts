@@ -108,7 +108,11 @@ export async function saveOrShareFile(
 }
 
 /**
- * Build jsPDF Document Instance
+ * Build jsPDF Document Instance with Smart Auto-Scaling:
+ * Calculates total vertical points. If the document height overflows Page 1 by 25% or less
+ * (<= 1.25 standard page height), it dynamically scales and condenses font sizes, line heights,
+ * table cell padding, and margin spacing onto a single pristine page.
+ * If overflow > 25%, standard multi-page flow is used.
  */
 export function buildJsPDFDocument(
   docType: 'quote' | 'invoice',
@@ -127,80 +131,6 @@ export function buildJsPDFDocument(
   const docSecondaryDate = isInvoice
     ? (data as Invoice).dueDate || 'Upon Presentation'
     : (data as Quotation).expiryDate || '30 Days from issue';
-
-  // Primary Header Banner (#1B1E28)
-  doc.setFillColor(27, 30, 40);
-  doc.rect(0, 0, 210, 42, 'F');
-
-  // Accent Line (#38BDF8)
-  doc.setFillColor(56, 189, 248);
-  doc.rect(0, 42, 210, 2, 'F');
-
-  // Company Name
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(profile.companyName.toUpperCase(), 14, 15);
-
-  // Tagline
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(56, 189, 248);
-  doc.text(profile.tagline || "Electrical • Air Conditioning • Solar • Security", 14, 21);
-
-  // Contact Info
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(`Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}`, 14, 27);
-  doc.text(`Tel: ${profile.phone} | Email: ${profile.email}`, 14, 32);
-  doc.text(`Address: ${profile.address}`, 14, 37);
-
-  // Document Title Badge (Right Side)
-  doc.setFillColor(245, 158, 11);
-  doc.roundedRect(140, 10, 56, 10, 2, 2, 'F');
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(docTitle, 168, 16.5, { align: 'center' });
-
-  // Metadata Details
-  doc.setFontSize(8.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text(`Ref #: ${docNumber}`, 140, 26);
-  doc.text(`Date: ${data.date}`, 140, 31);
-  doc.text(`${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`, 140, 36);
-
-  // Client Details & Scope Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, 48, 182, 34, 2, 2, 'FD');
-
-  doc.setTextColor(2, 132, 199);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text(isInvoice ? 'BILLED TO & SITE LOCATION' : 'CLIENT & SITE DETAILS', 18, 55);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(data.clientName, 18, 62);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Phone: ${data.clientPhone} ${data.clientEmail ? '| Email: ' + data.clientEmail : ''}`, 18, 68);
-  doc.text(`Site Address: ${data.clientAddress}`, 18, 74);
-
-  // Scope info (Right column inside box)
-  doc.setTextColor(2, 132, 199);
-  doc.setFont('helvetica', 'bold');
-  doc.text('JOB SPECIFICATION', 110, 55);
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Category: ${data.serviceType}`, 110, 62);
-  
-  const splitScope = doc.splitTextToSize(data.scopeOfWork || 'On-site technical scope', 80);
-  doc.text(splitScope.slice(0, 2), 110, 68);
 
   // Table items preparation
   const tableRows: any[] = [];
@@ -223,9 +153,104 @@ export function buildJsPDFDocument(
     tableRows.push([`Logistics & Travel Surcharge (${data.travelDistanceKm} km)`, '1 trip', formatZAR(data.travelTotal), formatZAR(data.travelTotal)]);
   }
 
+  // Smart Auto-Scaling Calculation:
+  // Standard A4 height is 297mm.
+  // Standard unscaled height estimation:
+  // Header: 42mm + Client Box: 36mm + Table (rows * 8.5mm + 12mm) + Banking/Totals: 42mm + Footer: 22mm = 154 + (rows * 8.5)
+  const estimatedUnscaledHeight = 154 + (tableRows.length * 8.5);
+  const overflowRatio = estimatedUnscaledHeight / 297;
+  const shouldCondenseSinglePage = overflowRatio > 0.95 && overflowRatio <= 1.25;
+
+  // Scale parameters based on single-page condensing calculation
+  const headerHeight = shouldCondenseSinglePage ? 36 : 42;
+  const clientBoxY = shouldCondenseSinglePage ? 41 : 48;
+  const clientBoxHeight = shouldCondenseSinglePage ? 26 : 34;
+  const tableStartY = shouldCondenseSinglePage ? 70 : 86;
+  const tableFontSize = shouldCondenseSinglePage ? 7.5 : 8.5;
+  const tableHeadFontSize = shouldCondenseSinglePage ? 8 : 9;
+  const tableCellPadding = shouldCondenseSinglePage ? 1.8 : 3;
+  const bankingBoxHeight = shouldCondenseSinglePage ? 28 : 36;
+  const lineSpacing = shouldCondenseSinglePage ? 4.5 : 5.5;
+
+  // Primary Header Banner (#1B1E28)
+  doc.setFillColor(27, 30, 40);
+  doc.rect(0, 0, 210, headerHeight, 'F');
+
+  // Accent Line (#38BDF8)
+  doc.setFillColor(56, 189, 248);
+  doc.rect(0, headerHeight, 210, 2, 'F');
+
+  // Company Name
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(shouldCondenseSinglePage ? 14 : 16);
+  doc.text(profile.companyName.toUpperCase(), 14, shouldCondenseSinglePage ? 12 : 15);
+
+  // Tagline
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(shouldCondenseSinglePage ? 8 : 9);
+  doc.setTextColor(56, 189, 248);
+  doc.text(profile.tagline || 'Electrical • Air Conditioning • Solar • Security', 14, shouldCondenseSinglePage ? 17 : 21);
+
+  // Contact Info
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8);
+  doc.setTextColor(203, 213, 225);
+  doc.text(`Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}`, 14, shouldCondenseSinglePage ? 22 : 27);
+  doc.text(`Tel: ${profile.phone} | Email: ${profile.email}`, 14, shouldCondenseSinglePage ? 27 : 32);
+  if (!shouldCondenseSinglePage) {
+    doc.text(`Address: ${profile.address}`, 14, 37);
+  }
+
+  // Document Title Badge (Right Side)
+  doc.setFillColor(245, 158, 11);
+  doc.roundedRect(140, shouldCondenseSinglePage ? 8 : 10, 56, shouldCondenseSinglePage ? 8.5 : 10, 2, 2, 'F');
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(shouldCondenseSinglePage ? 9.5 : 11);
+  doc.text(docTitle, 168, shouldCondenseSinglePage ? 13.5 : 16.5, { align: 'center' });
+
+  // Metadata Details
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`Ref #: ${docNumber}`, 140, shouldCondenseSinglePage ? 21 : 26);
+  doc.text(`Date: ${data.date}`, 140, shouldCondenseSinglePage ? 26 : 31);
+  doc.text(`${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`, 140, shouldCondenseSinglePage ? 31 : 36);
+
+  // Client Details & Scope Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, clientBoxY, 182, clientBoxHeight, 2, 2, 'FD');
+
+  doc.setTextColor(2, 132, 199);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(shouldCondenseSinglePage ? 8 : 9);
+  doc.text(isInvoice ? 'BILLED TO & SITE LOCATION' : 'CLIENT & SITE DETAILS', 18, clientBoxY + (shouldCondenseSinglePage ? 5 : 7));
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(shouldCondenseSinglePage ? 9 : 10);
+  doc.text(data.clientName, 18, clientBoxY + (shouldCondenseSinglePage ? 11 : 14));
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Phone: ${data.clientPhone} ${data.clientEmail ? '| Email: ' + data.clientEmail : ''}`, 18, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
+  doc.text(`Site Address: ${data.clientAddress}`, 18, clientBoxY + (shouldCondenseSinglePage ? 21 : 26));
+
+  // Scope info (Right column inside box)
+  doc.setTextColor(2, 132, 199);
+  doc.setFont('helvetica', 'bold');
+  doc.text('JOB SPECIFICATION', 110, clientBoxY + (shouldCondenseSinglePage ? 5 : 7));
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Category: ${data.serviceType}`, 110, clientBoxY + (shouldCondenseSinglePage ? 11 : 14));
+  
+  const splitScope = doc.splitTextToSize(data.scopeOfWork || 'On-site technical scope', 80);
+  doc.text(splitScope.slice(0, 2), 110, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
+
   // Draw autoTable
   autoTable(doc, {
-    startY: 86,
+    startY: tableStartY,
     head: [['Item / Description', 'Qty', 'Unit Rate (ZAR)', 'Total (ZAR)']],
     body: tableRows,
     theme: 'grid',
@@ -233,12 +258,12 @@ export function buildJsPDFDocument(
       fillColor: [2, 132, 199],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: tableHeadFontSize,
     },
     styles: {
-      fontSize: 8.5,
+      fontSize: tableFontSize,
       textColor: [15, 23, 42],
-      cellPadding: 3,
+      cellPadding: tableCellPadding,
     },
     columnStyles: {
       0: { cellWidth: 100 },
@@ -249,32 +274,32 @@ export function buildJsPDFDocument(
     margin: { left: 14, right: 14 },
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + 6;
+  const finalY = (doc as any).lastAutoTable.finalY + (shouldCondenseSinglePage ? 4 : 6);
 
   // Banking Details Box (Left)
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, finalY, 105, 36, 2, 2, 'FD');
+  doc.roundedRect(14, finalY, 105, bankingBoxHeight, 2, 2, 'FD');
 
   doc.setTextColor(2, 132, 199);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('BANKING DETAILS (EFT SETTLEMENT)', 18, finalY + 6);
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+  doc.text('BANKING DETAILS (EFT SETTLEMENT)', 18, finalY + (shouldCondenseSinglePage ? 5 : 6));
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(shouldCondenseSinglePage ? 7 : 8);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 18, finalY + 12);
-  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 18, finalY + 17);
-  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 18, finalY + 22);
-  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 18, finalY + 27);
+  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 18, finalY + (shouldCondenseSinglePage ? 10 : 12));
+  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 18, finalY + (shouldCondenseSinglePage ? 14 : 17));
+  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 18, finalY + (shouldCondenseSinglePage ? 18 : 22));
+  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 18, finalY + (shouldCondenseSinglePage ? 22 : 27));
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(2, 132, 199);
-  doc.text(`Reference: ${docNumber}`, 18, finalY + 32);
+  doc.text(`Reference: ${docNumber}`, 18, finalY + (shouldCondenseSinglePage ? 26 : 32));
 
   // Financial Totals (Right)
-  let totalsY = finalY + 4;
-  doc.setFontSize(8.5);
+  let totalsY = finalY + (shouldCondenseSinglePage ? 3 : 4);
+  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
 
@@ -282,48 +307,48 @@ export function buildJsPDFDocument(
   doc.text(formatZAR(data.subtotal), 196, totalsY, { align: 'right' });
 
   if (data.discountAmount && data.discountAmount > 0) {
-    totalsY += 6;
+    totalsY += lineSpacing;
     doc.setTextColor(220, 38, 38);
     doc.text(`Discount (${data.discountPct}%):`, 130, totalsY);
     doc.text(`-${formatZAR(data.discountAmount)}`, 196, totalsY, { align: 'right' });
   }
 
   if (data.vatEnabled) {
-    totalsY += 6;
+    totalsY += lineSpacing;
     doc.setTextColor(71, 85, 105);
     doc.text('South African VAT (15%):', 130, totalsY);
     doc.text(formatZAR(data.vatAmount), 196, totalsY, { align: 'right' });
   }
 
   // Total Line
-  totalsY += 8;
+  totalsY += lineSpacing + 2;
   doc.setDrawColor(203, 213, 225);
   doc.line(130, totalsY - 2, 196, totalsY - 2);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(shouldCondenseSinglePage ? 9.5 : 11);
   doc.setTextColor(15, 23, 42);
-  doc.text('TOTAL AMOUNT:', 130, totalsY + 3);
+  doc.text('TOTAL AMOUNT:', 130, totalsY + 2);
   doc.setTextColor(2, 132, 199);
-  doc.text(formatZAR(data.totalAmount), 196, totalsY + 3, { align: 'right' });
+  doc.text(formatZAR(data.totalAmount), 196, totalsY + 2, { align: 'right' });
 
   // Footer Terms & SANS Notice
-  const footerY = 272;
+  const footerY = shouldCondenseSinglePage ? 280 : 272;
   doc.setDrawColor(226, 232, 240);
   doc.line(14, footerY, 196, footerY);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(shouldCondenseSinglePage ? 6.8 : 7.5);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(100, 116, 139);
   doc.text(
     `Terms: ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. Materials remain property of contractor until settled.'}`,
     14,
-    footerY + 5
+    footerY + 4
   );
   doc.text(
     `${profile.sansComplianceNotice} | Registered SANS 10142 Electrical & SAQCC HVAC Contractor`,
     14,
-    footerY + 10
+    footerY + (shouldCondenseSinglePage ? 7.5 : 9)
   );
 
   return doc;

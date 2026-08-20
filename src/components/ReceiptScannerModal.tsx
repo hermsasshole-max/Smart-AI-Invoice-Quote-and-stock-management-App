@@ -21,6 +21,51 @@ interface ReceiptScannerModalProps {
   onApplyItemsToQuote?: (items: QuoteLineItem[]) => void;
 }
 
+/**
+ * Client-side Image Compressor using HTML5 Canvas:
+ * Prevents WebView Out-Of-Memory (OOM) crashes and payload limit issues
+ * by resizing massive camera photos (4000x3000px) to max 1600x1600 at 0.82 JPEG quality.
+ */
+async function compressImage(file: File, maxWidth = 1600, maxHeight = 1600, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Failed to decode image'));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   isOpen,
   onClose,
@@ -28,6 +73,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 }) => {
   const { profile, addInventoryItem } = useApp();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<{
@@ -52,15 +98,24 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleImageUpload = (file: File) => {
+  const handleImageUpload = async (file: File) => {
     setErrorMessage(null);
     setScanResult(null);
+    setIsCompressing(true);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setSelectedImage(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Compress and downscale on client side to prevent Android OOM crashes
+      const compressedData = await compressImage(file);
+      setSelectedImage(compressedData);
+    } catch (err: any) {
+      console.error('Image compression error:', err);
+      setErrorMessage('Could not process the selected image. Please try another file.');
+    } finally {
+      setIsCompressing(false);
+      // Reset input values so same file can be re-selected if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
+    }
   };
 
   const runOcrScan = async () => {

@@ -19,6 +19,7 @@ import {
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { VoiceInvoiceWizard } from './VoiceInvoiceWizard';
 import { ReceiptScannerModal } from './ReceiptScannerModal';
+import { VoiceDictationButton } from './VoiceDictationButton';
 import {
   Plus,
   Trash2,
@@ -438,7 +439,12 @@ export const QuotationEngine: React.FC = () => {
             </div>
 
             <div className="md:col-span-3">
-              <label className="block text-slate-300 font-mono font-bold uppercase mb-1">Technical Scope of Work</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-slate-300 font-mono font-bold uppercase">Technical Scope of Work</label>
+                <VoiceDictationButton
+                  onTranscript={(text) => setScopeOfWork((prev) => (prev ? prev + ' ' + text : text))}
+                />
+              </div>
               <textarea
                 rows={2}
                 value={scopeOfWork}
@@ -893,11 +899,16 @@ export const QuotationEngine: React.FC = () => {
       <VoiceInvoiceWizard
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
-        onApplyVoiceItems={(voiceItems, cat, scope, hours) => {
+        onApplyVoiceItems={(voiceItems, cat, scope, hours, clientInfo) => {
           setItems((prev) => [...prev, ...voiceItems]);
           setServiceType(cat);
           setScopeOfWork(scope);
           setLabourHours(hours);
+          if (clientInfo) {
+            if (clientInfo.name) setClientName(clientInfo.name);
+            if (clientInfo.phone) setClientPhone(clientInfo.phone);
+            if (clientInfo.address) setClientAddress(clientInfo.address);
+          }
         }}
       />
 

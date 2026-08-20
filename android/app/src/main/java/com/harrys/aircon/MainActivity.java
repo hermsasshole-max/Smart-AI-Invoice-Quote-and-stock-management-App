@@ -161,19 +161,40 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkAppPermissions() {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                        this,
-                        new String[]{
-                                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                Manifest.permission.CAMERA
-                        },
-                        PERMISSION_REQUEST_CODE
-                );
+        java.util.List<String> permissionsToRequest = new java.util.ArrayList<>();
+
+        // Camera Permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.CAMERA);
+        }
+
+        // Microphone / Audio Permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO);
+        }
+
+        // Storage / Media Permissions based on Android OS Version
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ (API 33+)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES);
             }
+        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            // Android 9 and below
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(
+                    this,
+                    permissionsToRequest.toArray(new String[0]),
+                    PERMISSION_REQUEST_CODE
+            );
         }
     }
 
@@ -183,20 +204,27 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
             if (filePathCallback == null) return;
             Uri[] results = null;
-            if (resultCode == RESULT_OK && data != null) {
-                String dataString = data.getDataString();
-                if (dataString != null) {
-                    results = new Uri[]{Uri.parse(dataString)};
-                } else if (data.getClipData() != null) {
-                    int count = data.getClipData().getItemCount();
-                    results = new Uri[count];
-                    for (int i = 0; i < count; i++) {
-                        results[i] = data.getClipData().getItemAt(i).getUri();
+            try {
+                if (resultCode == RESULT_OK && data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        results = new Uri[]{Uri.parse(dataString)};
+                    } else if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        results = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            results[i] = data.getClipData().getItemAt(i).getUri();
+                        }
                     }
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "Error processing file chooser intent result", e);
+            } finally {
+                // Critical: ALWAYS call onReceiveValue (even with null) and clear reference
+                // to prevent WebView from permanently locking file chooser triggers!
+                filePathCallback.onReceiveValue(results);
+                filePathCallback = null;
             }
-            filePathCallback.onReceiveValue(results);
-            filePathCallback = null;
         }
     }
 

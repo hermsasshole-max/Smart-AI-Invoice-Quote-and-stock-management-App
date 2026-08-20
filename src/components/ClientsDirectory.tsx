@@ -14,6 +14,7 @@ import {
   X,
   Check,
 } from 'lucide-react';
+import { VoiceDictationButton } from './VoiceDictationButton';
 
 export const ClientsDirectory: React.FC = () => {
   const { clients, addClient, updateClient, deleteClient, sunlightMode } = useApp();
@@ -264,7 +265,12 @@ export const ClientsDirectory: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Service Notes / Property Info</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-slate-400 font-mono uppercase font-bold">Service Notes / Property Info</label>
+                  <VoiceDictationButton
+                    onTranscript={(text) => setNotes((prev) => (prev ? prev + ' ' + text : text))}
+                  />
+                </div>
                 <textarea
                   rows={2}
                   value={notes}
