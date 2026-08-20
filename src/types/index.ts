@@ -17,6 +17,7 @@ export interface BusinessProfile {
   branchCode: string;
   accountType: string;
   defaultVatRate: number; // 15% in SA
+  logoUrl?: string; // Base64 or URL for custom letterhead
   rates: {
     calloutDiagnostic: number; // R750 default
     masterLabourRate: number; // R550 / hr default
@@ -98,12 +99,15 @@ export interface Quotation {
   labourTotal: number;
   travelTotal: number;
   subtotal: number;
+  discountPct?: number;
+  discountAmount?: number;
   vatEnabled: boolean;
   vatRate: number;
   vatAmount: number;
   totalAmount: number;
   status: QuoteStatus;
   notes?: string;
+  scopeOfWork?: string;
   terms: string;
   createdAt: string;
 }
@@ -145,6 +149,8 @@ export interface Invoice {
   travelTotal: number;
   materialsTotal: number;
   subtotal: number;
+  discountPct?: number;
+  discountAmount?: number;
   vatEnabled: boolean;
   vatRate: number;
   vatAmount: number;
@@ -154,6 +160,7 @@ export interface Invoice {
   paymentMethod?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
   paidDate?: string;
   notes?: string;
+  scopeOfWork?: string;
   createdAt: string;
 }
 

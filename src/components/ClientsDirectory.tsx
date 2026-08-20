@@ -17,6 +17,8 @@ import {
   ExternalLink,
   Shield,
   Zap,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const ClientsDirectory: React.FC = () => {
@@ -24,6 +26,8 @@ export const ClientsDirectory: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingClient, setIsAddingClient] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -56,6 +60,15 @@ export const ClientsDirectory: React.FC = () => {
     setNotes('');
   };
 
+  const handleSaveEdit = (c: Client) => {
+    if (!c.name.trim() || !c.phone.trim()) {
+      alert('Client name and phone number cannot be empty.');
+      return;
+    }
+    updateClient(c.id, c);
+    setEditingClient(null);
+  };
+
   const filteredClients = clients.filter((c) => {
     const q = searchQuery.toLowerCase();
     return (
@@ -81,7 +94,7 @@ export const ClientsDirectory: React.FC = () => {
             Client Directory
           </h2>
           <p className="text-xs font-mono text-[#A0A0A5] mt-0.5">
-            Manage residential & commercial property contacts, site locations, service histories, and quick communication.
+            Full client profile management, site addresses, service categories, WhatsApp triggers, and GPS navigation.
           </p>
         </div>
 
@@ -104,7 +117,7 @@ export const ClientsDirectory: React.FC = () => {
       {/* Add Client Drawer */}
       {isAddingClient && (
         <div
-          className={`p-5 rounded border space-y-4 shadow-2xl ${
+          className={`p-5 rounded-xl border space-y-4 shadow-2xl ${
             sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
           }`}
         >
@@ -159,7 +172,7 @@ export const ClientsDirectory: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Primary Service</label>
+              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Primary Trade</label>
               <select
                 value={serviceType}
                 onChange={(e) => setServiceType(e.target.value as ServiceCategory)}
@@ -168,6 +181,7 @@ export const ClientsDirectory: React.FC = () => {
                 <option value="Electrical">Electrical</option>
                 <option value="HVAC">HVAC+R</option>
                 <option value="Solar">Solar & Inverters</option>
+                <option value="Refrigeration">Refrigeration</option>
                 <option value="Security">Security & CCTV</option>
                 <option value="Consumables">Appliance / Maintenance</option>
               </select>
@@ -218,10 +232,10 @@ export const ClientsDirectory: React.FC = () => {
               return (
                 <div
                   key={client.id}
-                  className={`p-4 rounded border flex flex-col justify-between space-y-3 transition-all ${
+                  className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
                     sunlightMode
                       ? 'bg-white border-2 border-black text-black'
-                      : 'bg-[#1A1A1C] border-[#2D2D30] text-[#E0E0E0]'
+                      : 'bg-[#1A1A1C] border-[#2D2D30] text-[#E0E0E0] hover:border-[#3D3D42]'
                   }`}
                 >
                   <div>
@@ -288,14 +302,25 @@ export const ClientsDirectory: React.FC = () => {
                       </a>
                     </div>
 
-                    {/* Delete */}
-                    <button
-                      onClick={() => deleteClient(client.id)}
-                      className="p-1.5 text-[#707070] hover:text-[#FF4444]"
-                      title="Delete client"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                      {/* Edit Client */}
+                      <button
+                        onClick={() => setEditingClient(JSON.parse(JSON.stringify(client)))}
+                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#A0A0A5] hover:text-white"
+                        title="Edit Client Profile"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-[#007AFF]" />
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        onClick={() => setDeleteConfirmId(client.id)}
+                        className="p-1.5 rounded bg-[#0A0A0B] border border-[#2D2D30] hover:border-red-500/40 text-[#707070] hover:text-red-400"
+                        title="Delete client"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -303,6 +328,140 @@ export const ClientsDirectory: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Client Modal */}
+      {editingClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg p-5 rounded-xl bg-[#141416] border border-[#2D2D30] shadow-2xl space-y-4 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#2D2D30] pb-2">
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4 text-[#007AFF]" />
+                <h3 className="font-bold text-sm text-white uppercase">Edit Client Profile</h3>
+              </div>
+              <button onClick={() => setEditingClient(null)} className="text-[#707070] hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] uppercase text-[#707070] block mb-1">Full Name / Company *</label>
+                <input
+                  type="text"
+                  value={editingClient.name}
+                  onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase text-[#707070] block mb-1">Phone (WhatsApp) *</label>
+                  <input
+                    type="text"
+                    value={editingClient.phone}
+                    onChange={(e) => setEditingClient({ ...editingClient, phone: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase text-[#707070] block mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editingClient.email || ''}
+                    onChange={(e) => setEditingClient({ ...editingClient, email: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase text-[#707070] block mb-1">Physical Site Address</label>
+                <input
+                  type="text"
+                  value={editingClient.siteAddress}
+                  onChange={(e) => setEditingClient({ ...editingClient, siteAddress: e.target.value })}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase text-[#707070] block mb-1">Primary Trade Category</label>
+                <select
+                  value={editingClient.serviceType}
+                  onChange={(e) => setEditingClient({ ...editingClient, serviceType: e.target.value as ServiceCategory })}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#007AFF] font-bold"
+                >
+                  <option value="Electrical">Electrical</option>
+                  <option value="HVAC">HVAC+R</option>
+                  <option value="Solar">Solar & Inverters</option>
+                  <option value="Refrigeration">Refrigeration</option>
+                  <option value="Security">Security & CCTV</option>
+                  <option value="Consumables">Appliance / Maintenance</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase text-[#707070] block mb-1">Notes / Site Access Details</label>
+                <textarea
+                  rows={2}
+                  value={editingClient.notes || ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, notes: e.target.value })}
+                  placeholder="Gate code, DB location, dogs on property, etc."
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#2D2D30]">
+              <button
+                onClick={() => setEditingClient(null)}
+                className="px-3.5 py-1.5 rounded bg-[#252528] text-[#A0A0A5] hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSaveEdit(editingClient)}
+                className="px-5 py-1.5 rounded bg-[#00FF41] hover:bg-[#00d636] text-black font-bold uppercase"
+              >
+                Save Client
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-md p-5 rounded-xl bg-[#18181B] border border-red-500/40 space-y-4 shadow-2xl font-mono">
+            <div className="flex items-center space-x-2 text-red-400">
+              <AlertTriangle className="w-5 h-5" />
+              <h3 className="font-bold text-sm uppercase">Delete Client Profile</h3>
+            </div>
+            <p className="text-xs text-[#A0A0A5]">
+              Are you sure you want to delete this client? Past invoices and quotations referencing this client will remain in record.
+            </p>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-3.5 py-1.5 rounded bg-[#27272A] text-xs text-[#A0A0A5] hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteClient(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }}
+                className="px-4 py-1.5 rounded bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

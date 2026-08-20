@@ -62,6 +62,9 @@ export interface CalculationResult {
   travelTotal: number;
   calloutFee: number;
   subtotal: number;
+  discountPct: number;
+  discountAmount: number;
+  subtotalAfterDiscount: number;
   vatAmount: number;
   totalAmount: number;
 }
@@ -78,6 +81,7 @@ export function calculateTotals(params: {
   travelIncludedKm?: number;
   isAfterHours: boolean;
   afterHoursMultiplier: number;
+  discountPct?: number;
   vatEnabled: boolean;
   vatRate: number;
 }): CalculationResult {
@@ -93,6 +97,7 @@ export function calculateTotals(params: {
     travelIncludedKm = 25,
     isAfterHours = false,
     afterHoursMultiplier = 1.5,
+    discountPct = 0,
     vatEnabled = true,
     vatRate = 15,
   } = params;
@@ -113,14 +118,19 @@ export function calculateTotals(params: {
   // 4. Callout fee (subject to multiplier if emergency/after-hours)
   const finalCalloutFee = isAfterHours ? calloutFee * multiplier : calloutFee;
 
-  // 5. Subtotal before VAT
+  // 5. Subtotal before Discount & VAT
   const subtotal = materialsTotal + labourTotal + travelTotal + finalCalloutFee;
 
-  // 6. 15% South African VAT
-  const vatAmount = vatEnabled ? Number((subtotal * (vatRate / 100)).toFixed(2)) : 0;
+  // 6. Discount calculation
+  const safeDiscountPct = Math.max(0, Math.min(100, Number(discountPct) || 0));
+  const discountAmount = Number(((subtotal * safeDiscountPct) / 100).toFixed(2));
+  const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
 
-  // 7. Grand Total
-  const totalAmount = Number((subtotal + vatAmount).toFixed(2));
+  // 7. 15% South African VAT
+  const vatAmount = vatEnabled ? Number((subtotalAfterDiscount * (vatRate / 100)).toFixed(2)) : 0;
+
+  // 8. Grand Total
+  const totalAmount = Number((subtotalAfterDiscount + vatAmount).toFixed(2));
 
   return {
     materialsTotal: Number(materialsTotal.toFixed(2)),
@@ -128,6 +138,9 @@ export function calculateTotals(params: {
     travelTotal: Number(travelTotal.toFixed(2)),
     calloutFee: Number(finalCalloutFee.toFixed(2)),
     subtotal: Number(subtotal.toFixed(2)),
+    discountPct: safeDiscountPct,
+    discountAmount: Number(discountAmount.toFixed(2)),
+    subtotalAfterDiscount: Number(subtotalAfterDiscount.toFixed(2)),
     vatAmount: Number(vatAmount.toFixed(2)),
     totalAmount: Number(totalAmount.toFixed(2)),
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatZAR } from '../utils/calculator';
 import {
@@ -14,6 +14,9 @@ import {
   HelpCircle,
   Database,
   Sliders,
+  Image,
+  Trash2,
+  FileText,
 } from 'lucide-react';
 
 export const SettingsManager: React.FC = () => {
@@ -27,6 +30,7 @@ export const SettingsManager: React.FC = () => {
     resetToFactoryDefaults,
   } = useApp();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [importJsonText, setImportJsonText] = useState('');
   const [showImportBox, setShowImportBox] = useState(false);
@@ -38,6 +42,7 @@ export const SettingsManager: React.FC = () => {
   const [address, setAddress] = useState(profile.address);
   const [regNumber, setRegNumber] = useState(profile.registrationNumber || '');
   const [vatNumber, setVatNumber] = useState(profile.vatNumber || '');
+  const [logoUrl, setLogoUrl] = useState(profile.logoUrl || '');
 
   // Banking
   const [bankName, setBankName] = useState(profile.bankName);
@@ -54,6 +59,24 @@ export const SettingsManager: React.FC = () => {
   const [afterHoursMult, setAfterHoursMult] = useState(profile.rates.afterHoursMultiplier);
   const [defaultMarkup, setDefaultMarkup] = useState(profile.rates.defaultMaterialMarkupPct);
 
+  // Handle Logo Image Upload (Base64 file reader)
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setLogoUrl(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveAll = () => {
     updateProfile({
       companyName,
@@ -62,6 +85,7 @@ export const SettingsManager: React.FC = () => {
       address,
       registrationNumber: regNumber,
       vatNumber,
+      logoUrl,
       bankName,
       accountNumber,
       branchCode,
@@ -120,7 +144,7 @@ export const SettingsManager: React.FC = () => {
             Settings & Rate Cards
           </h2>
           <p className="text-xs font-mono text-[#A0A0A5] mt-0.5">
-            Customize company header, banking details for EFT invoice settlements, labour and travel rate parameters, and backup offline database.
+            Customize company header, upload logo letterhead, set banking details for EFT invoice settlements, adjust trade rates, and backup data.
           </p>
         </div>
 
@@ -137,15 +161,15 @@ export const SettingsManager: React.FC = () => {
       {savedSuccess && (
         <div className="p-3 bg-[#00FF4111] border border-[#00FF4144] text-[#00FF41] rounded flex items-center space-x-2 text-xs font-mono font-bold">
           <CheckCircle className="w-4 h-4 text-[#00FF41]" />
-          <span>Settings, rate parameters, and banking details saved successfully!</span>
+          <span>Settings, company letterhead, rate parameters, and banking details saved successfully!</span>
         </div>
       )}
 
-      {/* Grid: 3 Main Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Grid: 4 Cards (Business info, Logo upload, Banking, Rates) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Card 1: Business Profile */}
         <div
-          className={`p-5 rounded border space-y-4 ${
+          className={`p-5 rounded-xl border space-y-4 ${
             sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
           }`}
         >
@@ -165,24 +189,26 @@ export const SettingsManager: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Account / Dispatch Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Account / Dispatch Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0]"
+                />
+              </div>
 
-            <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Contact Phone</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
-              />
+              <div>
+                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Contact Phone</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                />
+              </div>
             </div>
 
             <div>
@@ -207,7 +233,7 @@ export const SettingsManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">VAT #</label>
+                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">VAT Registration #</label>
                 <input
                   type="text"
                   value={vatNumber}
@@ -219,9 +245,86 @@ export const SettingsManager: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 2: South African Banking Details (For EFTs) */}
+        {/* Card 2: Company Letterhead / Logo Branding */}
         <div
-          className={`p-5 rounded border space-y-4 ${
+          className={`p-5 rounded-xl border space-y-4 ${
+            sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
+          }`}
+        >
+          <h3 className="font-bold text-xs uppercase tracking-widest text-[#FF6321] flex items-center space-x-2 font-mono">
+            <Image className="w-4 h-4 text-[#FF6321]" />
+            <span>COMPANY LETTERHEAD / LOGO BRANDING</span>
+          </h3>
+
+          <div className="space-y-3 text-xs font-mono">
+            <p className="text-[11px] text-[#A0A0A5]">
+              Upload your official company logo or trade badge to automatically display on all generated PDF quotes, invoices, and Word documents.
+            </p>
+
+            <div className="p-4 rounded-xl bg-[#0A0A0B] border border-dashed border-[#2D2D30] flex flex-col items-center justify-center space-y-3">
+              {logoUrl ? (
+                <div className="relative group">
+                  <img
+                    src={logoUrl}
+                    alt="Company Logo Preview"
+                    className="max-h-24 max-w-full object-contain rounded p-1 bg-white"
+                  />
+                  <button
+                    onClick={() => setLogoUrl('')}
+                    className="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 shadow"
+                    title="Remove Logo"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center space-y-1 py-2">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-[#1A1A1C] flex items-center justify-center text-[#707070]">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs text-[#707070] block">No custom logo uploaded</span>
+                  <span className="text-[10px] text-[#A0A0A5] block">Default text letterhead will be used</span>
+                </div>
+              )}
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleLogoUpload}
+                accept="image/*"
+                className="hidden"
+              />
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-1.5 rounded bg-[#FF6321] hover:bg-[#e0551a] text-black font-bold text-xs uppercase flex items-center space-x-1"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{logoUrl ? 'Change Logo Image' : 'Upload Logo File'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase text-[#707070] block mb-1">
+                Or Paste Image Direct URL:
+              </label>
+              <input
+                type="text"
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] text-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: South African Banking Details (For EFTs) */}
+        <div
+          className={`p-5 rounded-xl border space-y-4 ${
             sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
           }`}
         >
@@ -231,24 +334,26 @@ export const SettingsManager: React.FC = () => {
           </h3>
 
           <div className="space-y-3 text-xs font-mono">
-            <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Bank Name</label>
-              <input
-                type="text"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Bank Name</label>
+                <input
+                  type="text"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#E0E0E0] font-bold"
+                />
+              </div>
 
-            <div>
-              <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Account Number</label>
-              <input
-                type="text"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#00FF41] font-mono font-bold"
-              />
+              <div>
+                <label className="text-[10px] font-mono uppercase text-[#707070] block mb-1">Account Number</label>
+                <input
+                  type="text"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[#00FF41] font-mono font-bold"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -274,14 +379,14 @@ export const SettingsManager: React.FC = () => {
             </div>
 
             <div className="p-3 rounded bg-[#0A0A0B] border border-[#2D2D30] text-[10px] text-[#707070] font-mono">
-              Clients receive these banking details with their quote & invoice PDFs and WhatsApp links for instant EFT payment.
+              Clients receive these banking details on all quote and invoice exports for instant EFT settlement.
             </div>
           </div>
         </div>
 
-        {/* Card 3: Standard Trade Rates & Multipliers */}
+        {/* Card 4: Standard Trade Rates & Multipliers */}
         <div
-          className={`p-5 rounded border space-y-4 ${
+          className={`p-5 rounded-xl border space-y-4 ${
             sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
           }`}
         >
@@ -363,7 +468,7 @@ export const SettingsManager: React.FC = () => {
 
       {/* Database Backup & Restore Bar */}
       <div
-        className={`p-4 md:p-5 rounded border flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono ${
+        className={`p-4 md:p-5 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono ${
           sunlightMode ? 'bg-white border-2 border-black' : 'bg-[#1A1A1C] border-[#2D2D30]'
         }`}
       >
@@ -411,7 +516,7 @@ export const SettingsManager: React.FC = () => {
 
       {/* JSON Import Dialog */}
       {showImportBox && (
-        <div className="p-4 rounded bg-[#0A0A0B] border border-[#2D2D30] space-y-3 font-mono">
+        <div className="p-4 rounded-xl bg-[#0A0A0B] border border-[#2D2D30] space-y-3 font-mono">
           <h4 className="font-bold text-xs uppercase text-[#007AFF]">Paste Backup JSON Content</h4>
           <textarea
             rows={5}
@@ -429,7 +534,7 @@ export const SettingsManager: React.FC = () => {
             </button>
             <button
               onClick={handleImportSubmit}
-              className="px-4 py-1.5 bg-[#007AFF] text-white font-bold rounded text-xs uppercase hover:bg-[#0062cc]"
+              className="px-4 py-1.5 bg-[#00FF41] text-black font-bold rounded text-xs uppercase hover:bg-[#00d636]"
             >
               Apply Backup Restore
             </button>
