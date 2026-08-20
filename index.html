@@ -9,10 +9,32 @@
     <meta property="og:description" content="An application built with Google AI Studio." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      window.addEventListener('error', function(e) {
+        var el = document.getElementById('runtime-error-display');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'runtime-error-display';
+          el.style.cssText = 'color:#ff4444;background:#18181b;border:2px solid #ff4444;border-radius:8px;padding:20px;margin:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;z-index:999999;position:relative;';
+          document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(el); });
+        }
+        el.innerHTML = '<b>Runtime Error:</b>\n' + (e.message || e.toString()) + '\n\n<b>File:</b> ' + (e.filename || 'unknown') + ':' + (e.lineno || '') + ':' + (e.colno || '') + '\n\n<b>Stack:</b>\n' + (e.error && e.error.stack ? e.error.stack : 'N/A');
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var el = document.getElementById('runtime-error-display');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'runtime-error-display';
+          el.style.cssText = 'color:#ff4444;background:#18181b;border:2px solid #ff4444;border-radius:8px;padding:20px;margin:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;z-index:999999;position:relative;';
+          document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(el); });
+        }
+        el.innerHTML = '<b>Unhandled Promise Rejection:</b>\n' + (e.reason && e.reason.stack ? e.reason.stack : (e.reason || e));
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
 

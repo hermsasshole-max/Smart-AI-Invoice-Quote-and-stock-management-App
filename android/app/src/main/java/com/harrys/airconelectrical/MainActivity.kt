@@ -81,6 +81,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Enable remote debugging in debug builds or on modern Android versions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         webView = findViewById(R.id.webView)
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
 
@@ -89,7 +94,21 @@ class MainActivity : AppCompatActivity() {
         setupSwipeRefresh()
         setupBackNavigation()
 
-        webView.loadUrl("file:///android_asset/public/index.html")
+        loadWebApp()
+    }
+
+    private fun loadWebApp() {
+        // Attempt to load from public assets subfolder or root assets
+        try {
+            val assetsList = assets.list("public")
+            if (assetsList != null && assetsList.contains("index.html")) {
+                webView.loadUrl("file:///android_asset/public/index.html")
+            } else {
+                webView.loadUrl("file:///android_asset/index.html")
+            }
+        } catch (e: Exception) {
+            webView.loadUrl("file:///android_asset/public/index.html")
+        }
     }
 
     private fun requestRequiredPermissions() {
@@ -101,6 +120,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
+    @Suppress("DEPRECATION")
     private fun setupWebView() {
         val settings = webView.settings
         settings.javaScriptEnabled = true
@@ -108,6 +128,11 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
+        settings.allowFileAccessFromFileURLs = true
+        settings.allowUniversalAccessFromFileURLs = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        }
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.setSupportZoom(false)
