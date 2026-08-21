@@ -1,0 +1,27 @@
+{
+  "background_color": "#53b2ff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Smart-Invoice-Quote-and-Stock",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Smrt",
+  "start_url": "/",
+  "theme_color": "#fcff6a",
+  "icons": [
+    {
+      "src": "https://ai.studio/favicon.ico",
+      "type": "image/x-icon",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    }
+  ],
+  "id": "Smrt1",
+  "description": "Smart business invoicing quotation and stock control app"
+}
