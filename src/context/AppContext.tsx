@@ -39,11 +39,45 @@ interface AppContextType {
   sunlightMode: boolean;
   toggleSunlightMode: () => void;
   resetToSampleData: () => void;
+  isInstallable: boolean;
+  promptInstall: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const promptInstall = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    // We've used the prompt, and can't use it again, throw it away
+    setDeferredPrompt(null);
+  };
+
   const [profile, setProfile] = useState<BusinessProfile>(() => {
     const saved = localStorage.getItem('harrys_profile');
     return saved ? JSON.parse(saved) : initialBusinessProfile;
@@ -313,6 +347,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sunlightMode,
         toggleSunlightMode,
         resetToSampleData,
+        isInstallable,
+        promptInstall,
       }}
     >
       {children}

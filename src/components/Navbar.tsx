@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Database,
   LayoutDashboard,
+  Download,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -27,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   openReceiptScanner,
 }) => {
-  const { profile, sunlightMode, toggleSunlightMode } = useApp();
+  const { profile, sunlightMode, toggleSunlightMode, isInstallable, promptInstall } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -66,6 +67,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Install App CTA */}
+            {isInstallable && (
+              <button
+                onClick={promptInstall}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
+                title="Install this app on your device"
+              >
+                <Download className="w-4 h-4 text-white" />
+                <span className="hidden md:inline">Install App</span>
+                <span className="md:hidden">Install</span>
+              </button>
+            )}
+
             {/* Quick Receipt Scan CTA */}
             <button
               onClick={openReceiptScanner}
