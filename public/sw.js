@@ -3,10 +3,7 @@ const CACHE_NAME = 'harrys-pwa-cache-v1';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
