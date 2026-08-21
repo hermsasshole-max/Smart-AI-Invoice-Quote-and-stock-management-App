@@ -1,20 +1,20 @@
 {
-  "id": "Smrt1",
-  "name": "Smart-Invoice-Quote-and-Stock",
-  "short_name": "Smrt",
-  "description": "Smart business invoicing quotation and stock control app",
-  "dir": "ltr",
+  "id": "/?source=pwa",
+  "name": "Harrys Aircon, Electrical & Solar Services",
+  "short_name": "HarrysServices",
+  "description": "Professional air conditioning, electrical, and solar installation, maintenance, and quote management services.",
   "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#53b2ff",
-  "theme_color": "#fcff6a",
+  "background_color": "#1B1E28",
+  "theme_color": "#1B1E28",
   "categories": [
     "business",
-    "productivity",
-    "finance"
+    "utilities",
+    "productivity"
   ],
   "icons": [
     {
@@ -34,6 +34,25 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop Dashboard View"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile View"
+    }
+  ]
+}
     }
   ]
 }
