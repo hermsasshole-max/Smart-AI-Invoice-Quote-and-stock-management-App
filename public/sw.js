@@ -1,62 +1,68 @@
-const CACHE_NAME = 'harrys-services-cache-v1';
-const OFFLINE_URL = '/index.html';
+const CACHE_NAME = 'harrys-pwa-cache-v1';
 
-const ASSETS_TO_CACHE = [
+const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png'
 ];
 
-// Install: Pre-cache the application shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      console.log('[Service Worker] Pre-caching offline assets');
+      return cache.addAll(PRECACHE_ASSETS);
+    }).then(() => {
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
-// Activate: Clean up any old, outdated caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
           }
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-// Fetch: Network-first strategy with offline cache fallback
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
+  // Use a Network-First strategy (fallback to cache)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Update runtime cache with the fresh response
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
+        // Cache the dynamically fetched response if it's successful and part of our origin
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
+            cache.put(event.request, responseToCache);
           });
         }
         return networkResponse;
       })
       .catch(() => {
-        // Fall back to cache if offline
+        // Fallback to cache if network fails
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
+          // If neither network nor cache has it, return offline page (if we had one, but we return index.html for SPA)
           if (event.request.mode === 'navigate') {
-            return caches.match(OFFLINE_URL);
+            return caches.match('/index.html');
           }
         });
       })
