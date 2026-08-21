@@ -15,11 +15,14 @@ import {
 } from 'lucide-react';
 
 export const InventoryManager: React.FC = () => {
-  const { inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, profile, sunlightMode } = useApp();
+  const { inventory, addInventoryItem, addBulkInventory, updateInventoryItem, deleteInventoryItem, profile, sunlightMode } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkJson, setBulkJson] = useState('');
+  const [bulkError, setBulkError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [sku, setSku] = useState('');
@@ -116,6 +119,43 @@ export const InventoryManager: React.FC = () => {
     setIsModalOpen(false);
   };
 
+  const handleBulkImport = () => {
+    try {
+      setBulkError('');
+      const data = JSON.parse(bulkJson);
+      if (!Array.isArray(data)) {
+        throw new Error('Input must be a JSON array of items.');
+      }
+      
+      const newItems: Omit<InventoryItem, 'id'>[] = data.map((item: any, idx: number) => {
+        if (!item.item_name && !item.name) throw new Error(`Item at index ${idx} missing name/item_name.`);
+        
+        const costPrice = Number(item.unit_price) || Number(item.costPrice) || Number(item.cost_price) || 0;
+        const defaultMarkup = item.defaultMarkup || 35;
+        
+        return {
+          sku: item.sku || `BULK-${idx}`,
+          name: item.item_name || item.name || 'Unknown Item',
+          category: item.category || 'Hardware & Site Materials',
+          costPrice,
+          defaultMarkup,
+          sellingPrice: calculateSellingPrice(costPrice, defaultMarkup),
+          unit: item.unit || 'ea',
+          stockQty: item.stockQty || item.quantity || 0,
+          minStockLevel: item.minStockLevel || item.minStock || 0,
+          supplier: item.supplier || '',
+          notes: item.description || item.specifications ? `${item.description || ''} ${item.specifications || ''}`.trim() : (item.notes || '')
+        };
+      });
+      
+      addBulkInventory(newItems);
+      setIsBulkModalOpen(false);
+      setBulkJson('');
+    } catch (e: any) {
+      setBulkError(e.message || 'Failed to parse JSON. Please ensure it is valid.');
+    }
+  };
+
   const handleAdjustQty = (id: string, delta: number) => {
     const item = inventory.find((i) => i.id === id);
     if (item) {
@@ -140,13 +180,26 @@ export const InventoryManager: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={openAdd}
-          className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Catalog Item</span>
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => {
+              setBulkJson('');
+              setBulkError('');
+              setIsBulkModalOpen(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md cursor-pointer active:scale-95"
+          >
+            <Package className="w-4 h-4" />
+            <span>Bulk Import</span>
+          </button>
+          <button
+            onClick={openAdd}
+            className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Catalog Item</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter & Search Bar */}
@@ -446,6 +499,58 @@ export const InventoryManager: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20"
               >
                 Save Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Bulk Import Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-[#282E3E]">
+              <h3 className="font-bold text-white text-base flex items-center space-x-2">
+                <Package className="w-5 h-5 text-sky-400" />
+                <span>Bulk Import JSON</span>
+              </h3>
+              <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                Paste a valid JSON array of stock items. Required fields: <code className="bg-[#12141C] px-1 py-0.5 rounded text-amber-400">item_name</code> or <code className="bg-[#12141C] px-1 py-0.5 rounded text-amber-400">name</code>.
+              </p>
+              
+              <textarea
+                value={bulkJson}
+                onChange={(e) => setBulkJson(e.target.value)}
+                placeholder="[\n  {\n    'sku': '...', \n    'item_name': '...', \n    'unit_price': 100\n  }\n]"
+                className="w-full h-64 px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+              />
+
+              {bulkError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start space-x-2 text-red-400 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{bulkError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-3 border-t border-[#282E3E]">
+              <button
+                onClick={() => setIsBulkModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkImport}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 flex items-center space-x-2"
+              >
+                <Check className="w-4 h-4" />
+                <span>Import Items</span>
               </button>
             </div>
           </div>

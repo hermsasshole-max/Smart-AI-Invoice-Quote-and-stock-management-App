@@ -23,6 +23,7 @@ interface AppContextType {
   deleteClient: (id: string) => void;
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => InventoryItem;
+  addBulkInventory: (items: Omit<InventoryItem, 'id'>[]) => void;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
   deductStock: (items: { id?: string; sku?: string; quantity: number }[]) => void;
@@ -164,6 +165,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setInventory((prev) => [newItem, ...prev]);
     return newItem;
+  };
+
+  const addBulkInventory = (itemsData: Omit<InventoryItem, 'id'>[]) => {
+    const newItems = itemsData.map((data, index) => ({
+      ...data,
+      id: 'inv_bulk_' + Date.now() + '_' + index,
+    }));
+    setInventory((prev) => [...newItems, ...prev]);
   };
 
   const updateInventoryItem = (id: string, updates: Partial<InventoryItem>) => {
@@ -331,6 +340,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteClient,
         inventory,
         addInventoryItem,
+        addBulkInventory,
         updateInventoryItem,
         deleteInventoryItem,
         deductStock,

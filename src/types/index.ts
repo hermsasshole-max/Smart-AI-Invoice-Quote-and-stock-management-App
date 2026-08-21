@@ -14,7 +14,8 @@ export type InventoryCategory =
   | 'Cabling'
   | 'Switchgear'
   | 'Hardware'
-  | 'General';
+  | 'General'
+  | (string & {});
 
 export type ConsumablesTier = 'none' | 'light' | 'standard' | 'heavy' | 'custom';
 
