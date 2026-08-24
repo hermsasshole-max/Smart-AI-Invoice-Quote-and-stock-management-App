@@ -311,6 +311,94 @@ public class WebAppInterface {
     }
 
     /**
+     * Directly streams generated vector PDF bytes into Android PrintManager (Print to PDF / Network Printers)
+     */
+    @JavascriptInterface
+    public void printPdf(String base64Pdf, String jobTitle) {
+        activity.runOnUiThread(() -> {
+            try {
+                if (base64Pdf == null || base64Pdf.trim().isEmpty()) {
+                    printDocument();
+                    return;
+                }
+
+                String rawBase64 = base64Pdf.contains(",") ? base64Pdf.split(",")[1] : base64Pdf;
+                byte[] pdfBytes = Base64.decode(rawBase64.trim(), Base64.DEFAULT);
+
+                File printDir = new File(activity.getCacheDir(), "print_docs");
+                if (!printDir.exists()) {
+                    printDir.mkdirs();
+                }
+                String safeTitle = (jobTitle != null && !jobTitle.trim().isEmpty())
+                        ? jobTitle.replaceAll("[^a-zA-Z0-9_.-]", "_")
+                        : "Harrys_Document";
+                File tempPdf = new File(printDir, safeTitle + ".pdf");
+                try (FileOutputStream fos = new FileOutputStream(tempPdf)) {
+                    fos.write(pdfBytes);
+                    fos.flush();
+                }
+
+                PrintManager printManager = (PrintManager) activity.getSystemService(Context.PRINT_SERVICE);
+                if (printManager != null) {
+                    PrintDocumentAdapter printAdapter = new PrintDocumentAdapter() {
+                        @Override
+                        public void onLayout(PrintAttributes oldAttributes, PrintAttributes newAttributes,
+                                             android.os.CancellationSignal cancellationSignal,
+                                             LayoutResultCallback callback, Bundle extras) {
+                            if (cancellationSignal != null && cancellationSignal.isCanceled()) {
+                                callback.onLayoutCancelled();
+                                return;
+                            }
+                            android.print.PrintDocumentInfo info = new android.print.PrintDocumentInfo.Builder(safeTitle + ".pdf")
+                                    .setContentType(android.print.PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                                    .setPageCount(android.print.PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
+                                    .build();
+                            callback.onLayoutFinished(info, !newAttributes.equals(oldAttributes));
+                        }
+
+                        @Override
+                        public void onWrite(android.print.PageRange[] pages,
+                                            android.os.ParcelFileDescriptor destination,
+                                            android.os.CancellationSignal cancellationSignal,
+                                            WriteResultCallback callback) {
+                            try (java.io.InputStream input = new java.io.FileInputStream(tempPdf);
+                                 java.io.OutputStream output = new java.io.FileOutputStream(destination.getFileDescriptor())) {
+                                byte[] buf = new byte[16384];
+                                int bytesRead;
+                                while ((bytesRead = input.read(buf)) > 0) {
+                                    if (cancellationSignal != null && cancellationSignal.isCanceled()) {
+                                        callback.onWriteCancelled();
+                                        return;
+                                    }
+                                    output.write(buf, 0, bytesRead);
+                                }
+                                callback.onWriteFinished(new android.print.PageRange[]{android.print.PageRange.ALL_PAGES});
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error writing PDF to print spooler", e);
+                                callback.onWriteFailed(e.getMessage());
+                            }
+                        }
+                    };
+
+                    printManager.print(
+                            safeTitle,
+                            printAdapter,
+                            new PrintAttributes.Builder()
+                                    .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                                    .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
+                                    .build()
+                    );
+                } else {
+                    openFile(base64Pdf, safeTitle + ".pdf", "application/pdf");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error in printPdf", e);
+                openFile(base64Pdf, "Document.pdf", "application/pdf");
+            }
+        });
+    }
+
+    /**
      * Show a native Android Toast
      */
     @JavascriptInterface

@@ -49,6 +49,7 @@
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|uiMode|fontScale|keyboardHidden"
+            android:screenOrientation="unspecified"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:resizeableActivity="true"

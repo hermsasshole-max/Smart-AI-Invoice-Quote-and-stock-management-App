@@ -193,6 +193,7 @@ export interface AndroidBridge {
   saveFile?: (base64Data: string, filename: string, mimeType: string) => void;
   openFile?: (base64Data: string, filename: string, mimeType: string) => void;
   printDocument?: () => void;
+  printPdf?: (base64Data: string, filename: string) => void;
   shareFile?: (base64Data: string, filename: string, mimeType: string, title?: string) => void;
   showToast?: (message: string) => void;
   isAndroidApp?: () => boolean;

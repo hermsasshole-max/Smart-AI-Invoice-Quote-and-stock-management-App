@@ -1,0 +1,15 @@
+{
+  "appId": "com.harrys.aircon",
+  "appName": "Harrys Aircon and Electrical",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "plugins": {
+    "ScreenOrientation": {
+      "orientation": "unspecified"
+    }
+  }
+}

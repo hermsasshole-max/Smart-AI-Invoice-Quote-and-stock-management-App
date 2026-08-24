@@ -16,7 +16,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Safe area insets for notches, punch holes, and system navigation bars */
+  /* Safe area insets for notches, punch holes, and system navigation bars across orientations */
   #root {
     min-height: 100vh;
     min-height: 100dvh;
@@ -26,6 +26,19 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* Landscape Mode Responsive Adjustments for Mobile and Tablets */
+@media screen and (orientation: landscape) and (max-height: 600px) {
+  /* Prevent modals from clipping in landscape mode on phones */
+  .modal-container {
+    max-height: 88dvh !important;
+  }
+  
+  /* Compact headers in landscape */
+  header h1, header h2 {
+    font-size: 0.95rem;
   }
 }
 
@@ -43,4 +56,90 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* ==========================================================================
+   PRINT / PDF MEDIA STYLES - Cross-Platform Clean Output
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #0F172A !important;
+    font-size: 11pt !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all app chrome, sidebars, navigation, action buttons, modals backdrops, and toasts */
+  header,
+  footer,
+  nav,
+  button,
+  .no-print,
+  .print-actions,
+  .fixed.inset-0.bg-black\/80,
+  #toast-container,
+  [data-no-print="true"] {
+    display: none !important;
+  }
+
+  /* When printing from modal or injected print root */
+  #root {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: auto !important;
+  }
+
+  /* Force document sheet to full page width with white background */
+  .print-sheet,
+  #print-root,
+  [data-printable="true"] {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #0F172A !important;
+    overflow: visible !important;
+  }
+
+  /* Table styling for print */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Banking box and summary protection against unwanted page cuts */
+  .print-avoid-break,
+  .banking-box,
+  .totals-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }

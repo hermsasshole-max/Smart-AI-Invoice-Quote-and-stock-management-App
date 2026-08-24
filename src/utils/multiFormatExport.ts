@@ -980,11 +980,39 @@ export function generatePrintableHtml(
 </html>`;
 }
 
-export function printHtmlDocument(
+export async function printHtmlDocument(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile
-): void {
+): Promise<void> {
+  const isInvoice = docType === 'invoice';
+  const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
+  const safeClient = (data.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `${docType.toUpperCase()}_${docNumber || 'DOC'}_${safeClient}`;
+
+  // 1. Android Native Bridge with direct PDF stream to Android PrintManager
+  if (typeof window !== 'undefined' && window.AndroidInterface?.printPdf) {
+    try {
+      const doc = await buildJsPDFDocument(docType, data, profile);
+      const pdfBlob = doc.output('blob');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        try {
+          window.AndroidInterface?.printPdf?.(base64data, filename);
+        } catch (e) {
+          console.warn('AndroidInterface.printPdf call failed, trying standard print:', e);
+          window.AndroidInterface?.printDocument?.();
+        }
+      };
+      reader.readAsDataURL(pdfBlob);
+      return;
+    } catch (androidPdfErr) {
+      console.warn('Direct PDF print bridge error:', androidPdfErr);
+    }
+  }
+
+  // 2. Android Bridge standard printDocument fallback
   if (typeof window !== 'undefined' && window.AndroidInterface?.printDocument) {
     try {
       window.AndroidInterface.printDocument();
@@ -994,38 +1022,44 @@ export function printHtmlDocument(
     }
   }
 
-  const html = generatePrintableHtml(docType, data, profile);
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-  } else {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(html);
-      doc.close();
-      iframe.contentWindow?.focus();
-      try {
-        iframe.contentWindow?.print();
-      } catch (err) {
-        console.warn('Iframe print error:', err);
-      }
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 60000);
+  // 3. In-Browser / Mobile / Tablet Print
+  try {
+    // If a printable sheet is already active on the DOM (e.g. preview modal open)
+    const existingPrintable = document.querySelector('[data-printable="true"], .print-sheet');
+    if (existingPrintable) {
+      window.print();
+      return;
     }
+
+    // Otherwise, generate the isolated printable HTML and inject a print-root node
+    const htmlContent = generatePrintableHtml(docType, data, profile);
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-root';
+    printContainer.setAttribute('data-printable', 'true');
+    printContainer.innerHTML = htmlContent;
+    document.body.appendChild(printContainer);
+
+    const cleanup = () => {
+      if (document.body.contains(printContainer)) {
+        document.body.removeChild(printContainer);
+      }
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      try {
+        window.print();
+      } catch (err) {
+        console.warn('window.print() error, falling back to PDF download:', err);
+        exportToPDF(docType, data, profile, true);
+      }
+      setTimeout(cleanup, 2000);
+    }, 150);
+  } catch (webPrintErr) {
+    console.warn('Web print failed, executing PDF download fallback:', webPrintErr);
+    // 4. Infallible fallback: Download/Save high-resolution vector PDF
+    await exportToPDF(docType, data, profile, true);
   }
 }
 
