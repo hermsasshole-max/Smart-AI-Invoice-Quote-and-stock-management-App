@@ -283,11 +283,72 @@ export function buildJsPDFDocument(
   doc.setDrawColor(203, 213, 225);
   doc.line(130, totalsY - 2, 196, totalsY - 2);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(shouldCondenseSinglePage ? 9.5 : 11);
+  doc.setFontSize(shouldCondenseSinglePage ? 9 : 10.5);
   doc.setTextColor(15, 23, 42);
   doc.text('TOTAL AMOUNT:', 130, totalsY + 2);
   doc.setTextColor(2, 132, 199);
   doc.text(formatZAR(data.totalAmount), 196, totalsY + 2, { align: 'right' });
+
+  // Deposit and Balance Due calculation for PDF
+  const isInvoiceDoc = docType === 'invoice';
+  if (isInvoiceDoc) {
+    const inv = data as Invoice;
+    const paid = inv.amountPaid || inv.depositAmountPaid || 0;
+    if (paid > 0) {
+      totalsY += lineSpacing + 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+      doc.setTextColor(16, 185, 129);
+      const paidLabel = inv.depositPaidDate ? `Deposit Paid (${inv.depositPaidDate}):` : 'Deposit / Paid to Date:';
+      doc.text(paidLabel, 130, totalsY);
+      doc.text(`-${formatZAR(paid)}`, 196, totalsY, { align: 'right' });
+
+      totalsY += lineSpacing + 2;
+      doc.setFillColor(254, 242, 242);
+      doc.setDrawColor(254, 202, 202);
+      doc.roundedRect(128, totalsY - 3.5, 70, shouldCondenseSinglePage ? 6.5 : 8, 1.5, 1.5, 'FD');
+      doc.setFontSize(shouldCondenseSinglePage ? 8.5 : 9.5);
+      doc.setTextColor(185, 28, 28);
+      doc.text('BALANCE DUE:', 130, totalsY + 1.5);
+      doc.text(formatZAR(Math.max(0, inv.totalAmount - paid)), 196, totalsY + 1.5, { align: 'right' });
+    }
+  } else {
+    const quote = data as Quotation;
+    const paid = quote.isDepositPaid ? (quote.depositAmountPaid || 0) : 0;
+    if (paid > 0) {
+      totalsY += lineSpacing + 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
+      doc.setTextColor(16, 185, 129);
+      const paidLabel = quote.depositPaidDate ? `Deposit Paid (${quote.depositPaidDate}):` : 'Deposit Paid:';
+      doc.text(paidLabel, 130, totalsY);
+      doc.text(`-${formatZAR(paid)}`, 196, totalsY, { align: 'right' });
+
+      totalsY += lineSpacing + 2;
+      doc.setFillColor(240, 253, 244);
+      doc.setDrawColor(187, 247, 208);
+      doc.roundedRect(128, totalsY - 3.5, 70, shouldCondenseSinglePage ? 6.5 : 8, 1.5, 1.5, 'FD');
+      doc.setFontSize(shouldCondenseSinglePage ? 8.5 : 9.5);
+      doc.setTextColor(21, 128, 61);
+      doc.text('REMAINING BALANCE:', 130, totalsY + 1.5);
+      doc.text(formatZAR(Math.max(0, quote.totalAmount - paid)), 196, totalsY + 1.5, { align: 'right' });
+    } else {
+      const depPct = quote.depositPercentage || 80;
+      const depReq = quote.depositAmount || Number(((quote.totalAmount * depPct) / 100).toFixed(2));
+      if (depReq > 0) {
+        totalsY += lineSpacing + 3;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(shouldCondenseSinglePage ? 7 : 8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Deposit Required (${depPct}%):`, 130, totalsY);
+        doc.text(formatZAR(depReq), 196, totalsY, { align: 'right' });
+
+        totalsY += lineSpacing;
+        doc.text('Balance on Completion:', 130, totalsY);
+        doc.text(formatZAR(Math.max(0, quote.totalAmount - depReq)), 196, totalsY, { align: 'right' });
+      }
+    }
+  }
 
   const footerY = shouldCondenseSinglePage ? 280 : 272;
   doc.setDrawColor(226, 232, 240);
@@ -381,6 +442,28 @@ export async function exportToExcel(
   }
   rows.push(['TOTAL AMOUNT (ZAR):', '', '', '', data.totalAmount]);
 
+  if (isInvoice) {
+    const inv = data as Invoice;
+    const paid = inv.amountPaid || inv.depositAmountPaid || 0;
+    if (paid > 0) {
+      rows.push([`Deposit / Paid to Date (${inv.depositPaidDate || 'Paid'}):`, '', '', '', -paid]);
+      rows.push(['REMAINING BALANCE DUE (ZAR):', '', '', '', Math.max(0, inv.totalAmount - paid)]);
+    }
+  } else {
+    const quote = data as Quotation;
+    if (quote.isDepositPaid && (quote.depositAmountPaid || 0) > 0) {
+      rows.push([`Deposit Paid (${quote.depositPaidDate || 'Paid'}):`, '', '', '', -(quote.depositAmountPaid || 0)]);
+      rows.push(['REMAINING BALANCE DUE (ZAR):', '', '', '', Math.max(0, quote.totalAmount - (quote.depositAmountPaid || 0))]);
+    } else {
+      const depPct = quote.depositPercentage || 80;
+      const depReq = quote.depositAmount || Number(((quote.totalAmount * depPct) / 100).toFixed(2));
+      if (depReq > 0) {
+        rows.push([`Deposit Required (${depPct}%):`, '', '', '', depReq]);
+        rows.push(['Balance on Completion:', '', '', '', Math.max(0, quote.totalAmount - depReq)]);
+      }
+    }
+  }
+
   rows.push([]);
   rows.push(['BANKING DETAILS FOR EFT:']);
   rows.push([`Bank: ${profile.bankName}`]);
@@ -462,6 +545,37 @@ export async function exportToWord(
             text: `TOTAL: ${formatZAR(data.totalAmount)}`,
             heading: HeadingLevel.HEADING_2,
           }),
+          ...(isInvoice
+            ? (data as Invoice).amountPaid > 0
+              ? [
+                  new Paragraph({ text: `Deposit / Paid to Date: -${formatZAR((data as Invoice).amountPaid)}` }),
+                  new Paragraph({
+                    text: `REMAINING BALANCE DUE: ${formatZAR(Math.max(0, data.totalAmount - (data as Invoice).amountPaid))}`,
+                    heading: HeadingLevel.HEADING_3,
+                  }),
+                ]
+              : []
+            : (data as Quotation).isDepositPaid && ((data as Quotation).depositAmountPaid || 0) > 0
+            ? [
+                new Paragraph({ text: `Deposit Paid (${(data as Quotation).depositPaidDate || 'Paid'}): -${formatZAR((data as Quotation).depositAmountPaid || 0)}` }),
+                new Paragraph({
+                  text: `REMAINING BALANCE DUE: ${formatZAR(Math.max(0, data.totalAmount - ((data as Quotation).depositAmountPaid || 0)))}`,
+                  heading: HeadingLevel.HEADING_3,
+                }),
+              ]
+            : [
+                new Paragraph({
+                  text: `Deposit Required (${(data as Quotation).depositPercentage || 80}%): ${formatZAR(
+                    (data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100
+                  )}`,
+                }),
+                new Paragraph({
+                  text: `Balance on Completion: ${formatZAR(
+                    data.totalAmount -
+                      ((data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100)
+                  )}`,
+                }),
+              ]),
           new Paragraph({ text: '' }),
           new Paragraph({
             text: `EFT Details: ${profile.bankName} | Acc: ${profile.accountNumber} | Branch: ${profile.branchCode} | Ref: ${docNumber}`,
@@ -508,8 +622,31 @@ export async function exportToPlainText(
   if (data.travelTotal > 0) text += `* Logistics/Travel (${data.travelDistanceKm} km): ${formatZAR(data.travelTotal)}\n`;
   text += `-------------------------------------------------\n`;
   text += `Subtotal: ${formatZAR(data.subtotal)}\n`;
+  if (data.discountAmount && data.discountAmount > 0) text += `Discount (${data.discountPct}%): -${formatZAR(data.discountAmount)}\n`;
   if (data.vatEnabled) text += `VAT (15%): ${formatZAR(data.vatAmount)}\n`;
-  text += `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}\n\n`;
+  text += `TOTAL AMOUNT: ${formatZAR(data.totalAmount)}\n`;
+
+  if (isInvoice) {
+    const paid = (data as Invoice).amountPaid || (data as Invoice).depositAmountPaid || 0;
+    if (paid > 0) {
+      text += `Deposit / Paid to Date (${(data as Invoice).depositPaidDate || 'Paid'}): -${formatZAR(paid)}\n`;
+      text += `REMAINING BALANCE DUE: ${formatZAR(Math.max(0, data.totalAmount - paid))}\n`;
+    }
+  } else {
+    const quote = data as Quotation;
+    if (quote.isDepositPaid && (quote.depositAmountPaid || 0) > 0) {
+      text += `Deposit Paid (${quote.depositPaidDate || 'Paid'}): -${formatZAR(quote.depositAmountPaid || 0)}\n`;
+      text += `REMAINING BALANCE DUE: ${formatZAR(Math.max(0, quote.totalAmount - (quote.depositAmountPaid || 0)))}\n`;
+    } else {
+      const depPct = quote.depositPercentage || 80;
+      const depReq = quote.depositAmount || Number(((quote.totalAmount * depPct) / 100).toFixed(2));
+      if (depReq > 0) {
+        text += `Deposit Required (${depPct}%): ${formatZAR(depReq)}\n`;
+        text += `Balance on Completion: ${formatZAR(Math.max(0, quote.totalAmount - depReq))}\n`;
+      }
+    }
+  }
+  text += `\n`;
   text += `EFT Details:\n`;
   text += `Bank: ${profile.bankName}\n`;
   text += `Account: ${profile.accountNumber}\n`;
@@ -794,6 +931,36 @@ export function generatePrintableHtml(
             <span>TOTAL:</span>
             <span style="color: #0284C7;">${formatZAR(data.totalAmount)}</span>
           </div>
+          ${
+            isInvoice
+              ? (data as Invoice).amountPaid > 0
+                ? `<div style="display: flex; justify-content: space-between; color: #16A34A; font-weight: 700; margin-top: 8px;">
+                    <span>Deposit / Paid to Date (${(data as Invoice).depositPaidDate || 'Paid'}):</span>
+                    <span>-${formatZAR((data as Invoice).amountPaid)}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; color: #DC2626; background: #FEF2F2; padding: 6px 8px; border-radius: 6px; border: 1px solid #FECACA; margin-top: 6px;">
+                    <span>BALANCE DUE:</span>
+                    <span>${formatZAR(Math.max(0, data.totalAmount - (data as Invoice).amountPaid))}</span>
+                  </div>`
+                : ''
+              : (data as Quotation).isDepositPaid && ((data as Quotation).depositAmountPaid || 0) > 0
+              ? `<div style="display: flex; justify-content: space-between; color: #16A34A; font-weight: 700; margin-top: 8px;">
+                  <span>Deposit Paid (${(data as Quotation).depositPaidDate || 'Paid'}):</span>
+                  <span>-${formatZAR((data as Quotation).depositAmountPaid || 0)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; color: #15803D; background: #F0FDF4; padding: 6px 8px; border-radius: 6px; border: 1px solid #BBF7D0; margin-top: 6px;">
+                  <span>REMAINING BALANCE:</span>
+                  <span>${formatZAR(Math.max(0, data.totalAmount - ((data as Quotation).depositAmountPaid || 0)))}</span>
+                </div>`
+              : `<div style="display: flex; justify-content: space-between; color: #64748B; margin-top: 6px; font-size: 12px;">
+                  <span>Deposit Required (${(data as Quotation).depositPercentage || 80}%):</span>
+                  <span>${formatZAR((data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; color: #64748B; font-size: 12px;">
+                  <span>Balance on Completion:</span>
+                  <span>${formatZAR(data.totalAmount - ((data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100))}</span>
+                </div>`
+          }
         </div>
       </div>
       <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-style: italic; line-height: 1.5;">

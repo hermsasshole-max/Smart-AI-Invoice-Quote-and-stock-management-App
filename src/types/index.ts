@@ -19,7 +19,7 @@ export type InventoryCategory =
 
 export type ConsumablesTier = 'none' | 'light' | 'standard' | 'heavy' | 'custom';
 
-export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'invoiced' | 'declined';
+export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'deposit_paid' | 'invoiced' | 'declined';
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue';
 
 export interface QuoteLineItem {
@@ -68,6 +68,14 @@ export interface Quotation {
   vatEnabled: boolean;
   vatAmount: number;
   totalAmount: number;
+  // Deposit fields
+  depositPercentage?: number; // e.g. 50, 70, 80
+  depositAmount?: number; // Deposit amount required
+  depositAmountPaid?: number; // Actual deposit paid
+  isDepositPaid?: boolean; // Whether deposit is paid
+  depositPaidDate?: string; // Date deposit was paid
+  depositPaymentMethod?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+  depositReference?: string;
   status: QuoteStatus;
   notes?: string;
   terms?: string;
@@ -106,6 +114,14 @@ export interface Invoice {
   vatEnabled: boolean;
   vatAmount: number;
   totalAmount: number;
+  // Deposit & Payment fields
+  depositPercentage?: number;
+  depositAmount?: number;
+  depositAmountPaid?: number;
+  isDepositPaid?: boolean;
+  depositPaidDate?: string;
+  depositPaymentMethod?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+  depositReference?: string;
   amountPaid: number;
   status: InvoiceStatus;
   notes?: string;

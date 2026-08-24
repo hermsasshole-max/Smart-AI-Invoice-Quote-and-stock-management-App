@@ -94,6 +94,14 @@ export const InvoicingPipeline: React.FC = () => {
   const [status, setStatus] = useState<InvoiceStatus>('issued');
   const [notes, setNotes] = useState('');
 
+  // Deposit Fields
+  const [isDepositPaid, setIsDepositPaid] = useState(false);
+  const [depositPercentage, setDepositPercentage] = useState<number>(80);
+  const [depositAmountPaid, setDepositAmountPaid] = useState<number>(0);
+  const [depositPaidDate, setDepositPaidDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
+  const [depositReference, setDepositReference] = useState<string>('');
+
   const totals = calculateDocumentTotals(
     items,
     calloutFee,
@@ -105,7 +113,10 @@ export const InvoicingPipeline: React.FC = () => {
     miscellaneousFee,
     discountPct,
     vatEnabled,
-    profile.vatPercentage || 15
+    profile.vatPercentage || 15,
+    depositPercentage,
+    undefined,
+    isDepositPaid ? depositAmountPaid : 0
   );
 
   const resetForm = () => {
@@ -132,6 +143,12 @@ export const InvoicingPipeline: React.FC = () => {
     setVatEnabled(profile.vatEnabled ?? true);
     setDeductStockOnSave(true);
     setStatus('issued');
+    setIsDepositPaid(false);
+    setDepositPercentage(80);
+    setDepositAmountPaid(0);
+    setDepositPaidDate(new Date().toISOString().split('T')[0]);
+    setDepositPaymentMethod('EFT');
+    setDepositReference('');
     setNotes('');
     setIsEditing(false);
   };
@@ -176,6 +193,12 @@ export const InvoicingPipeline: React.FC = () => {
     setDiscountPct(inv.discountPct ?? 0);
     setVatEnabled(inv.vatEnabled ?? true);
     setStatus(inv.status);
+    setIsDepositPaid(Boolean(inv.isDepositPaid || (inv.depositAmountPaid && inv.depositAmountPaid > 0)));
+    setDepositPercentage(inv.depositPercentage ?? 80);
+    setDepositAmountPaid(inv.depositAmountPaid ?? 0);
+    setDepositPaidDate(inv.depositPaidDate || new Date().toISOString().split('T')[0]);
+    setDepositPaymentMethod(inv.depositPaymentMethod || 'EFT');
+    setDepositReference(inv.depositReference || '');
     setNotes(inv.notes || '');
     setIsEditing(true);
   };
@@ -254,6 +277,20 @@ export const InvoicingPipeline: React.FC = () => {
       ? invoices.find((i) => i.id === editingInvoiceId)?.invoiceNumber || 'INV-2026-0001'
       : `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
 
+    const existingInv = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
+    const initialPaid = existingInv
+      ? existingInv.amountPaid
+      : isDepositPaid
+      ? depositAmountPaid
+      : 0;
+
+    const finalStatus: InvoiceStatus =
+      initialPaid >= totals.totalAmount && totals.totalAmount > 0
+        ? 'paid'
+        : initialPaid > 0
+        ? 'partially_paid'
+        : status;
+
     const payload: Omit<Invoice, 'id'> = {
       invoiceNumber,
       date: new Date().toISOString().split('T')[0],
@@ -285,8 +322,15 @@ export const InvoicingPipeline: React.FC = () => {
       vatEnabled: totals.vatEnabled,
       vatAmount: totals.vatAmount,
       totalAmount: totals.totalAmount,
-      amountPaid: editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId)?.amountPaid || 0 : 0,
-      status,
+      amountPaid: initialPaid,
+      isDepositPaid,
+      depositPercentage,
+      depositAmount: totals.depositRequired,
+      depositAmountPaid: isDepositPaid ? depositAmountPaid : 0,
+      depositPaidDate: isDepositPaid ? depositPaidDate : undefined,
+      depositPaymentMethod: isDepositPaid ? depositPaymentMethod : undefined,
+      depositReference: isDepositPaid ? depositReference : undefined,
+      status: finalStatus,
       terms: 'Strictly 7 days from invoice presentation. EFT / Card payments accepted.',
       notes,
     };
@@ -302,7 +346,7 @@ export const InvoicingPipeline: React.FC = () => {
 
   const handleOpenPayment = (inv: Invoice) => {
     setPaymentModalInvoice(inv);
-    const balance = Number((inv.totalAmount - inv.amountPaid).toFixed(2));
+    const balance = Number((inv.totalAmount - (inv.amountPaid || 0)).toFixed(2));
     setPayAmount(balance > 0 ? balance : 0);
     setPayMethod('EFT');
     setPayReference(`PAY-${Date.now().toString().slice(-4)}`);
@@ -791,6 +835,91 @@ export const InvoicingPipeline: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* 4. Deposit & Upfront Payment Record */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-emerald-400 uppercase font-mono flex items-center space-x-1.5">
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>4. Upfront Deposit & Prior Payment</span>
+                  </h5>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold border border-emerald-500/30">
+                    Standard 80%: {formatZAR(totals.totalAmount * 0.8)}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isDepositPaid}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsDepositPaid(checked);
+                        if (checked && depositAmountPaid === 0) {
+                          setDepositAmountPaid(Number((totals.totalAmount * (depositPercentage / 100)).toFixed(2)));
+                        }
+                      }}
+                      className="rounded border-[#334155] text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span>Upfront deposit or prior payment was received for this job</span>
+                  </label>
+
+                  {isDepositPaid && (
+                    <div className="mt-3 p-3 rounded-lg bg-[#1B1E28] border border-emerald-500/30 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Deposit Amount Paid (ZAR)</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                            <input
+                              type="number"
+                              value={depositAmountPaid}
+                              onChange={(e) => setDepositAmountPaid(Number(e.target.value) || 0)}
+                              className="w-full pl-7 pr-2 py-1 rounded bg-[#141722] border border-[#334155] text-emerald-300 font-mono text-xs font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Payment Date</label>
+                          <input
+                            type="date"
+                            value={depositPaidDate}
+                            onChange={(e) => setDepositPaidDate(e.target.value)}
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Payment Method</label>
+                          <select
+                            value={depositPaymentMethod}
+                            onChange={(e) => setDepositPaymentMethod(e.target.value as any)}
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs"
+                          >
+                            <option value="EFT">EFT Bank Transfer</option>
+                            <option value="Instant EFT">Instant EFT / Ozow</option>
+                            <option value="Cash">Cash on Site</option>
+                            <option value="Card">Card Machine (Yoco)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Reference / Note</label>
+                          <input
+                            type="text"
+                            value={depositReference}
+                            onChange={(e) => setDepositReference(e.target.value)}
+                            placeholder="e.g. EFT Deposit Ref #4412"
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Right 5 cols: Live Calculated Financial Summary Card */}
@@ -871,6 +1000,20 @@ export const InvoicingPipeline: React.FC = () => {
                     <span>TOTAL INVOICE:</span>
                     <span className="text-emerald-400 text-lg">{formatZAR(totals.totalAmount)}</span>
                   </div>
+
+                  {/* Deposit Breakdown */}
+                  {isDepositPaid && depositAmountPaid > 0 && (
+                    <div className="pt-3 border-t border-[#282E3E] space-y-2">
+                      <div className="flex justify-between text-emerald-400 font-bold">
+                        <span>Deposit / Prior Paid:</span>
+                        <span>-{formatZAR(depositAmountPaid)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm font-black p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                        <span>REMAINING BALANCE DUE:</span>
+                        <span className="text-base">{formatZAR(Math.max(0, totals.totalAmount - depositAmountPaid))}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -899,9 +1042,10 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Invoice List */}
       <div className="space-y-3">
         {invoices.map((inv) => {
-          const balance = inv.totalAmount - inv.amountPaid;
-          const isPaid = inv.status === 'paid' || inv.amountPaid >= inv.totalAmount;
+          const balance = Math.max(0, inv.totalAmount - (inv.amountPaid || 0));
+          const isPaid = inv.status === 'paid' || (inv.amountPaid || 0) >= inv.totalAmount;
           const isOverdue = !isPaid && new Date(inv.dueDate) < new Date();
+          const hasDeposit = Boolean(inv.isDepositPaid || (inv.depositAmountPaid && inv.depositAmountPaid > 0));
 
           const waSummary = generateWhatsAppQuoteSummary('invoice', inv, profile);
           const waLink = getWhatsAppShareLink(inv.clientPhone, waSummary);
@@ -917,8 +1061,8 @@ export const InvoicingPipeline: React.FC = () => {
             >
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 {/* Invoice Details */}
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
                       {inv.invoiceNumber}
                     </span>
@@ -934,6 +1078,12 @@ export const InvoicingPipeline: React.FC = () => {
                     >
                       {isPaid ? 'PAID IN FULL' : isOverdue ? 'OVERDUE' : inv.status}
                     </span>
+
+                    {hasDeposit && (
+                      <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/30">
+                        Deposit Paid ({formatZAR(inv.depositAmountPaid || 0)})
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-xs text-slate-400">
@@ -943,6 +1093,14 @@ export const InvoicingPipeline: React.FC = () => {
                   <div className="text-xs text-slate-300 font-medium">
                     <span className="text-sky-400">[{inv.serviceType}]</span> {inv.scopeOfWork}
                   </div>
+
+                  {hasDeposit && (
+                    <div className="text-[11px] text-teal-300/90 font-mono flex items-center space-x-1.5 pt-0.5">
+                      <span>✓ Upfront Deposit Received:</span>
+                      <strong className="text-teal-300">{formatZAR(inv.depositAmountPaid || 0)}</strong>
+                      {inv.depositPaidDate && <span>({inv.depositPaidDate} via {inv.depositPaymentMethod || 'EFT'})</span>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Financials & Actions */}
@@ -951,11 +1109,16 @@ export const InvoicingPipeline: React.FC = () => {
                     <div className="text-xs text-slate-400">
                       Total: <span className="font-bold text-white">{formatZAR(inv.totalAmount)}</span>
                     </div>
+                    {inv.amountPaid > 0 && !isPaid && (
+                      <div className="text-[11px] text-teal-400">
+                        Paid to Date: {formatZAR(inv.amountPaid)}
+                      </div>
+                    )}
                     <div className="text-sm font-black">
                       {isPaid ? (
-                        <span className="text-emerald-400">PAID</span>
+                        <span className="text-emerald-400">PAID IN FULL</span>
                       ) : (
-                        <span className="text-amber-400">Due: {formatZAR(balance)}</span>
+                        <span className="text-amber-400">Balance Due: {formatZAR(balance)}</span>
                       )}
                     </div>
                   </div>
@@ -967,7 +1130,7 @@ export const InvoicingPipeline: React.FC = () => {
                       className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Log Payment</span>
+                      <span>Settle Balance</span>
                     </button>
                   )}
 
@@ -1091,7 +1254,7 @@ export const InvoicingPipeline: React.FC = () => {
             <div className="flex justify-between items-center pb-3 border-b border-[#282E3E]">
               <div>
                 <h3 className="font-bold text-white text-base">Record Payment Settlement</h3>
-                <p className="text-xs text-slate-400 font-mono">{paymentModalInvoice.invoiceNumber}</p>
+                <p className="text-xs text-slate-400 font-mono">{paymentModalInvoice.invoiceNumber} • {paymentModalInvoice.clientName}</p>
               </div>
               <button
                 onClick={() => setPaymentModalInvoice(null)}
@@ -1101,9 +1264,33 @@ export const InvoicingPipeline: React.FC = () => {
               </button>
             </div>
 
+            {/* Financial Summary Box */}
+            <div className="p-3.5 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-1.5 font-mono text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Total Invoice Value:</span>
+                <span className="text-white font-bold">{formatZAR(paymentModalInvoice.totalAmount)}</span>
+              </div>
+              {paymentModalInvoice.depositAmountPaid && paymentModalInvoice.depositAmountPaid > 0 ? (
+                <div className="flex justify-between text-teal-400">
+                  <span>Upfront Deposit Paid:</span>
+                  <span>-{formatZAR(paymentModalInvoice.depositAmountPaid)}</span>
+                </div>
+              ) : null}
+              {paymentModalInvoice.amountPaid > (paymentModalInvoice.depositAmountPaid || 0) && (
+                <div className="flex justify-between text-slate-400">
+                  <span>Other Partial Payments:</span>
+                  <span>-{formatZAR(paymentModalInvoice.amountPaid - (paymentModalInvoice.depositAmountPaid || 0))}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-1.5 border-t border-[#282E3E] text-amber-300 font-black">
+                <span>Remaining Balance Due:</span>
+                <span className="text-sm">{formatZAR(Math.max(0, paymentModalInvoice.totalAmount - (paymentModalInvoice.amountPaid || 0)))}</span>
+              </div>
+            </div>
+
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Amount Paid (ZAR)</label>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Amount (ZAR)</label>
                 <input
                   type="number"
                   value={payAmount}

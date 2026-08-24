@@ -74,7 +74,7 @@ export function calculateLineTotal(quantity: number, unitPrice: number): number 
 }
 
 /**
- * Calculate complete quotation / invoice financial breakdown
+ * Calculate complete quotation / invoice financial breakdown with deposit & balance tracking
  * Structured Labor Formula: Total Labor Amount = Call-Out Fee (includes 1st hour) + (Additional Hours * Hourly Rate)
  */
 export function calculateDocumentTotals(
@@ -88,7 +88,10 @@ export function calculateDocumentTotals(
   miscellaneousFee: number = 0,
   discountPct: number = 0,
   vatEnabled: boolean = true,
-  vatPercentage: number = 15
+  vatPercentage: number = 15,
+  depositPercentage: number = 0,
+  customDepositAmount?: number,
+  depositAmountPaid: number = 0
 ) {
   const itemsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   const callout = Number(calloutFee) || 0;
@@ -111,6 +114,18 @@ export function calculateDocumentTotals(
   const vatAmount = vatEnabled ? Number((subtotalAfterDiscount * vatRate).toFixed(2)) : 0;
   const totalAmount = Number((subtotalAfterDiscount + vatAmount).toFixed(2));
 
+  // Deposit calculation
+  const depositPct = Number(depositPercentage) || 0;
+  let depositRequired = 0;
+  if (customDepositAmount !== undefined && customDepositAmount > 0) {
+    depositRequired = Number(customDepositAmount.toFixed(2));
+  } else if (depositPct > 0) {
+    depositRequired = Number(((totalAmount * depositPct) / 100).toFixed(2));
+  }
+
+  const paidAmount = Number(depositAmountPaid) || 0;
+  const remainingBalanceDue = Number(Math.max(0, totalAmount - paidAmount).toFixed(2));
+
   return {
     itemsTotal,
     calloutFee: callout,
@@ -130,11 +145,15 @@ export function calculateDocumentTotals(
     vatEnabled,
     vatAmount,
     totalAmount,
+    depositPercentage: depositPct,
+    depositRequired,
+    depositAmountPaid: paidAmount,
+    remainingBalanceDue,
   };
 }
 
 /**
- * Generate formatted WhatsApp message for quotes & invoices
+ * Generate formatted WhatsApp message for quotes & invoices with deposits
  */
 export function generateWhatsAppQuoteSummary(
   docType: 'quote' | 'invoice',
@@ -192,11 +211,22 @@ export function generateWhatsAppQuoteSummary(
   }
   msg += `💰 *TOTAL AMOUNT: ${formatZAR(data.totalAmount)}*\n`;
 
-  if (isInvoice) {
+  if (!isInvoice) {
+    const quote = data as Quotation;
+    const depRequired = quote.depositAmount || (quote.depositPercentage ? (quote.totalAmount * quote.depositPercentage) / 100 : 0);
+    if (quote.isDepositPaid && (quote.depositAmountPaid || 0) > 0) {
+      msg += `✅ *Deposit Paid:* ${formatZAR(quote.depositAmountPaid)} (${quote.depositPaidDate || 'Paid'} via ${quote.depositPaymentMethod || 'EFT'})\n`;
+      msg += `🚨 *Remaining Balance Due:* ${formatZAR(Math.max(0, quote.totalAmount - (quote.depositAmountPaid || 0)))}\n`;
+    } else if (depRequired > 0) {
+      msg += `📌 *Deposit Required (${quote.depositPercentage || Math.round((depRequired / quote.totalAmount) * 100)}%):* ${formatZAR(depRequired)}\n`;
+      msg += `*Balance on Completion:* ${formatZAR(quote.totalAmount - depRequired)}\n`;
+    }
+  } else {
     const inv = data as Invoice;
-    if (inv.amountPaid > 0) {
-      msg += `*Amount Paid:* ${formatZAR(inv.amountPaid)}\n`;
-      msg += `*Balance Outstanding:* ${formatZAR(inv.totalAmount - inv.amountPaid)}\n`;
+    const paid = inv.amountPaid || inv.depositAmountPaid || 0;
+    if (paid > 0) {
+      msg += `✅ *Deposit / Paid to Date:* ${formatZAR(paid)} ${inv.depositPaidDate ? `(${inv.depositPaidDate})` : ''}\n`;
+      msg += `🚨 *Remaining Balance Due: ${formatZAR(Math.max(0, inv.totalAmount - paid))}*\n`;
     }
   }
 

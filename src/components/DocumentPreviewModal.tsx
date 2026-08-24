@@ -376,17 +376,59 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     <span>TOTAL:</span>
                     <span className="text-sky-600">{formatZAR(data.totalAmount)}</span>
                   </div>
-                  {isInvoice && (data as Invoice).amountPaid > 0 && (
-                    <div className="pt-2 border-t border-slate-200 text-xs">
-                      <div className="flex justify-between text-emerald-600 font-bold">
-                        <span>Paid to Date:</span>
-                        <span>{formatZAR((data as Invoice).amountPaid)}</span>
+                  {isInvoice ? (
+                    ((data as Invoice).amountPaid > 0 || (data as Invoice).depositAmountPaid) && (
+                      <div className="pt-2.5 border-t border-slate-200 text-xs space-y-1.5">
+                        <div className="flex justify-between text-emerald-600 font-bold">
+                          <span>Deposit / Paid to Date:</span>
+                          <span>-{formatZAR((data as Invoice).amountPaid || (data as Invoice).depositAmountPaid || 0)}</span>
+                        </div>
+                        {(data as Invoice).depositPaidDate && (
+                          <div className="text-[10px] text-slate-500 font-sans">
+                            Paid via {(data as Invoice).depositPaymentMethod || 'EFT'} on {(data as Invoice).depositPaidDate}
+                            {(data as Invoice).depositReference ? ` (Ref: ${(data as Invoice).depositReference})` : ''}
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm font-black text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                          <span>REMAINING BALANCE DUE:</span>
+                          <span>{formatZAR(Math.max(0, data.totalAmount - ((data as Invoice).amountPaid || (data as Invoice).depositAmountPaid || 0)))}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-slate-800 font-black">
-                        <span>Balance Due:</span>
-                        <span>{formatZAR(data.totalAmount - (data as Invoice).amountPaid)}</span>
+                    )
+                  ) : (
+                    (data as Quotation).isDepositPaid && ((data as Quotation).depositAmountPaid || 0) > 0 ? (
+                      <div className="pt-2.5 border-t border-slate-200 text-xs space-y-1.5">
+                        <div className="flex justify-between text-emerald-600 font-bold">
+                          <span>Deposit Paid:</span>
+                          <span>-{formatZAR((data as Quotation).depositAmountPaid || 0)}</span>
+                        </div>
+                        {(data as Quotation).depositPaidDate && (
+                          <div className="text-[10px] text-emerald-700 font-sans">
+                            Received via {(data as Quotation).depositPaymentMethod || 'EFT'} on {(data as Quotation).depositPaidDate}
+                            {(data as Quotation).depositReference ? ` (Ref: ${(data as Quotation).depositReference})` : ''}
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm font-black text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-200">
+                          <span>REMAINING BALANCE:</span>
+                          <span>{formatZAR(Math.max(0, data.totalAmount - ((data as Quotation).depositAmountPaid || 0)))}</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="pt-2.5 border-t border-slate-200 text-xs space-y-1 text-slate-600">
+                        <div className="flex justify-between">
+                          <span>Deposit Required ({(data as Quotation).depositPercentage || 80}%):</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatZAR((data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-500">
+                          <span>Balance on Completion:</span>
+                          <span>
+                            {formatZAR(data.totalAmount - ((data as Quotation).depositAmount || (data.totalAmount * ((data as Quotation).depositPercentage || 80)) / 100))}
+                          </span>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               </div>

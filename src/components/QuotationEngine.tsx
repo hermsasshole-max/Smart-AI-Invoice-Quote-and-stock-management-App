@@ -53,6 +53,7 @@ export const QuotationEngine: React.FC = () => {
     updateQuote,
     deleteQuote,
     convertQuoteToInvoice,
+    recordQuoteDeposit,
     clients,
     inventory,
     profile,
@@ -90,6 +91,24 @@ export const QuotationEngine: React.FC = () => {
   const [discountPct, setDiscountPct] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(profile.vatEnabled ?? true);
   const [notes, setNotes] = useState('');
+
+  // Deposit Management State
+  const [depositMode, setDepositMode] = useState<'percentage' | 'fixed' | 'none'>('percentage');
+  const [depositPercentage, setDepositPercentage] = useState(80);
+  const [customDepositAmount, setCustomDepositAmount] = useState(0);
+  const [isDepositPaid, setIsDepositPaid] = useState(false);
+  const [depositAmountPaid, setDepositAmountPaid] = useState(0);
+  const [depositPaidDate, setDepositPaidDate] = useState(new Date().toISOString().split('T')[0]);
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
+  const [depositReference, setDepositReference] = useState('');
+
+  // Record Deposit Quick Modal State
+  const [depositModalQuote, setDepositModalQuote] = useState<Quotation | null>(null);
+  const [modalDepositAmount, setModalDepositAmount] = useState<number>(0);
+  const [modalDepositDate, setModalDepositDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [modalDepositMethod, setModalDepositMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
+  const [modalDepositRef, setModalDepositRef] = useState<string>('');
+  const [modalAutoConvert, setModalAutoConvert] = useState<boolean>(true);
 
   // Modals
   const [previewQuote, setPreviewQuote] = useState<Quotation | null>(null);
@@ -182,6 +201,9 @@ export const QuotationEngine: React.FC = () => {
   };
 
   // Calculated Totals
+  const effectiveDepositPercentage = depositMode === 'percentage' ? depositPercentage : depositMode === 'none' ? 0 : 0;
+  const effectiveCustomDeposit = depositMode === 'fixed' ? customDepositAmount : undefined;
+
   const totals = calculateDocumentTotals(
     items,
     calloutFee,
@@ -193,7 +215,10 @@ export const QuotationEngine: React.FC = () => {
     miscellaneousFee,
     discountPct,
     vatEnabled,
-    profile.vatPercentage || 15
+    profile.vatPercentage || 15,
+    effectiveDepositPercentage,
+    effectiveCustomDeposit,
+    isDepositPaid ? depositAmountPaid : 0
   );
 
   // Reset form
@@ -219,6 +244,14 @@ export const QuotationEngine: React.FC = () => {
     setMiscellaneousFee(0);
     setDiscountPct(0);
     setVatEnabled(profile.vatEnabled ?? true);
+    setDepositMode('percentage');
+    setDepositPercentage(80);
+    setCustomDepositAmount(0);
+    setIsDepositPaid(false);
+    setDepositAmountPaid(0);
+    setDepositPaidDate(new Date().toISOString().split('T')[0]);
+    setDepositPaymentMethod('EFT');
+    setDepositReference('');
     setNotes('');
     setIsCreating(false);
   };
@@ -233,6 +266,10 @@ export const QuotationEngine: React.FC = () => {
     const quoteNumber = editingQuoteId
       ? quotes.find((q) => q.id === editingQuoteId)?.quoteNumber || 'Q-2026-0001'
       : `Q-${new Date().getFullYear()}-${String(quotes.length + 143).padStart(4, '0')}`;
+
+    const calculatedDepositReq = totals.depositRequired;
+
+    const finalStatus: QuoteStatus = isDepositPaid && depositAmountPaid > 0 ? 'deposit_paid' : status;
 
     const quotePayload: Omit<Quotation, 'id'> = {
       quoteNumber,
@@ -265,9 +302,16 @@ export const QuotationEngine: React.FC = () => {
       vatEnabled: totals.vatEnabled,
       vatAmount: totals.vatAmount,
       totalAmount: totals.totalAmount,
-      status,
+      depositPercentage: depositMode === 'percentage' ? depositPercentage : undefined,
+      depositAmount: calculatedDepositReq,
+      isDepositPaid,
+      depositAmountPaid: isDepositPaid ? depositAmountPaid : 0,
+      depositPaidDate: isDepositPaid ? depositPaidDate : undefined,
+      depositPaymentMethod: isDepositPaid ? depositPaymentMethod : undefined,
+      depositReference: isDepositPaid ? depositReference : undefined,
+      status: finalStatus,
       notes,
-      terms: '80% Deposit on acceptance, balance upon commissioning. Materials remain property of contractor until settled.',
+      terms: `${depositPercentage > 0 ? `${depositPercentage}%` : '80%'} Deposit on acceptance, balance upon commissioning. Materials remain property of contractor until settled.`,
     };
 
     if (editingQuoteId) {
@@ -302,6 +346,14 @@ export const QuotationEngine: React.FC = () => {
     setMiscellaneousFee(quote.miscellaneousFee ?? 0);
     setDiscountPct(quote.discountPct ?? 0);
     setVatEnabled(quote.vatEnabled ?? true);
+    setDepositPercentage(quote.depositPercentage ?? 80);
+    setDepositMode(quote.depositPercentage !== undefined ? 'percentage' : quote.depositAmount ? 'fixed' : 'percentage');
+    setCustomDepositAmount(quote.depositAmount ?? 0);
+    setIsDepositPaid(Boolean(quote.isDepositPaid));
+    setDepositAmountPaid(quote.depositAmountPaid ?? 0);
+    setDepositPaidDate(quote.depositPaidDate || new Date().toISOString().split('T')[0]);
+    setDepositPaymentMethod(quote.depositPaymentMethod || 'EFT');
+    setDepositReference(quote.depositReference || '');
     setNotes(quote.notes || '');
     setIsCreating(true);
   };
@@ -802,6 +854,187 @@ export const QuotationEngine: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* 4. Deposit & Payment Terms */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-sky-400 uppercase font-mono flex items-center space-x-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>4. Deposit & Payment Terms</span>
+                  </h5>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold border border-emerald-500/30">
+                    Required: {formatZAR(totals.depositRequired)}
+                  </span>
+                </div>
+
+                {/* Preset Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-slate-400 text-[11px]">Deposit Policy</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { label: '80% (Standard)', mode: 'percentage', val: 80 },
+                      { label: '70% Deposit', mode: 'percentage', val: 70 },
+                      { label: '50% Deposit', mode: 'percentage', val: 50 },
+                      { label: 'Fixed Amount', mode: 'fixed', val: 0 },
+                    ].map((preset) => {
+                      const isActive =
+                        preset.mode === 'fixed'
+                          ? depositMode === 'fixed'
+                          : depositMode === 'percentage' && depositPercentage === preset.val;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            if (preset.mode === 'fixed') {
+                              setDepositMode('fixed');
+                              if (customDepositAmount === 0) {
+                                setCustomDepositAmount(Math.round(totals.totalAmount * 0.8));
+                              }
+                            } else {
+                              setDepositMode('percentage');
+                              setDepositPercentage(preset.val);
+                            }
+                          }}
+                          className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                              : 'bg-[#1B1E28] text-slate-400 border-[#334155] hover:border-slate-500'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom input depending on mode */}
+                {depositMode === 'percentage' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Deposit Percentage (%)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={depositPercentage}
+                          onChange={(e) => setDepositPercentage(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-white font-mono"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Calculated Deposit Amount</label>
+                      <div className="px-3 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-emerald-400 font-mono font-bold text-sm">
+                        {formatZAR(totals.depositRequired)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {depositMode === 'fixed' && (
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1">Fixed Deposit Amount (ZAR)</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        value={customDepositAmount}
+                        onChange={(e) => setCustomDepositAmount(Number(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-2.5 py-1.5 rounded-lg bg-[#1B1E28] border border-[#334155] text-emerald-400 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* On-Site Deposit Collection Subpanel */}
+                <div className="pt-2 border-t border-[#282E3E]">
+                  <label className="flex items-center space-x-2 text-xs font-bold text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isDepositPaid}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsDepositPaid(checked);
+                        if (checked && depositAmountPaid === 0) {
+                          setDepositAmountPaid(totals.depositRequired);
+                        }
+                      }}
+                      className="rounded border-[#334155] text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span>Client has already paid upfront deposit on-site</span>
+                  </label>
+
+                  {isDepositPaid && (
+                    <div className="mt-3 p-3 rounded-lg bg-[#1B1E28] border border-emerald-500/30 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-emerald-400 font-semibold">Deposit Payment Details:</span>
+                        <button
+                          type="button"
+                          onClick={() => setDepositAmountPaid(totals.depositRequired)}
+                          className="text-[11px] text-sky-400 hover:underline"
+                        >
+                          Match Required ({formatZAR(totals.depositRequired)})
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Amount Paid (ZAR)</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                            <input
+                              type="number"
+                              value={depositAmountPaid}
+                              onChange={(e) => setDepositAmountPaid(Number(e.target.value) || 0)}
+                              className="w-full pl-7 pr-2 py-1 rounded bg-[#141722] border border-[#334155] text-emerald-300 font-mono text-xs font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Payment Date</label>
+                          <input
+                            type="date"
+                            value={depositPaidDate}
+                            onChange={(e) => setDepositPaidDate(e.target.value)}
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Payment Method</label>
+                          <select
+                            value={depositPaymentMethod}
+                            onChange={(e) => setDepositPaymentMethod(e.target.value as any)}
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs"
+                          >
+                            <option value="EFT">EFT Bank Transfer</option>
+                            <option value="Instant EFT">Instant EFT / Ozow / Payfast</option>
+                            <option value="Cash">Cash on Site</option>
+                            <option value="Card">Card Machine (Yoco / Speedpoint)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 text-[10px] mb-1">Proof / Reference (Optional)</label>
+                          <input
+                            type="text"
+                            value={depositReference}
+                            onChange={(e) => setDepositReference(e.target.value)}
+                            placeholder="e.g. EFT-98234 / Cash Ref"
+                            className="w-full px-2.5 py-1 rounded bg-[#141722] border border-[#334155] text-white text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Right 5 cols: Live Calculated Financial Summary Card */}
@@ -882,6 +1115,32 @@ export const QuotationEngine: React.FC = () => {
                     <span>TOTAL AMOUNT:</span>
                     <span className="text-amber-400 text-lg">{formatZAR(totals.totalAmount)}</span>
                   </div>
+
+                  {/* Deposit Breakdown */}
+                  <div className="pt-3 border-t border-[#282E3E] space-y-2">
+                    <div className="flex justify-between text-slate-300 text-xs">
+                      <span>Deposit Required ({depositMode === 'percentage' ? `${depositPercentage}%` : 'Fixed'}):</span>
+                      <span className="text-emerald-400 font-bold">{formatZAR(totals.depositRequired)}</span>
+                    </div>
+
+                    {isDepositPaid && depositAmountPaid > 0 ? (
+                      <>
+                        <div className="flex justify-between text-emerald-400 font-bold">
+                          <span>Deposit Paid ({depositPaidDate}):</span>
+                          <span>-{formatZAR(depositAmountPaid)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm font-black p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                          <span>REMAINING BALANCE DUE:</span>
+                          <span className="text-base">{formatZAR(totals.remainingBalanceDue)}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between text-slate-400 text-xs">
+                        <span>Balance on Completion:</span>
+                        <span className="text-slate-200 font-bold">{formatZAR(totals.remainingBalanceDue)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -923,6 +1182,12 @@ export const QuotationEngine: React.FC = () => {
               const waSummary = generateWhatsAppQuoteSummary('quote', quote, profile);
               const waLink = getWhatsAppShareLink(quote.clientPhone, waSummary);
 
+              const quoteDepPct = quote.depositPercentage ?? 80;
+              const quoteDepReq = quote.depositAmount ?? Number(((quote.totalAmount * quoteDepPct) / 100).toFixed(2));
+              const isDepPaid = Boolean(quote.isDepositPaid || quote.status === 'deposit_paid');
+              const paidAmt = quote.depositAmountPaid ?? 0;
+              const remainingBal = Math.max(0, quote.totalAmount - (isDepPaid ? paidAmt : 0));
+
               return (
                 <div
                   key={quote.id}
@@ -932,42 +1197,97 @@ export const QuotationEngine: React.FC = () => {
                       : 'bg-[#1B1E28] border-[#282E3E] text-white hover:border-[#334155]'
                   }`}
                 >
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     {/* Left: Info */}
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 font-bold border border-sky-500/30">
                           {quote.quoteNumber}
                         </span>
                         <h4 className="font-bold text-base">{quote.clientName}</h4>
                         <span
                           className={`text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded ${
-                            quote.status === 'approved'
+                            quote.status === 'deposit_paid' || isDepPaid
+                              ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                              : quote.status === 'approved'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                               : quote.status === 'invoiced'
                               ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                              : quote.status === 'sent'
+                              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
                               : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
                           }`}
                         >
-                          {quote.status}
+                          {quote.status === 'deposit_paid' ? 'DEPOSIT PAID' : quote.status}
                         </span>
                       </div>
 
                       <div className="text-xs text-slate-400">
-                        📞 {quote.clientPhone} • 📍 {quote.clientAddress}
+                        📞 {quote.clientPhone} • Valid: <span className="text-slate-300">{quote.expiryDate}</span> • 📍 {quote.clientAddress}
                       </div>
 
                       <div className="text-xs text-slate-300 font-medium line-clamp-1">
                         <span className="text-sky-400">[{quote.serviceType}]</span> {quote.scopeOfWork}
+                      </div>
+
+                      {/* Deposit Status Pill Bar */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {isDepPaid ? (
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-mono">
+                            <Check className="w-3.5 h-3.5 text-teal-400" />
+                            <span>Deposit Paid: <strong>{formatZAR(paidAmt)}</strong></span>
+                            {quote.depositPaidDate && <span className="text-slate-400 text-[10px]">({quote.depositPaidDate})</span>}
+                            <span className="text-slate-500">|</span>
+                            <span className="text-slate-300">Balance: <strong className="text-amber-400">{formatZAR(remainingBal)}</strong></span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-[#141722] border border-[#282E3E] text-slate-300 text-xs font-mono">
+                            <span className="text-slate-400">Deposit Required ({quoteDepPct}%):</span>
+                            <strong className="text-emerald-400">{formatZAR(quoteDepReq)}</strong>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Right: Price & Quick Action Toolbar */}
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <div className="text-right font-mono pr-2">
-                        <span className="text-[10px] text-slate-400 uppercase block">Quotation Value</span>
+                        <span className="text-[10px] text-slate-400 uppercase block">Total Value</span>
                         <span className="text-lg font-black text-amber-400">{formatZAR(quote.totalAmount)}</span>
                       </div>
+
+                      {/* Record Deposit CTA */}
+                      {quote.status !== 'invoiced' && !isDepPaid && (
+                        <button
+                          onClick={() => {
+                            setDepositModalQuote(quote);
+                            setModalDepositAmount(quoteDepReq);
+                            setModalDepositDate(new Date().toISOString().split('T')[0]);
+                            setModalDepositMethod('EFT');
+                            setModalDepositRef('');
+                            setModalAutoConvert(true);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-teal-600/30 hover:bg-teal-600/40 text-teal-300 border border-teal-500/40 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
+                          title="Record Deposit Payment Received"
+                        >
+                          <DollarSign className="w-3.5 h-3.5 text-teal-400" />
+                          <span>Record Deposit</span>
+                        </button>
+                      )}
+
+                      {/* Mark as Accepted (if draft or sent) */}
+                      {(quote.status === 'draft' || quote.status === 'sent') && (
+                        <button
+                          onClick={() => {
+                            updateQuote(quote.id, { status: 'approved' });
+                          }}
+                          className="px-2.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                          title="Mark Quote as Accepted by Client"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Accept</span>
+                        </button>
+                      )}
 
                       {/* WhatsApp Button */}
                       <a
@@ -995,13 +1315,13 @@ export const QuotationEngine: React.FC = () => {
                           onClick={() => {
                             const inv = convertQuoteToInvoice(quote.id);
                             if (inv) {
-                              alert(`Quotation converted to Invoice ${inv.invoiceNumber}!`);
+                              alert(`Quotation successfully converted to Tax Invoice ${inv.invoiceNumber} with deposit details tracked!`);
                             }
                           }}
-                          className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
-                          title="Convert this approved quote to a Tax Invoice"
+                          className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+                          title="Convert this quote into a Final Tax Invoice with deposit deducted"
                         >
-                          <DollarSign className="w-3.5 h-3.5" />
+                          <ArrowRight className="w-3.5 h-3.5" />
                           <span>Convert to Invoice</span>
                         </button>
                       )}
@@ -1017,7 +1337,7 @@ export const QuotationEngine: React.FC = () => {
                         </button>
 
                         {openExportMenuId === quote.id && (
-                          <div className="absolute right-0 mt-2 w-48 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                          <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
                             <button
                               onClick={() => {
                                 printHtmlDocument('quote', quote, profile);
@@ -1136,6 +1456,179 @@ export const QuotationEngine: React.FC = () => {
           setItems((prev) => [...prev, ...scannedItems]);
         }}
       />
+
+      {/* Record Deposit & Convert to Invoice Modal */}
+      {depositModalQuote && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-[#181B26] border border-[#282E3E] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-teal-900/40 via-emerald-900/20 to-transparent border-b border-[#282E3E] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-sm">Record Deposit Payment</h4>
+                  <p className="text-xs text-slate-400 font-mono">
+                    {depositModalQuote.quoteNumber} • {depositModalQuote.clientName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDepositModalQuote(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#282E3E] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs font-mono">
+              {/* Financial Snapshot */}
+              <div className="p-3.5 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-1.5">
+                <div className="flex justify-between text-slate-400">
+                  <span>Total Quotation Amount:</span>
+                  <span className="text-white font-bold">{formatZAR(depositModalQuote.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-400 font-semibold">
+                  <span>Expected Deposit ({depositModalQuote.depositPercentage ?? 80}%):</span>
+                  <span>{formatZAR(depositModalQuote.depositAmount ?? (depositModalQuote.totalAmount * (depositModalQuote.depositPercentage ?? 80)) / 100)}</span>
+                </div>
+                <div className="flex justify-between text-slate-300 pt-1.5 border-t border-[#282E3E]">
+                  <span>Remaining Balance Due After This:</span>
+                  <span className="text-amber-400 font-bold">
+                    {formatZAR(Math.max(0, depositModalQuote.totalAmount - (modalDepositAmount || 0)))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Deposit Inputs */}
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-slate-300 font-semibold">Deposit Amount Paid (ZAR)*</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rec = depositModalQuote.depositAmount ?? (depositModalQuote.totalAmount * (depositModalQuote.depositPercentage ?? 80)) / 100;
+                        setModalDepositAmount(rec);
+                      }}
+                      className="text-[10px] text-teal-400 hover:underline cursor-pointer"
+                    >
+                      Fill Standard Required
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R</span>
+                    <input
+                      type="number"
+                      value={modalDepositAmount}
+                      onChange={(e) => setModalDepositAmount(Number(e.target.value) || 0)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-teal-300 text-sm font-bold font-mono focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Payment Date</label>
+                    <input
+                      type="date"
+                      value={modalDepositDate}
+                      onChange={(e) => setModalDepositDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Payment Method</label>
+                    <select
+                      value={modalDepositMethod}
+                      onChange={(e) => setModalDepositMethod(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white text-xs"
+                    >
+                      <option value="EFT">EFT Bank Transfer</option>
+                      <option value="Instant EFT">Instant EFT / Ozow</option>
+                      <option value="Cash">Cash on Site</option>
+                      <option value="Card">Card Machine (Yoco)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Payment Reference / Note (Optional)</label>
+                  <input
+                    type="text"
+                    value={modalDepositRef}
+                    onChange={(e) => setModalDepositRef(e.target.value)}
+                    placeholder="e.g. FNB EFT ref #82910, Bank deposit receipt"
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white text-xs"
+                  />
+                </div>
+
+                {/* Auto Convert to Invoice Checkbox */}
+                <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20">
+                  <label className="flex items-center space-x-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={modalAutoConvert}
+                      onChange={(e) => setModalAutoConvert(e.target.checked)}
+                      className="rounded border-[#334155] text-teal-500 focus:ring-teal-500 w-4 h-4"
+                    />
+                    <div className="text-xs text-slate-200">
+                      <span className="font-bold text-teal-300">Generate & Convert to Final Invoice immediately</span>
+                      <p className="text-[10px] text-slate-400 font-normal">
+                        Creates an active Tax Invoice with deposit deducted and balance due highlighted.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 bg-[#12141C] border-t border-[#282E3E] flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setDepositModalQuote(null)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (modalDepositAmount <= 0) {
+                    alert('Please enter a valid deposit amount.');
+                    return;
+                  }
+                  recordQuoteDeposit(depositModalQuote.id, {
+                    amount: modalDepositAmount,
+                    date: modalDepositDate,
+                    method: modalDepositMethod,
+                    reference: modalDepositRef,
+                  });
+
+                  if (modalAutoConvert) {
+                    const inv = convertQuoteToInvoice(depositModalQuote.id);
+                    if (inv) {
+                      alert(`Deposit recorded and Tax Invoice ${inv.invoiceNumber} generated!`);
+                    }
+                  } else {
+                    alert(`Deposit payment of ${formatZAR(modalDepositAmount)} successfully recorded!`);
+                  }
+
+                  setDepositModalQuote(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-teal-600/20 cursor-pointer active:scale-95"
+              >
+                <Check className="w-4 h-4" />
+                <span>Confirm & Save Deposit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

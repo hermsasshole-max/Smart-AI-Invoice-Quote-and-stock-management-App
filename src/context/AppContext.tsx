@@ -5,6 +5,7 @@ import {
   InventoryItem,
   Quotation,
   Invoice,
+  InvoiceStatus,
 } from '../types';
 import {
   initialBusinessProfile,
@@ -31,6 +32,16 @@ interface AppContextType {
   addQuote: (quote: Omit<Quotation, 'id'>) => Quotation;
   updateQuote: (id: string, updates: Partial<Quotation>) => void;
   deleteQuote: (id: string) => void;
+  recordQuoteDeposit: (
+    quoteId: string,
+    depositData: {
+      amount: number;
+      date?: string;
+      method?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+      reference?: string;
+      autoConvertToInvoice?: boolean;
+    }
+  ) => { quote: Quotation; invoice?: Invoice | null };
   convertQuoteToInvoice: (quoteId: string) => Invoice | null;
   invoices: Invoice[];
   addInvoice: (invoice: Omit<Invoice, 'id'>, deductStockItems?: boolean) => Invoice;
@@ -250,6 +261,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const today = new Date().toISOString().split('T')[0];
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    const depositPaid = quote.isDepositPaid && (quote.depositAmountPaid ?? 0) > 0 ? quote.depositAmountPaid! : 0;
+    const initialStatus: InvoiceStatus = depositPaid >= quote.totalAmount ? 'paid' : depositPaid > 0 ? 'partially_paid' : 'issued';
+
+    const payments = depositPaid > 0 ? [
+      {
+        id: 'pay_dep_' + Date.now(),
+        date: quote.depositPaidDate || today,
+        amount: depositPaid,
+        method: quote.depositPaymentMethod || 'EFT',
+        reference: quote.depositReference || `DEP-${quote.quoteNumber}`,
+      }
+    ] : [];
+
     const newInvoice: Invoice = {
       id: 'inv_' + Date.now(),
       invoiceNumber,
@@ -283,14 +307,117 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       vatEnabled: quote.vatEnabled,
       vatAmount: quote.vatAmount,
       totalAmount: quote.totalAmount,
-      amountPaid: 0,
-      status: 'issued',
+      depositPercentage: quote.depositPercentage,
+      depositAmountPaid: depositPaid,
+      isDepositPaid: quote.isDepositPaid || depositPaid > 0,
+      depositPaidDate: quote.depositPaidDate,
+      depositPaymentMethod: quote.depositPaymentMethod,
+      depositReference: quote.depositReference,
+      amountPaid: depositPaid,
+      status: initialStatus,
       terms: quote.terms,
+      payments,
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
     updateQuote(quoteId, { status: 'invoiced' });
     return newInvoice;
+  };
+
+  const recordQuoteDeposit = (
+    quoteId: string,
+    depositData: {
+      amount: number;
+      date?: string;
+      method?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+      reference?: string;
+      autoConvertToInvoice?: boolean;
+    }
+  ): { quote: Quotation; invoice?: Invoice | null } => {
+    const quote = quotes.find((q) => q.id === quoteId);
+    if (!quote) throw new Error('Quote not found');
+
+    const today = new Date().toISOString().split('T')[0];
+    const updatedQuoteData: Partial<Quotation> = {
+      isDepositPaid: true,
+      depositAmountPaid: depositData.amount,
+      depositPaidDate: depositData.date || today,
+      depositPaymentMethod: depositData.method || 'EFT',
+      depositReference: depositData.reference || `DEP-${quote.quoteNumber}`,
+      status: 'deposit_paid',
+    };
+
+    const updatedQuote: Quotation = {
+      ...quote,
+      ...updatedQuoteData,
+    };
+
+    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? updatedQuote : q)));
+
+    let newInvoice: Invoice | null = null;
+    if (depositData.autoConvertToInvoice) {
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
+      const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const initialStatus: InvoiceStatus = depositData.amount >= quote.totalAmount ? 'paid' : 'partially_paid';
+
+      newInvoice = {
+        id: 'inv_' + Date.now(),
+        invoiceNumber,
+        quoteId: quote.id,
+        date: today,
+        dueDate,
+        clientId: quote.clientId,
+        clientName: quote.clientName,
+        clientPhone: quote.clientPhone,
+        clientEmail: quote.clientEmail,
+        clientAddress: quote.clientAddress,
+        serviceType: quote.serviceType,
+        scopeOfWork: quote.scopeOfWork,
+        items: quote.items,
+        calloutFee: quote.calloutFee,
+        labourHours: quote.labourHours,
+        labourRatePerHour: quote.labourRatePerHour,
+        labourTotal: quote.labourTotal,
+        additionalLabourTotal: quote.additionalLabourTotal,
+        travelDistanceKm: quote.travelDistanceKm,
+        travelRatePerKm: quote.travelRatePerKm,
+        travelTotal: quote.travelTotal,
+        consumablesTier: quote.consumablesTier,
+        consumablesFee: quote.consumablesFee,
+        consumablesDescription: quote.consumablesDescription,
+        miscellaneousDescription: quote.miscellaneousDescription,
+        miscellaneousFee: quote.miscellaneousFee,
+        subtotal: quote.subtotal,
+        discountPct: quote.discountPct,
+        discountAmount: quote.discountAmount,
+        vatEnabled: quote.vatEnabled,
+        vatAmount: quote.vatAmount,
+        totalAmount: quote.totalAmount,
+        depositPercentage: quote.depositPercentage,
+        depositAmountPaid: depositData.amount,
+        isDepositPaid: true,
+        depositPaidDate: depositData.date || today,
+        depositPaymentMethod: depositData.method || 'EFT',
+        depositReference: depositData.reference || `DEP-${quote.quoteNumber}`,
+        amountPaid: depositData.amount,
+        status: initialStatus,
+        terms: quote.terms,
+        payments: [
+          {
+            id: 'pay_dep_' + Date.now(),
+            date: depositData.date || today,
+            amount: depositData.amount,
+            method: depositData.method || 'EFT',
+            reference: depositData.reference || `DEP-${quote.quoteNumber}`,
+          },
+        ],
+      };
+
+      setInvoices((prev) => [newInvoice!, ...prev]);
+      setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'invoiced' } : q)));
+    }
+
+    return { quote: updatedQuote, invoice: newInvoice };
   };
 
   const recordPayment = (
@@ -348,6 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addQuote,
         updateQuote,
         deleteQuote,
+        recordQuoteDeposit,
         convertQuoteToInvoice,
         invoices,
         addInvoice,
