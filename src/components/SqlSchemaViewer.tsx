@@ -156,17 +156,22 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. GEMINI AI OCR SLIP SCANS
+-- 8. GEMINI AI OCR SLIP SCANS (PostgreSQL 13+ & Cloud SQL)
 CREATE TABLE IF NOT EXISTS receipt_scans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     supplier_name VARCHAR(255),
     invoice_number VARCHAR(100),
-    scan_date DATE,
+    scan_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     total_amount NUMERIC(12, 2),
     raw_ocr_json JSONB,
     processed BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);`;
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Search & indexing optimizations for fast supplier lookup, audit verification, and receipt timestamp tracking
+CREATE INDEX IF NOT EXISTS idx_receipt_scans_supplier ON receipt_scans(supplier_name);
+CREATE INDEX IF NOT EXISTS idx_receipt_scans_invoice_num ON receipt_scans(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_receipt_scans_scan_date ON receipt_scans(scan_date);`;
 
   const copySql = () => {
     navigator.clipboard.writeText(sqlSchemaCode);

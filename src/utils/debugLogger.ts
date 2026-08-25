@@ -83,109 +83,140 @@ class DebugLogger {
   }
 
   private setupFetchInterceptor() {
-    if (!window.fetch) return;
-    const originalFetch = window.fetch.bind(window);
+    if (typeof window === 'undefined' || !window.fetch) return;
 
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const startTime = performance.now();
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      const method = (init?.method || 'GET').toUpperCase();
+    try {
+      const originalFetch = window.fetch.bind(window);
 
-      let sanitizedPayload: any = undefined;
-      if (init?.body) {
-        try {
-          if (typeof init.body === 'string') {
-            const parsed = JSON.parse(init.body);
-            sanitizedPayload = this.sanitizeObject(parsed);
-          } else {
-            sanitizedPayload = '[Non-string Request Body]';
-          }
-        } catch {
-          sanitizedPayload = typeof init.body === 'string' ? init.body.slice(0, 300) : '[Binary Data]';
-        }
-      }
+      const customFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const startTime = performance.now();
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+        const method = (init?.method || 'GET').toUpperCase();
 
-      // Log request dispatch
-      console.log(`[API REQUEST] ${method} ${url}`, {
-        payload: sanitizedPayload,
-        headers: init?.headers,
-      });
-
-      try {
-        const response = await originalFetch(input, init);
-        const durationMs = Math.round(performance.now() - startTime);
-        const status = response.status;
-        const statusText = response.statusText;
-
-        // Clone response to safely read text for debugging without disturbing the app
-        let responseBody: any = null;
-        try {
-          const clone = response.clone();
-          const text = await clone.text();
+        let sanitizedPayload: any = undefined;
+        if (init?.body) {
           try {
-            responseBody = JSON.parse(text);
-            responseBody = this.sanitizeObject(responseBody);
+            if (typeof init.body === 'string') {
+              const parsed = JSON.parse(init.body);
+              sanitizedPayload = this.sanitizeObject(parsed);
+            } else {
+              sanitizedPayload = '[Non-string Request Body]';
+            }
           } catch {
-            responseBody = text.slice(0, 1000);
+            sanitizedPayload = typeof init.body === 'string' ? init.body.slice(0, 300) : '[Binary Data]';
           }
-        } catch (readErr) {
-          responseBody = `[Unable to read response body: ${readErr}]`;
         }
 
-        const isError = status >= 400;
-        const level: LogLevel = isError ? 'error' : 'network';
-
-        this.log({
-          level,
-          category: isError ? 'API_HTTP_ERROR' : 'API_HTTP_SUCCESS',
-          message: `${method} ${url} → ${status} ${statusText} (${durationMs}ms)`,
-          status,
-          statusText,
-          method,
-          url,
-          durationMs,
-          requestPayload: sanitizedPayload,
-          responsePayload: responseBody,
+        // Log request dispatch
+        console.log(`[API REQUEST] ${method} ${url}`, {
+          payload: sanitizedPayload,
+          headers: init?.headers,
         });
 
-        if (isError) {
-          console.error(`[API ERROR ${status}] ${method} ${url}`, {
+        try {
+          const response = await originalFetch(input, init);
+          const durationMs = Math.round(performance.now() - startTime);
+          const status = response.status;
+          const statusText = response.statusText;
+
+          // Clone response to safely read text for debugging without disturbing the app
+          let responseBody: any = null;
+          try {
+            const clone = response.clone();
+            const text = await clone.text();
+            try {
+              responseBody = JSON.parse(text);
+              responseBody = this.sanitizeObject(responseBody);
+            } catch {
+              responseBody = text.slice(0, 1000);
+            }
+          } catch (readErr) {
+            responseBody = `[Unable to read response body: ${readErr}]`;
+          }
+
+          const isError = status >= 400;
+          const level: LogLevel = isError ? 'error' : 'network';
+
+          this.log({
+            level,
+            category: isError ? 'API_HTTP_ERROR' : 'API_HTTP_SUCCESS',
+            message: `${method} ${url} → ${status} ${statusText} (${durationMs}ms)`,
             status,
             statusText,
+            method,
+            url,
             durationMs,
             requestPayload: sanitizedPayload,
-            response: responseBody,
+            responsePayload: responseBody,
           });
-        } else {
-          console.log(`[API SUCCESS ${status}] ${method} ${url} in ${durationMs}ms`, {
-            response: responseBody,
+
+          if (isError) {
+            console.error(`[API ERROR ${status}] ${method} ${url}`, {
+              status,
+              statusText,
+              durationMs,
+              requestPayload: sanitizedPayload,
+              response: responseBody,
+            });
+          } else {
+            console.log(`[API SUCCESS ${status}] ${method} ${url} in ${durationMs}ms`, {
+              response: responseBody,
+            });
+          }
+
+          return response;
+        } catch (networkError: any) {
+          const durationMs = Math.round(performance.now() - startTime);
+          const errorMessage = networkError?.message || 'Network request failed';
+
+          this.log({
+            level: 'error',
+            category: 'API_NETWORK_FAILURE',
+            message: `${method} ${url} FAILED after ${durationMs}ms: ${errorMessage}`,
+            method,
+            url,
+            durationMs,
+            requestPayload: sanitizedPayload,
+            stack: networkError?.stack,
+            data: {
+              errorName: networkError?.name,
+              errorMessage,
+            },
           });
+
+          console.error(`[NETWORK EXCEPTION] ${method} ${url}`, networkError);
+          throw networkError;
         }
+      };
 
-        return response;
-      } catch (networkError: any) {
-        const durationMs = Math.round(performance.now() - startTime);
-        const errorMessage = networkError?.message || 'Network request failed';
-
-        this.log({
-          level: 'error',
-          category: 'API_NETWORK_FAILURE',
-          message: `${method} ${url} FAILED after ${durationMs}ms: ${errorMessage}`,
-          method,
-          url,
-          durationMs,
-          requestPayload: sanitizedPayload,
-          stack: networkError?.stack,
-          data: {
-            errorName: networkError?.name,
-            errorMessage,
-          },
-        });
-
-        console.error(`[NETWORK EXCEPTION] ${method} ${url}`, networkError);
-        throw networkError;
+      // Safely apply fetch interceptor across different browser & iframe security models
+      try {
+        window.fetch = customFetch;
+      } catch {
+        try {
+          Object.defineProperty(window, 'fetch', {
+            value: customFetch,
+            writable: true,
+            configurable: true,
+          });
+        } catch {
+          try {
+            const proto = Object.getPrototypeOf(window);
+            if (proto) {
+              Object.defineProperty(proto, 'fetch', {
+                value: customFetch,
+                writable: true,
+                configurable: true,
+              });
+            }
+          } catch (patchErr) {
+            console.warn('[DebugLogger] Could not monkeypatch global fetch:', patchErr);
+          }
+        }
       }
-    };
+    } catch (err) {
+      console.warn('[DebugLogger] setupFetchInterceptor failed:', err);
+    }
   }
 
   // Sanitizes objects, redacting secrets, keys, and truncating large base64 strings

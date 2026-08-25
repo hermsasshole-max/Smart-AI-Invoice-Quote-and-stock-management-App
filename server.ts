@@ -4,18 +4,148 @@ import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 
-// Helper to parse numeric monetary values safely
-function parseNumeric(val: any, fallback = 0): number {
+// Helper to sanitize numeric monetary values for PostgreSQL NUMERIC(12, 2)
+export function sanitizeNumeric(val: any, fallback = 0): number {
   if (typeof val === 'number') {
-    return isNaN(val) ? fallback : val;
+    return isNaN(val) ? fallback : Number(val.toFixed(2));
   }
   if (typeof val === 'string') {
-    // Remove currency signs (R, $, etc.), spaces, and commas
-    const cleaned = val.replace(/[^0-9.-]/g, '');
+    // Remove currency signs (R, $, €, £), commas, spaces, and any non-numeric chars except dot and minus
+    const cleaned = val
+      .replace(/[R$€£]/gi, '')
+      .replace(/,/g, '')
+      .replace(/[^\d.-]/g, '')
+      .trim();
     const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? fallback : parsed;
+    return isNaN(parsed) ? fallback : Number(parsed.toFixed(2));
   }
   return fallback;
+}
+
+// Backward-compatible alias
+export const parseNumeric = sanitizeNumeric;
+
+// Standardize dates into ISO format (YYYY-MM-DD and TIMESTAMPTZ ISO strings)
+export function standardizeIsoDate(dateVal?: any, timeVal?: any): { isoDate: string; isoTimestamp: string } {
+  const now = new Date();
+  const fallbackIsoDate = now.toISOString().split('T')[0];
+  const fallbackIsoTimestamp = now.toISOString();
+
+  if (!dateVal || (typeof dateVal !== 'string' && !(dateVal instanceof Date))) {
+    return { isoDate: fallbackIsoDate, isoTimestamp: fallbackIsoTimestamp };
+  }
+
+  if (dateVal instanceof Date) {
+    return {
+      isoDate: dateVal.toISOString().split('T')[0],
+      isoTimestamp: dateVal.toISOString(),
+    };
+  }
+
+  const trimmed = dateVal.trim();
+  let year = now.getFullYear();
+  let month = now.getMonth() + 1;
+  let day = now.getDate();
+  let matched = false;
+
+  // 1. Match standard YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = trimmed.match(/^(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})/);
+  if (ymdMatch) {
+    year = parseInt(ymdMatch[1], 10);
+    month = parseInt(ymdMatch[2], 10);
+    day = parseInt(ymdMatch[3], 10);
+    matched = true;
+  } else {
+    // 2. Match DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{2,4})/);
+    if (dmyMatch) {
+      let rawYear = dmyMatch[3];
+      year = rawYear.length === 2 ? parseInt('20' + rawYear, 10) : parseInt(rawYear, 10);
+      const part1 = parseInt(dmyMatch[1], 10);
+      const part2 = parseInt(dmyMatch[2], 10);
+
+      // If part1 > 12, it must be day-month-year
+      if (part1 > 12) {
+        day = part1;
+        month = part2;
+      } else if (part2 > 12) {
+        // MM/DD/YYYY
+        month = part1;
+        day = part2;
+      } else {
+        // Default to DD/MM/YYYY (standard in South Africa / Commonwealth)
+        day = part1;
+        month = part2;
+      }
+      matched = true;
+    } else {
+      // 3. Match textual dates e.g. "25 Aug 2026", "25-August-2026"
+      const parsedTimestamp = Date.parse(trimmed);
+      if (!isNaN(parsedTimestamp)) {
+        const d = new Date(parsedTimestamp);
+        year = d.getFullYear();
+        month = d.getMonth() + 1;
+        day = d.getDate();
+        matched = true;
+      }
+    }
+  }
+
+  if (!matched || month < 1 || month > 12 || day < 1 || day > 31) {
+    return { isoDate: fallbackIsoDate, isoTimestamp: fallbackIsoTimestamp };
+  }
+
+  const paddedMonth = String(month).padStart(2, '0');
+  const paddedDay = String(day).padStart(2, '0');
+  const isoDate = `${year}-${paddedMonth}-${paddedDay}`;
+
+  // Time parsing for TIMESTAMPTZ
+  let hour = 12;
+  let minute = 0;
+  let second = 0;
+
+  if (typeof timeVal === 'string' && timeVal.trim()) {
+    const timeMatch = timeVal.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      hour = parseInt(timeMatch[1], 10);
+      minute = parseInt(timeMatch[2], 10);
+      second = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+      const meridiem = (timeMatch[4] || '').toLowerCase();
+      if (meridiem === 'pm' && hour < 12) hour += 12;
+      if (meridiem === 'am' && hour === 12) hour = 0;
+    }
+  }
+
+  const paddedHour = String(hour).padStart(2, '0');
+  const paddedMin = String(minute).padStart(2, '0');
+  const paddedSec = String(second).padStart(2, '0');
+  const isoTimestamp = `${isoDate}T${paddedHour}:${paddedMin}:${paddedSec}.000Z`;
+
+  return { isoDate, isoTimestamp };
+}
+
+// JSON validation and serialization for PostgreSQL JSONB columns
+export function validateJsonbPayload(payload: any): Record<string, any> {
+  if (payload === null || payload === undefined) {
+    return {};
+  }
+  if (typeof payload === 'string') {
+    try {
+      const parsed = JSON.parse(payload);
+      return typeof parsed === 'object' && parsed !== null ? parsed : { value: parsed };
+    } catch {
+      return { raw_content: payload };
+    }
+  }
+  if (typeof payload === 'object') {
+    try {
+      // Validate serialization and strip any non-JSON compliant functions/circular refs
+      return JSON.parse(JSON.stringify(payload));
+    } catch {
+      return { fallback_text: String(payload) };
+    }
+  }
+  return { value: payload };
 }
 
 // Resilient JSON extractor and regex fallback
@@ -196,15 +326,14 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
         ? data.invoiceNumber.trim()
         : 'INV-' + Math.floor(100000 + Math.random() * 900000)));
 
-  const date = typeof data.date === 'string' && data.date.trim()
-    ? data.date.trim()
-    : new Date().toISOString().split('T')[0];
+  const rawDate = data.date || data.scan_date || data.scanDate;
+  const rawTime = typeof data.time === 'string' ? data.time.trim() : undefined;
+  const { isoDate, isoTimestamp } = standardizeIsoDate(rawDate, rawTime);
 
   const address = typeof data.address === 'string' && data.address.trim() ? data.address.trim() : undefined;
   const vatNumber = typeof data.vat_number === 'string' && data.vat_number.trim()
     ? data.vat_number.trim()
     : (typeof data.vatNumber === 'string' && data.vatNumber.trim() ? data.vatNumber.trim() : undefined);
-  const time = typeof data.time === 'string' && data.time.trim() ? data.time.trim() : undefined;
   const cashier = typeof data.cashier === 'string' && data.cashier.trim() ? data.cashier.trim() : undefined;
 
   let rawItems = Array.isArray(data.line_items)
@@ -215,9 +344,9 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     const desc = typeof item.description === 'string' && item.description.trim()
       ? item.description.trim()
       : (typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Materials Item');
-    const qty = Math.max(1, parseNumeric(item.quantity, 1));
-    const unitPrice = Math.max(0, parseNumeric(item.unit_price ?? item.unitCost ?? item.unitPrice ?? item.cost ?? item.price, 0));
-    const totalPrice = parseNumeric(item.total_price ?? item.total ?? item.totalPrice, Number((qty * unitPrice).toFixed(2)));
+    const qty = Math.max(1, sanitizeNumeric(item.quantity, 1));
+    const unitPrice = Math.max(0, sanitizeNumeric(item.unit_price ?? item.unitCost ?? item.unitPrice ?? item.cost ?? item.price, 0));
+    const totalPrice = sanitizeNumeric(item.total_price ?? item.total ?? item.totalPrice, Number((qty * unitPrice).toFixed(2)));
     const codeBarcode = typeof item.code_barcode === 'string' && item.code_barcode.trim()
       ? item.code_barcode.trim()
       : (typeof item.codeBarcode === 'string' && item.codeBarcode.trim() ? item.codeBarcode.trim() : undefined);
@@ -239,7 +368,7 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
   });
 
   // Calculate or normalize total amount
-  let totalAmount = parseNumeric(data.total_amount ?? data.totalAmount, 0);
+  let totalAmount = sanitizeNumeric(data.total_amount ?? data.totalAmount, 0);
   if (totalAmount <= 0 && normalizedItems.length > 0) {
     totalAmount = Number(normalizedItems.reduce((sum: number, it: any) => sum + (it.quantity * it.unitCost), 0).toFixed(2));
   }
@@ -262,12 +391,12 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     ];
   }
 
-  let subtotal = parseNumeric(data.subtotal, 0);
+  let subtotal = sanitizeNumeric(data.subtotal, 0);
   if (subtotal <= 0 && totalAmount > 0) {
     subtotal = Number((totalAmount / 1.15).toFixed(2));
   }
 
-  let vatAmount = parseNumeric(data.vat_amount ?? data.vatAmount, 0);
+  let vatAmount = sanitizeNumeric(data.vat_amount ?? data.vatAmount, 0);
   if (vatAmount <= 0 && totalAmount > 0) {
     vatAmount = Number((totalAmount * 0.15 / 1.15).toFixed(2));
   }
@@ -281,8 +410,9 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     receipt_number: receiptNumber,
     receiptNumber,
     invoiceNumber: receiptNumber,
-    date,
-    time,
+    date: isoDate,
+    scan_date: isoTimestamp,
+    time: rawTime,
     cashier,
     subtotal: subtotal > 0 ? subtotal : undefined,
     vat_amount: vatAmount,
@@ -634,6 +764,82 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
         error: 'Server busy. Please tap Retry or enter items manually.',
         isServerBusy: true,
         status: 503,
+      });
+    }
+  });
+
+  /**
+   * Receipt Scan Database Ingestion & Parameterized Validation Endpoint
+   * Safeguards against SQL type mismatches, non-numeric values, invalid dates, and unescaped JSON.
+   */
+  app.post('/api/receipt-scans', async (req, res) => {
+    try {
+      const payload = req.body || {};
+
+      // 1. Sanitize text fields
+      const supplierName = (payload.supplier_name || payload.supplierName || 'Unknown Supplier').toString().trim().slice(0, 255);
+      const invoiceNumber = (payload.invoice_number || payload.invoiceNumber || payload.receipt_number || payload.receiptNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000)).toString().trim().slice(0, 100);
+
+      // 2. Standardize date & timestamp into ISO-8601 for TIMESTAMPTZ
+      const { isoDate, isoTimestamp } = standardizeIsoDate(payload.scan_date || payload.date, payload.time);
+
+      // 3. Clean numeric total_amount for NUMERIC(12, 2) - stripping symbols and rounding to 2 decimal places
+      const totalAmount = sanitizeNumeric(payload.total_amount ?? payload.totalAmount, 0);
+
+      // 4. Validate and serialize JSONB payload
+      const rawOcrJson = validateJsonbPayload(payload.raw_ocr_json || payload.rawOcrJson || payload);
+
+      const processed = Boolean(payload.processed);
+
+      // Parameterized SQL query structure for PostgreSQL 13+ with gen_random_uuid()
+      const query = {
+        text: `
+          INSERT INTO receipt_scans (
+            supplier_name,
+            invoice_number,
+            scan_date,
+            total_amount,
+            raw_ocr_json,
+            processed
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING *;
+        `,
+        values: [
+          supplierName,
+          invoiceNumber,
+          isoTimestamp, // TIMESTAMPTZ compliant ISO string
+          totalAmount,  // Sanitized Float for NUMERIC(12, 2)
+          JSON.stringify(rawOcrJson), // Serialized JSONB string
+          processed,
+        ],
+      };
+
+      console.log('[Receipt Scan DB] Sanitized record prepared for insertion:', {
+        supplier_name: supplierName,
+        invoice_number: invoiceNumber,
+        scan_date: isoTimestamp,
+        total_amount: totalAmount,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Receipt scan sanitized and validated successfully for PostgreSQL insertion.',
+        record: {
+          supplier_name: supplierName,
+          invoice_number: invoiceNumber,
+          scan_date: isoTimestamp,
+          iso_date: isoDate,
+          total_amount: totalAmount,
+          raw_ocr_json: rawOcrJson,
+          processed,
+        },
+        sql_prepared: query,
+      });
+    } catch (err: any) {
+      console.error('[Receipt Scan DB Error] Failed to process receipt scan payload:', err);
+      return res.status(400).json({
+        error: 'Invalid receipt scan data format.',
+        details: err?.message || err,
       });
     }
   });
