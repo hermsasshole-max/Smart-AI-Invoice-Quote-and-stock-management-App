@@ -14,6 +14,7 @@ import {
   initialQuotes,
   initialInvoices,
 } from '../data/seedData';
+import { debugLogger } from '../utils/debugLogger';
 
 interface AppContextType {
   profile: BusinessProfile;
@@ -140,13 +141,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [invoices]);
 
   const updateProfile = (updates: Partial<BusinessProfile>) => {
-    setProfile((prev) => ({ ...prev, ...updates }));
+    setProfile((prev) => {
+      const next = { ...prev, ...updates };
+      debugLogger.log({
+        level: 'state',
+        category: 'STATE_PROFILE_UPDATE',
+        message: `Business Profile updated: ${Object.keys(updates).join(', ')}`,
+        data: updates,
+      });
+      return next;
+    });
   };
 
   const toggleSunlightMode = () => {
     setSunlightMode((prev) => {
       const next = !prev;
       updateProfile({ sunlightMode: next });
+      debugLogger.log({
+        level: 'state',
+        category: 'STATE_THEME_TOGGLE',
+        message: `Sunlight mode toggled to: ${next ? 'HIGH-CONTRAST (Outdoor)' : 'STANDARD (Dark)'}`,
+      });
       return next;
     });
   };
@@ -158,15 +173,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalBilled: 0,
     };
     setClients((prev) => [newClient, ...prev]);
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_CLIENT_ADD',
+      message: `New client added: "${newClient.name}" (${newClient.phone || 'No phone'})`,
+      data: newClient,
+    });
     return newClient;
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
     setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_CLIENT_UPDATE',
+      message: `Client ${id} updated`,
+      data: updates,
+    });
   };
 
   const deleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_CLIENT_DELETE',
+      message: `Client ${id} deleted`,
+    });
   };
 
   const addInventoryItem = (itemData: Omit<InventoryItem, 'id'>): InventoryItem => {
@@ -175,6 +207,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'inv_' + Date.now(),
     };
     setInventory((prev) => [newItem, ...prev]);
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_INVENTORY_ADD',
+      message: `New stock item added: "${newItem.name}" (Qty: ${newItem.stockQty} ${newItem.unit})`,
+      data: newItem,
+    });
     return newItem;
   };
 
@@ -184,6 +222,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'inv_bulk_' + Date.now() + '_' + index,
     }));
     setInventory((prev) => [...newItems, ...prev]);
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_INVENTORY_BULK_ADD',
+      message: `Bulk imported ${newItems.length} inventory items into local catalog`,
+    });
   };
 
   const updateInventoryItem = (id: string, updates: Partial<InventoryItem>) => {
@@ -207,6 +250,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return invItem;
       })
     );
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_STOCK_DEDUCTION',
+      message: `Deducted stock for ${itemsToDeduct.length} line items`,
+      data: itemsToDeduct,
+    });
   };
 
   const addQuote = (quoteData: Omit<Quotation, 'id'>): Quotation => {
@@ -215,11 +264,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'q_' + Date.now(),
     };
     setQuotes((prev) => [newQuote, ...prev]);
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_QUOTE_CREATED',
+      message: `Quotation created: ${newQuote.quoteNumber} (R${newQuote.totalAmount.toLocaleString()}) for "${newQuote.clientName}"`,
+      data: {
+        quoteNumber: newQuote.quoteNumber,
+        clientName: newQuote.clientName,
+        total: newQuote.totalAmount,
+        itemsCount: newQuote.items?.length,
+      },
+    });
     return newQuote;
   };
 
   const updateQuote = (id: string, updates: Partial<Quotation>) => {
     setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_QUOTE_UPDATED',
+      message: `Quotation ${id} updated`,
+      data: updates,
+    });
   };
 
   const deleteQuote = (id: string) => {
@@ -232,6 +298,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'inv_' + Date.now(),
     };
     setInvoices((prev) => [newInvoice, ...prev]);
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_INVOICE_CREATED',
+      message: `Invoice created: ${newInvoice.invoiceNumber} (R${newInvoice.totalAmount.toLocaleString()}) for "${newInvoice.clientName}"`,
+      data: {
+        invoiceNumber: newInvoice.invoiceNumber,
+        total: newInvoice.totalAmount,
+        status: newInvoice.status,
+      },
+    });
 
     if (deductStockItems && invoiceData.items && invoiceData.items.length > 0) {
       const deductionList = invoiceData.items.map((item) => ({

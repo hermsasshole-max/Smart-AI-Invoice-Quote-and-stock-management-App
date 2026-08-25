@@ -15,18 +15,21 @@ import {
   Database,
   LayoutDashboard,
   Download,
+  Bug,
 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   openReceiptScanner: () => void;
+  openDebugModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   openReceiptScanner,
+  openDebugModal,
 }) => {
   const { profile, sunlightMode, toggleSunlightMode, isInstallable, promptInstall } = useApp();
 
@@ -90,6 +93,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden md:inline">Scan Supplier Receipt</span>
               <span className="md:hidden">Scan Receipt</span>
             </button>
+
+            {/* Debug Mode Button */}
+            {openDebugModal && (
+              <button
+                type="button"
+                onClick={openDebugModal}
+                className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                  sunlightMode
+                    ? 'bg-slate-200 border-slate-300 text-slate-800 hover:bg-slate-300'
+                    : 'bg-[#12141C] border-[#334155] text-slate-300 hover:text-amber-400 hover:bg-[#282E3E]'
+                }`}
+                title="Open Application & API Debugger (Ctrl+Shift+D)"
+              >
+                <Bug className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Sunlight High Contrast Mode */}
             <button
