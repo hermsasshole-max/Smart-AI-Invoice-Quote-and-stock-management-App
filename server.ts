@@ -317,26 +317,26 @@ async function startServer() {
       }
 
       // Execute Gemini Vision OCR with 30s timeout guard
-      const promptText = `You are an expert OCR and invoice parsing engine for trade and commercial invoices/receipts (e.g. Voltex, ARB, Plumblink, Builders, ACDC Express, Herholdts, Rubicon, Makro, Leroy Merlin, Chamberlains, etc.).
+      const promptText = `You are a precision OCR document parsing system for hardware, electrical, plumbing, and HVAC supplier receipts and trade invoices (e.g. Voltex, ARB Electrical, Plumblink, Builders Warehouse, ACDC Express, Herholdts, Rubicon, Makro, Leroy Merlin, Chamberlains, etc.).
 
-Analyze this document image thoroughly (accounting for any rotation, folds, thermal print fading, or low contrast) and extract all line items and header metadata.
+Analyze this document image thoroughly (accounting for rotation, paper folds, thermal print fading, or low contrast).
+Extract key metadata and every itemized line item strictly following the provided JSON schema.
+Convert all string numbers and monetary amounts into standard numerical floats (e.g. 1250.50). Do not omit missing items or invent values.
 
-Output MUST be a JSON object with:
-1. supplierName: (string) Vendor / Merchant Name (e.g. "Voltex (Pty) Ltd", "Plumblink", "ARB Electrical").
-2. invoiceNumber: (string) Invoice / Slip / Tax Invoice / Order # reference.
+Output requirements:
+1. supplierName: (string) Vendor or merchant name.
+2. invoiceNumber: (string) Invoice / Slip / Tax Invoice / Reference number.
 3. date: (string) Date in YYYY-MM-DD format.
-4. totalAmount: (number) Grand total Rand amount paid or due (inclusive of VAT). Numeric only.
-5. vatAmount: (number) VAT 15% amount if indicated. Numeric only.
-6. items: (array) List of purchased line items. Each item:
-   - description: (string) Clear item description
-   - quantity: (number) Quantity purchased (default 1)
-   - unitCost: (number) Unit cost price in ZAR (excl or incl VAT, numeric only)
-   - category: (string) Category ('Electrical', 'Air Conditioning', 'Solar & Backup', 'Security & CCTV', 'Hardware & Site Materials', 'Consumables', or 'General')
-   - unit: (string) Unit of measure ('ea', 'm', 'roll', 'box', 'pack', 'length', 'kg', 'set')
-7. rawText: (string) A concise transcription of key visible text on the receipt for verification.
-8. notes: (string) Any tax number, cashier reference, branch location, or remarks.
-
-Ensure all numeric fields are valid numbers, never null or NaN.`;
+4. totalAmount: (number) Total Rand amount on the slip (inclusive of VAT, standard float).
+5. vatAmount: (number) VAT 15% amount if indicated (standard float).
+6. items: (array) Every itemized line item found on the slip:
+   - description: (string) Item name and specifications.
+   - quantity: (number) Quantity purchased as a standard numerical float/integer.
+   - unitCost: (number) Unit cost price as a standard numerical float.
+   - category: (string) Category ('Electrical', 'Air Conditioning', 'Solar & Backup', 'Security & CCTV', 'Hardware & Site Materials', 'Consumables', or 'General').
+   - unit: (string) Unit of measure ('ea', 'm', 'roll', 'box', 'pack', 'length', 'kg', 'set').
+7. rawText: (string) Concise transcription of visible document text.
+8. notes: (string) Additional metadata like VAT numbers, cashier name, or branch location.`;
 
       // Call Gemini 3.7 Flash with multi-modal payload
       const generatePromise = ai.models.generateContent({
