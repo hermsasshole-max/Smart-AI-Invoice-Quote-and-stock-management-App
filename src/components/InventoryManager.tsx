@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { InventoryItem } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
+import { ReceiptScannerModal } from './ReceiptScannerModal';
 import {
   Package,
   Plus,
@@ -12,6 +13,7 @@ import {
   TrendingUp,
   X,
   Check,
+  Scan,
 } from 'lucide-react';
 
 export const InventoryManager: React.FC = () => {
@@ -21,6 +23,7 @@ export const InventoryManager: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [bulkJson, setBulkJson] = useState('');
   const [bulkError, setBulkError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -180,7 +183,15 @@ export const InventoryManager: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setIsScannerOpen(true)}
+            className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
+            title="Scan supplier receipt using AI OCR to add materials to stock"
+          >
+            <Scan className="w-4 h-4 text-slate-950" />
+            <span>Scan Slip to Stock</span>
+          </button>
           <button
             onClick={() => {
               setBulkJson('');
@@ -556,6 +567,12 @@ export const InventoryManager: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Supplier Slip to Inventory Scanner Modal */}
+      <ReceiptScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+      />
     </div>
   );
 };

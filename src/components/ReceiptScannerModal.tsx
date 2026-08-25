@@ -47,20 +47,37 @@ const CATEGORIES: ServiceCategory[] = [
  * mobile timeouts and memory crashes.
  */
 async function processImageCanvas(
-  source: File | string,
+  source: File | Blob | string,
   rotationAngle = 0,
   enhanceContrast = false,
   maxWidth = 1600,
   maxHeight = 1600,
-  quality = 0.80
+  quality = 0.82
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    // Helper to read file as data URL fallback
+    const fallbackFileReader = (fileOrBlob: File | Blob) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = (e.target?.result as string) || '';
+        resolve(result);
+      };
+      reader.onerror = () => {
+        resolve('');
+      };
+      reader.readAsDataURL(fileOrBlob);
+    };
+
     let objectUrlToRevoke: string | null = null;
     const img = new Image();
 
     img.onerror = () => {
       if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
-      reject(new Error('Could not decode photo from device. Please try taking the photo again.'));
+      if (typeof source !== 'string') {
+        fallbackFileReader(source);
+      } else {
+        resolve(source);
+      }
     };
 
     img.onload = () => {
@@ -97,7 +114,7 @@ async function processImageCanvas(
           if (typeof source === 'string') {
             resolve(source);
           } else {
-            reject(new Error('Canvas context unavailable on mobile device.'));
+            fallbackFileReader(source);
           }
           return;
         }
@@ -136,7 +153,12 @@ async function processImageCanvas(
         const outputDataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(outputDataUrl);
       } catch (err: any) {
-        reject(new Error('Image processing error: ' + err.message));
+        console.warn('Canvas rendering fallback triggered:', err);
+        if (typeof source !== 'string') {
+          fallbackFileReader(source);
+        } else {
+          resolve(source);
+        }
       } finally {
         if (objectUrlToRevoke) {
           URL.revokeObjectURL(objectUrlToRevoke);
@@ -151,13 +173,7 @@ async function processImageCanvas(
         objectUrlToRevoke = URL.createObjectURL(source);
         img.src = objectUrlToRevoke;
       } catch (blobErr) {
-        // Fallback for environments without object URL
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          img.src = e.target?.result as string;
-        };
-        reader.onerror = () => reject(new Error('Failed to read image file.'));
-        reader.readAsDataURL(source);
+        fallbackFileReader(source);
       }
     }
   });
@@ -482,15 +498,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     scanResult.items.forEach((item) => {
       const markup = item.markupPct || profile.defaultMarkup || 35;
       const selling = calculateSellingPrice(item.unitCost, markup);
+      const skuCode = (item.code_barcode || item.codeBarcode || '').trim() || ('SKU-' + Math.floor(1000 + Math.random() * 9000));
       addInventoryItem({
-        sku: 'SKU-' + Math.floor(1000 + Math.random() * 9000),
+        sku: skuCode,
         name: item.description,
-        category: (item.category as any) || 'Electrical',
+        category: (item.category as any) || 'Hardware & Site Materials',
         costPrice: item.unitCost,
         defaultMarkup: markup,
         sellingPrice: selling,
         unit: item.unit || 'ea',
-        stockQty: item.quantity,
+        stockQty: item.quantity || 1,
         minStockLevel: 2,
         supplier: scanResult.supplierName || 'Supplier Invoice',
         notes: `Extracted via OCR from slip ${scanResult.invoiceNumber} (${scanResult.date})`,

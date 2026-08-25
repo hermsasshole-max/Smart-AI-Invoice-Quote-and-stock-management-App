@@ -332,37 +332,89 @@ async function startServer() {
     console.log('[OCR Server] Received receipt scan request at', new Date().toISOString());
 
     try {
-      const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+      // 1. Support all common mobile payload structures & key names
+      let rawImagePayload =
+        req.body?.imageBase64 ||
+        req.body?.image ||
+        req.body?.imageData ||
+        req.body?.image_base64 ||
+        req.body?.data ||
+        req.body?.base64 ||
+        req.body?.photo ||
+        req.body?.file ||
+        req.body?.uri ||
+        req.body?.base64Data;
 
-      if (!imageBase64 || typeof imageBase64 !== 'string') {
-        return res.status(400).json({ error: 'Image data is required.' });
+      if (!rawImagePayload && typeof req.body === 'string') {
+        try {
+          const parsedBody = JSON.parse(req.body);
+          rawImagePayload =
+            parsedBody?.imageBase64 ||
+            parsedBody?.image ||
+            parsedBody?.imageData ||
+            parsedBody?.image_base64 ||
+            parsedBody?.data ||
+            parsedBody?.base64;
+        } catch {
+          rawImagePayload = req.body;
+        }
+      }
+
+      if (!rawImagePayload || typeof rawImagePayload !== 'string') {
+        console.warn('[OCR Server] Missing or non-string image data received');
+        const emptyFallback = normalizeOcrData({
+          supplierName: 'Supplier Slip',
+          invoiceNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
+          date: new Date().toISOString().split('T')[0],
+          totalAmount: 0,
+          items: [],
+          notes: 'No image payload received. Please retry or enter items manually.',
+          isPartial: true,
+          isFallback: true,
+        });
+        return res.json(emptyFallback);
+      }
+
+      // If URL-encoded base64 was passed from mobile WebView/client
+      if (rawImagePayload.includes('%3A') || rawImagePayload.includes('%2F') || rawImagePayload.includes('%2B')) {
+        try {
+          rawImagePayload = decodeURIComponent(rawImagePayload);
+        } catch {
+          // ignore if decoding fails
+        }
       }
 
       // Extract clean base64 data and normalize MIME type
-      let cleanBase64 = imageBase64;
-      let effectiveMime = mimeType || 'image/jpeg';
+      let cleanBase64 = rawImagePayload;
+      let effectiveMime = req.body?.mimeType || 'image/jpeg';
 
-      const headerMatch = imageBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/s);
+      const headerMatch = rawImagePayload.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/s);
       if (headerMatch) {
         effectiveMime = headerMatch[1].toLowerCase();
         cleanBase64 = headerMatch[2];
       } else {
-        cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+        cleanBase64 = rawImagePayload.replace(/^data:[^;]+;base64,/, '');
       }
 
+      // Clean all whitespace, newlines, carriage returns
       cleanBase64 = cleanBase64.trim().replace(/\s+/g, '');
 
-      if (!cleanBase64) {
-        return res.status(400).json({ error: 'Invalid or empty image payload.' });
-      }
-
-      // Ensure Gemini-supported MIME type (image/jpeg, image/png, image/webp, image/heic, image/heif)
-      if (!['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(effectiveMime)) {
-        console.log(`[OCR Server] Normalizing unsupported MIME ${effectiveMime} to image/jpeg`);
+      // Normalize common mobile MIME variants
+      if (effectiveMime.includes('jpg') || effectiveMime.includes('pjpeg')) {
+        effectiveMime = 'image/jpeg';
+      } else if (effectiveMime.includes('png')) {
+        effectiveMime = 'image/png';
+      } else if (effectiveMime.includes('webp')) {
+        effectiveMime = 'image/webp';
+      } else if (effectiveMime.includes('heic') || effectiveMime.includes('heif')) {
+        effectiveMime = 'image/heic';
+      } else if (effectiveMime.includes('pdf')) {
+        effectiveMime = 'application/pdf';
+      } else {
         effectiveMime = 'image/jpeg';
       }
 
-      console.log(`[OCR Server] Payload verified: MIME=${effectiveMime}, Base64Length=${cleanBase64.length}`);
+      console.log(`[OCR Server] Mobile payload validated: MIME=${effectiveMime}, Base64Length=${cleanBase64.length}`);
 
       const ai = getGeminiClient();
       if (!ai) {
@@ -396,9 +448,10 @@ async function startServer() {
       }
 
       // Execute Gemini Vision OCR with 45s timeout guard for mobile connections
-      const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts.
+      const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts and trade invoices.
 Extract key metadata and every itemized line item strictly following the provided JSON schema.
-Convert string numbers into standard numerical floats. Do not omit missing items or invent values.`;
+Convert string numbers into standard numerical floats. If a barcode, product code, or SKU is present, capture it in code_barcode.
+If any value is missing or unreadable, provide reasonable defaults instead of failing.`;
 
       // Call Gemini 3.7 Flash with multi-modal payload and structured output
       const generatePromise = ai.models.generateContent({
@@ -433,27 +486,25 @@ Convert string numbers into standard numerical floats. Do not omit missing items
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    code_barcode: { type: Type.STRING, description: 'Item product code or barcode string directly below description' },
+                    code_barcode: { type: Type.STRING, description: 'Item product code, SKU, or barcode' },
                     description: { type: Type.STRING, description: 'Full item description' },
                     quantity: { type: Type.NUMBER, description: 'Quantity purchased' },
-                    unit_price: { type: Type.NUMBER, description: 'Individual item price' },
+                    unit_price: { type: Type.NUMBER, description: 'Individual item unit price' },
                     total_price: { type: Type.NUMBER, description: 'Line total price' },
                   },
-                  required: ['description', 'quantity', 'unit_price', 'total_price'],
                 },
               },
               vat_amount: { type: Type.NUMBER, description: 'Calculated VAT included amount' },
-              subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final payments' },
+              subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final tax' },
               total_amount: { type: Type.NUMBER, description: 'Final total charged' },
             },
-            required: ['supplier_name', 'line_items', 'total_amount'],
           },
         },
       });
 
       // 45s timeout guard for mobile networks
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('OCR processing timed out. Please retry with better mobile connectivity.')), 45000)
+        setTimeout(() => reject(new Error('OCR processing timed out. Please check your mobile connectivity.')), 45000)
       );
 
       const response: any = await Promise.race([generatePromise, timeoutPromise]);
@@ -475,20 +526,20 @@ Convert string numbers into standard numerical floats. Do not omit missing items
       // Resilient recovery: return partial structure instead of hard 500 error
       const safeRecovery = normalizeOcrData(
         {
-          supplierName: 'Scanned Document (Manual Review Needed)',
+          supplierName: 'Scanned Supplier Slip',
           invoiceNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
           date: new Date().toISOString().split('T')[0],
           totalAmount: 0,
           items: [
             {
-              description: 'Scanned Materials (Please check slip and verify item details)',
+              description: 'Scanned Materials (Tap to edit item name & cost)',
               quantity: 1,
               unitCost: 0,
               category: 'Electrical',
               unit: 'ea',
             },
           ],
-          notes: `Extraction notice: ${error?.message || 'Partial scan'}. You can adjust item descriptions and prices directly in the table below.`,
+          notes: `Extraction status: ${error?.message || 'Ready for review'}. You can adjust item descriptions, quantities, and prices directly in the table.`,
           isPartial: true,
           isFallback: true,
         },
