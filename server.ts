@@ -637,15 +637,15 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
         },
       };
 
-      // Model Redundancy Hierarchy: Primary -> Secondary -> Fallback Tier
-      const modelCandidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.7-flash'];
+      // Model Redundancy Hierarchy: Primary (gemini-3.7-flash) -> Fast Alias (gemini-flash-latest) -> High-Throughput (gemini-3.1-flash-lite)
+      const modelCandidates = ['gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
       let rawResponseText = '';
       let successfulModel = '';
       let lastAttemptError: any = null;
 
       // Model & Retry Loop with Exponential Backoff + Jitter
       modelLoop: for (const currentModel of modelCandidates) {
-        const maxRetries = 3;
+        const maxRetries = 2;
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             console.log(`[OCR Server] Calling model=${currentModel} (Attempt ${attempt + 1}/${maxRetries})...`);
@@ -695,12 +695,25 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
               modelErr?.message || modelErr
             );
 
+            // If 404 (deprecated/unsupported model), immediately break to next model without wasting retries
+            const is404NotFound =
+              modelErr?.status === 404 ||
+              modelErr?.statusCode === 404 ||
+              String(modelErr?.message || '').includes('404') ||
+              String(modelErr?.message || '').includes('no longer available') ||
+              String(modelErr?.message || '').includes('NOT_FOUND');
+
+            if (is404NotFound) {
+              console.warn(`[OCR Server] Model ${currentModel} not available (404), switching immediately to next candidate model...`);
+              break;
+            }
+
             if (isTransient && attempt < maxRetries - 1) {
-              // Exponential backoff: ~1s, ~2s, ~4s (+ 0-400ms random jitter)
-              const baseBackoff = Math.pow(2, attempt) * 1000;
-              const jitter = Math.floor(Math.random() * 400);
+              // Exponential backoff: ~800ms, ~1600ms (+ 0-300ms random jitter)
+              const baseBackoff = (attempt + 1) * 800;
+              const jitter = Math.floor(Math.random() * 300);
               const waitDuration = baseBackoff + jitter;
-              console.log(`[OCR Server] High traffic / 503 detected. Retrying in ${waitDuration}ms...`);
+              console.log(`[OCR Server] High traffic / 503 detected on ${currentModel}. Retrying in ${waitDuration}ms...`);
               await delayMs(waitDuration);
               continue;
             }
