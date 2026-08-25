@@ -40,28 +40,40 @@ const CATEGORIES: ServiceCategory[] = [
 ];
 
 /**
- * Offscreen Canvas Image Processor:
- * Scales massive high-res camera photos down to max 2048x2048px,
- * handles rotation (0, 90, 180, 270 deg), and optionally applies
- * high-contrast grayscale enhancement for thermal paper receipts.
+ * Mobile-Optimized Canvas Image Processor:
+ * Efficiently downscales high-megapixel camera photos (from iPhone/Android 12MP-48MP)
+ * to 1600px max dimension, applies optional 90-degree rotations and thermal slip
+ * contrast filtering, and exports clean ~250KB JPEG base64 payloads to prevent
+ * mobile timeouts and memory crashes.
  */
 async function processImageCanvas(
-  sourceDataUrl: string,
+  source: File | string,
   rotationAngle = 0,
   enhanceContrast = false,
-  maxWidth = 2048,
-  maxHeight = 2048,
-  quality = 0.85
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.80
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    let objectUrlToRevoke: string | null = null;
     const img = new Image();
-    img.onerror = () => reject(new Error('Failed to decode image data on device.'));
+
+    img.onerror = () => {
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+      reject(new Error('Could not decode photo from device. Please try taking the photo again.'));
+    };
+
     img.onload = () => {
       try {
-        let width = img.width;
-        let height = img.height;
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
 
-        // Scale dimensions while maintaining aspect ratio
+        if (!width || !height) {
+          width = 1200;
+          height = 1600;
+        }
+
+        // Scale down large camera photos while keeping exact aspect ratio
         if (width > maxWidth || height > maxHeight) {
           if (width / height > maxWidth / maxHeight) {
             height = Math.round((height * maxWidth) / width);
@@ -82,7 +94,11 @@ async function processImageCanvas(
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
         if (!ctx) {
-          resolve(sourceDataUrl);
+          if (typeof source === 'string') {
+            resolve(source);
+          } else {
+            reject(new Error('Canvas context unavailable on mobile device.'));
+          }
           return;
         }
 
@@ -98,30 +114,52 @@ async function processImageCanvas(
 
         // Apply high-contrast & thermal slip enhancement filter if enabled
         if (enhanceContrast) {
-          const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-          const data = imageData.data;
-          const contrastFactor = 1.35; // +35% contrast boost
-          const intercept = 128 * (1 - contrastFactor);
+          try {
+            const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+            const data = imageData.data;
+            const contrastFactor = 1.35; // +35% contrast boost
+            const intercept = 128 * (1 - contrastFactor);
 
-          for (let i = 0; i < data.length; i += 4) {
-            // Luminance formula (ITU-R BT.601)
-            const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            // Apply contrast curve
-            const adjusted = Math.min(255, Math.max(0, gray * contrastFactor + intercept));
-            data[i] = adjusted;
-            data[i + 1] = adjusted;
-            data[i + 2] = adjusted;
+            for (let i = 0; i < data.length; i += 4) {
+              const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+              const adjusted = Math.min(255, Math.max(0, gray * contrastFactor + intercept));
+              data[i] = adjusted;
+              data[i + 1] = adjusted;
+              data[i + 2] = adjusted;
+            }
+            ctx.putImageData(imageData, 0, 0);
+          } catch (filterErr) {
+            console.warn('Contrast filter skipped:', filterErr);
           }
-          ctx.putImageData(imageData, 0, 0);
         }
 
         const outputDataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(outputDataUrl);
       } catch (err: any) {
         reject(new Error('Image processing error: ' + err.message));
+      } finally {
+        if (objectUrlToRevoke) {
+          URL.revokeObjectURL(objectUrlToRevoke);
+        }
       }
     };
-    img.src = sourceDataUrl;
+
+    if (typeof source === 'string') {
+      img.src = source;
+    } else {
+      try {
+        objectUrlToRevoke = URL.createObjectURL(source);
+        img.src = objectUrlToRevoke;
+      } catch (blobErr) {
+        // Fallback for environments without object URL
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('Failed to read image file.'));
+        reader.readAsDataURL(source);
+      }
+    }
   });
 }
 
@@ -149,36 +187,34 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle new image upload
-  const handleProcessFile = (file: File) => {
+  // Handle new image upload with low memory footprint
+  const handleProcessFile = async (file: File) => {
     setErrorMessage(null);
     setScanResult(null);
     setIsProcessingImage(true);
+    setRotationAngle(0);
+    setEnhanceContrast(false);
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      setErrorMessage('Could not read image file from your device.');
+    try {
+      // Process and compress directly from File object
+      const compressedDataUrl = await processImageCanvas(file, 0, false);
+      setOriginalImage(compressedDataUrl);
+      setProcessedImage(compressedDataUrl);
+    } catch (err: any) {
+      console.error('Mobile image initial processing error:', err);
+      // Fallback via FileReader
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const raw = e.target?.result as string;
+        setOriginalImage(raw);
+        setProcessedImage(raw);
+      };
+      reader.readAsDataURL(file);
+    } finally {
       setIsProcessingImage(false);
-    };
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      setOriginalImage(dataUrl);
-      setRotationAngle(0);
-      setEnhanceContrast(false);
-
-      try {
-        const processed = await processImageCanvas(dataUrl, 0, false);
-        setProcessedImage(processed);
-      } catch (err: any) {
-        console.error('Image initial processing error:', err);
-        setProcessedImage(dataUrl);
-      } finally {
-        setIsProcessingImage(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,6 +256,60 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     } finally {
       setIsProcessingImage(false);
     }
+  };
+
+  // Create manual slip entry
+  const handleCreateBlankScan = () => {
+    setScanResult({
+      supplier_name: 'Supplier Slip',
+      supplierName: 'Supplier Slip',
+      receipt_number: 'INV-' + Math.floor(100000 + Math.random() * 900000),
+      receiptNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
+      invoiceNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
+      date: new Date().toISOString().split('T')[0],
+      total_amount: 0,
+      totalAmount: 0,
+      vat_amount: 0,
+      vatAmount: 0,
+      line_items: [
+        {
+          id: 'manual_item_' + Date.now(),
+          code_barcode: '',
+          codeBarcode: '',
+          description: 'Electrical / Plumbing Supplies',
+          quantity: 1,
+          unitCost: 0,
+          unit_price: 0,
+          unitPrice: 0,
+          total_price: 0,
+          totalPrice: 0,
+          category: 'Electrical',
+          unit: 'ea',
+          markupPct: profile.defaultMarkup || 35,
+          total: 0,
+        },
+      ],
+      items: [
+        {
+          id: 'manual_item_' + Date.now(),
+          code_barcode: '',
+          codeBarcode: '',
+          description: 'Electrical / Plumbing Supplies',
+          quantity: 1,
+          unitCost: 0,
+          unit_price: 0,
+          unitPrice: 0,
+          total_price: 0,
+          totalPrice: 0,
+          category: 'Electrical',
+          unit: 'ea',
+          markupPct: profile.defaultMarkup || 35,
+          total: 0,
+        },
+      ],
+      isPartial: true,
+    });
+    setErrorMessage(null);
   };
 
   // Perform AI OCR scan
@@ -317,7 +407,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     } catch (err: any) {
       console.error('[OCR Frontend Error]:', err);
       setErrorMessage(
-        err.message || 'Error communicating with AI OCR engine. Check your connection and try again.'
+        err.message || 'Error communicating with AI OCR engine. Check your mobile connection or tap below to edit manually.'
       );
     } finally {
       setIsScanning(false);
@@ -520,6 +610,19 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                       <Upload className="w-4 h-4" />
                       <span>Upload File</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateBlankScan}
+                      className={`px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 border cursor-pointer ${
+                        sunlightMode
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                          : 'bg-[#181B24] hover:bg-[#222734] text-slate-300 border-[#334155]'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4 text-amber-400" />
+                      <span>Manual Slip Entry</span>
+                    </button>
                   </div>
                 )}
 
@@ -643,25 +746,51 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start space-x-2">
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-bold block">Scanner Issue:</span>
-                <span>{errorMessage}</span>
-                <div className="mt-2 flex gap-2">
+              <div className="flex-1 space-y-2">
+                <div>
+                  <span className="font-bold block text-sm">Scanner Notice:</span>
+                  <span className="text-slate-300">{errorMessage}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {processedImage && (
+                    <button
+                      type="button"
+                      onClick={runOcrScan}
+                      disabled={isScanning}
+                      className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                      <span>Retry AI Scan</span>
+                    </button>
+                  )}
                   <button
-                    onClick={handleRotateImage}
-                    className="underline text-sky-400 hover:text-sky-300 font-mono text-[11px] cursor-pointer"
+                    type="button"
+                    onClick={handleCreateBlankScan}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs flex items-center space-x-1.5 border border-amber-500/40 cursor-pointer"
                   >
-                    Try Rotating Image
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Enter Items Manually</span>
                   </button>
-                  <span>•</span>
-                  <button
-                    onClick={handleToggleContrast}
-                    className="underline text-amber-400 hover:text-amber-300 font-mono text-[11px] cursor-pointer"
-                  >
-                    Toggle High Contrast Filter
-                  </button>
+                  {processedImage && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleRotateImage}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#1B1E28] hover:bg-[#282E3E] text-slate-300 text-xs border border-[#334155] cursor-pointer"
+                      >
+                        Rotate 90°
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleContrast}
+                        className="px-2.5 py-1.5 rounded-lg bg-[#1B1E28] hover:bg-[#282E3E] text-slate-300 text-xs border border-[#334155] cursor-pointer"
+                      >
+                        Auto-Contrast
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

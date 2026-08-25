@@ -340,11 +340,11 @@ async function startServer() {
 
       // Extract clean base64 data and normalize MIME type
       let cleanBase64 = imageBase64;
-      let effectiveMime = mimeType;
+      let effectiveMime = mimeType || 'image/jpeg';
 
       const headerMatch = imageBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/s);
       if (headerMatch) {
-        effectiveMime = headerMatch[1];
+        effectiveMime = headerMatch[1].toLowerCase();
         cleanBase64 = headerMatch[2];
       } else {
         cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
@@ -354,6 +354,12 @@ async function startServer() {
 
       if (!cleanBase64) {
         return res.status(400).json({ error: 'Invalid or empty image payload.' });
+      }
+
+      // Ensure Gemini-supported MIME type (image/jpeg, image/png, image/webp, image/heic, image/heif)
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(effectiveMime)) {
+        console.log(`[OCR Server] Normalizing unsupported MIME ${effectiveMime} to image/jpeg`);
+        effectiveMime = 'image/jpeg';
       }
 
       console.log(`[OCR Server] Payload verified: MIME=${effectiveMime}, Base64Length=${cleanBase64.length}`);
@@ -389,7 +395,7 @@ async function startServer() {
         return res.json(fallbackData);
       }
 
-      // Execute Gemini Vision OCR with 30s timeout guard
+      // Execute Gemini Vision OCR with 45s timeout guard for mobile connections
       const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts.
 Extract key metadata and every itemized line item strictly following the provided JSON schema.
 Convert string numbers into standard numerical floats. Do not omit missing items or invent values.`;
@@ -445,9 +451,9 @@ Convert string numbers into standard numerical floats. Do not omit missing items
         },
       });
 
-      // 30s timeout guard
+      // 45s timeout guard for mobile networks
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('OCR request timed out after 30 seconds.')), 30000)
+        setTimeout(() => reject(new Error('OCR processing timed out. Please retry with better mobile connectivity.')), 45000)
       );
 
       const response: any = await Promise.race([generatePromise, timeoutPromise]);
