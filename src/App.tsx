@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { SafeAreaProvider, SafeAreaView, useSafeArea } from './components/SafeAreaProvider';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { QuotationEngine } from './components/QuotationEngine';
@@ -20,6 +21,7 @@ const AppContent: React.FC<{
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const { sunlightMode } = useApp();
+  const { isLandscape } = useSafeArea();
 
   // Keyboard shortcut: Ctrl+Shift+D or Cmd+Shift+D to toggle Debug Modal
   useEffect(() => {
@@ -34,8 +36,8 @@ const AppContent: React.FC<{
   }, [setIsDebugOpen]);
 
   return (
-    <div
-      className={`min-h-screen flex flex-col transition-colors duration-200 ${
+    <SafeAreaView
+      className={`min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 ${
         sunlightMode ? 'bg-[#F1F5F9] text-[#0F172A]' : 'bg-[#0E1017] text-slate-100'
       }`}
     >
@@ -46,7 +48,9 @@ const AppContent: React.FC<{
         openDebugModal={() => setIsDebugOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6">
+      <main className={`flex-1 w-full max-w-7xl mx-auto py-4 sm:py-6 transition-all ${
+        isLandscape ? 'px-4 sm:px-6 lg:px-8' : 'px-3 sm:px-6 lg:px-8'
+      }`}>
         {activeTab === 'dashboard' && (
           <Dashboard
             setActiveTab={setActiveTab}
@@ -97,7 +101,7 @@ const AppContent: React.FC<{
 
       {/* Floating On-Screen Debug Action Button */}
       <DebugFloatingButton onClick={() => setIsDebugOpen(true)} />
-    </div>
+    </SafeAreaView>
   );
 };
 
@@ -107,7 +111,9 @@ export const App: React.FC = () => {
   return (
     <ErrorBoundary onOpenDebugModal={() => setIsDebugOpen(true)}>
       <AppProvider>
-        <AppContent isDebugOpen={isDebugOpen} setIsDebugOpen={setIsDebugOpen} />
+        <SafeAreaProvider>
+          <AppContent isDebugOpen={isDebugOpen} setIsDebugOpen={setIsDebugOpen} />
+        </SafeAreaProvider>
       </AppProvider>
     </ErrorBoundary>
   );

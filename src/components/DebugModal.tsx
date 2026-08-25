@@ -260,7 +260,7 @@ export const DebugModal: React.FC<DebugModalProps> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 font-sans animate-in fade-in duration-150">
       <div
-        className={`relative w-full bg-[#12141C] border border-[#282E3E] rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+        className={`modal-container relative w-full bg-[#12141C] border border-[#282E3E] rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
           isFullScreen ? 'h-[98vh] max-w-[98vw]' : 'max-w-5xl h-[88vh]'
         }`}
       >
