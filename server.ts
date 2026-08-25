@@ -326,6 +326,32 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // Helper to determine if an error is transient (503 UNAVAILABLE / 429 RATE LIMIT / network timeout)
+  function isTransientError(error: any): boolean {
+    const status = error?.status || error?.statusCode || error?.code;
+    const message = String(error?.message || error || '').toLowerCase();
+
+    return (
+      status === 503 ||
+      status === 429 ||
+      status === 'UNAVAILABLE' ||
+      status === 'RESOURCE_EXHAUSTED' ||
+      message.includes('503') ||
+      message.includes('429') ||
+      message.includes('unavailable') ||
+      message.includes('high demand') ||
+      message.includes('rate limit') ||
+      message.includes('resource exhausted') ||
+      message.includes('overloaded') ||
+      message.includes('temporary') ||
+      message.includes('quota') ||
+      message.includes('fetch failed') ||
+      message.includes('econnreset')
+    );
+  }
+
+  const delayMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   // Receipt & Supplier Invoice OCR API
   app.post('/api/scan-receipt', async (req, res) => {
     const startTime = Date.now();
@@ -447,83 +473,134 @@ async function startServer() {
         return res.json(fallbackData);
       }
 
-      // Execute Gemini Vision OCR with 45s timeout guard for mobile connections
       const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts and trade invoices.
 Extract key metadata and every itemized line item strictly following the provided JSON schema.
 Convert string numbers into standard numerical floats. If a barcode, product code, or SKU is present, capture it in code_barcode.
 If any value is missing or unreadable, provide reasonable defaults instead of failing.`;
 
-      // Call Gemini 3.7 Flash with multi-modal payload and structured output
-      const generatePromise = ai.models.generateContent({
-        model: 'gemini-3.7-flash',
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType: effectiveMime,
-                data: cleanBase64,
+      const ocrSchema = {
+        type: Type.OBJECT,
+        properties: {
+          supplier_name: { type: Type.STRING, description: 'Business or store name at the top of the slip' },
+          address: { type: Type.STRING, description: 'Physical address' },
+          vat_number: { type: Type.STRING, description: 'VAT tax registration number' },
+          receipt_number: { type: Type.STRING, description: 'Till/Sale/Invoice number' },
+          date: { type: Type.STRING, description: 'Date of transaction (YYYY-MM-DD)' },
+          time: { type: Type.STRING, description: 'Time of transaction (HH:MM:SS)' },
+          cashier: { type: Type.STRING, description: 'Cashier or attendant name' },
+          line_items: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                code_barcode: { type: Type.STRING, description: 'Item product code, SKU, or barcode' },
+                description: { type: Type.STRING, description: 'Full item description' },
+                quantity: { type: Type.NUMBER, description: 'Quantity purchased' },
+                unit_price: { type: Type.NUMBER, description: 'Individual item unit price' },
+                total_price: { type: Type.NUMBER, description: 'Line total price' },
               },
-            },
-            {
-              text: promptText,
-            },
-          ],
-        },
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              supplier_name: { type: Type.STRING, description: 'Business or store name at the top of the slip' },
-              address: { type: Type.STRING, description: 'Physical address' },
-              vat_number: { type: Type.STRING, description: 'VAT tax registration number' },
-              receipt_number: { type: Type.STRING, description: 'Till/Sale/Invoice number' },
-              date: { type: Type.STRING, description: 'Date of transaction (YYYY-MM-DD)' },
-              time: { type: Type.STRING, description: 'Time of transaction (HH:MM:SS)' },
-              cashier: { type: Type.STRING, description: 'Cashier or attendant name' },
-              line_items: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    code_barcode: { type: Type.STRING, description: 'Item product code, SKU, or barcode' },
-                    description: { type: Type.STRING, description: 'Full item description' },
-                    quantity: { type: Type.NUMBER, description: 'Quantity purchased' },
-                    unit_price: { type: Type.NUMBER, description: 'Individual item unit price' },
-                    total_price: { type: Type.NUMBER, description: 'Line total price' },
-                  },
-                },
-              },
-              vat_amount: { type: Type.NUMBER, description: 'Calculated VAT included amount' },
-              subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final tax' },
-              total_amount: { type: Type.NUMBER, description: 'Final total charged' },
             },
           },
+          vat_amount: { type: Type.NUMBER, description: 'Calculated VAT included amount' },
+          subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final tax' },
+          total_amount: { type: Type.NUMBER, description: 'Final total charged' },
         },
-      });
+      };
 
-      // 45s timeout guard for mobile networks
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('OCR processing timed out. Please check your mobile connectivity.')), 45000)
-      );
+      // Model Redundancy Hierarchy: Primary -> Secondary -> Fallback Tier
+      const modelCandidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.7-flash'];
+      let rawResponseText = '';
+      let successfulModel = '';
+      let lastAttemptError: any = null;
 
-      const response: any = await Promise.race([generatePromise, timeoutPromise]);
-      const rawResponseText = response?.text || '';
-      console.log(`[OCR Server] Gemini response received in ${Date.now() - startTime}ms. Raw text length: ${rawResponseText.length}`);
+      // Model & Retry Loop with Exponential Backoff + Jitter
+      modelLoop: for (const currentModel of modelCandidates) {
+        const maxRetries = 3;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            console.log(`[OCR Server] Calling model=${currentModel} (Attempt ${attempt + 1}/${maxRetries})...`);
 
-      // Parse and sanitize response
-      const extractedJson = sanitizeAndExtractOcrData(rawResponseText);
-      const normalized = normalizeOcrData(extractedJson, rawResponseText);
+            const generatePromise = ai.models.generateContent({
+              model: currentModel,
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: effectiveMime,
+                      data: cleanBase64,
+                    },
+                  },
+                  {
+                    text: promptText,
+                  },
+                ],
+              },
+              config: {
+                responseMimeType: 'application/json',
+                responseSchema: ocrSchema,
+              },
+            });
 
-      return res.json(normalized);
-    } catch (error: any) {
-      console.error('[OCR Server Error] Failed during OCR processing:', {
-        message: error?.message,
-        stack: error?.stack,
-        duration: Date.now() - startTime,
-      });
+            // 35s timeout guard per individual attempt
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('OCR model attempt timed out.')), 35000)
+            );
 
-      // Resilient recovery: return partial structure instead of hard 500 error
+            const response: any = await Promise.race([generatePromise, timeoutPromise]);
+            const extractedText = response?.text || '';
+
+            if (extractedText && extractedText.trim().length > 0) {
+              rawResponseText = extractedText;
+              successfulModel = currentModel;
+              console.log(
+                `[OCR Server] Gemini response received via ${currentModel} on attempt ${attempt + 1} in ${Date.now() - startTime}ms.`
+              );
+              break modelLoop;
+            }
+          } catch (modelErr: any) {
+            lastAttemptError = modelErr;
+            const isTransient = isTransientError(modelErr);
+            console.warn(
+              `[OCR Server] Model ${currentModel} (Attempt ${attempt + 1}) encountered error:`,
+              modelErr?.message || modelErr
+            );
+
+            if (isTransient && attempt < maxRetries - 1) {
+              // Exponential backoff: ~1s, ~2s, ~4s (+ 0-400ms random jitter)
+              const baseBackoff = Math.pow(2, attempt) * 1000;
+              const jitter = Math.floor(Math.random() * 400);
+              const waitDuration = baseBackoff + jitter;
+              console.log(`[OCR Server] High traffic / 503 detected. Retrying in ${waitDuration}ms...`);
+              await delayMs(waitDuration);
+              continue;
+            }
+
+            // Move to next candidate model if this one is exhausted or permanently failing
+            break;
+          }
+        }
+      }
+
+      // If we got valid response text from any model tier
+      if (rawResponseText) {
+        const extractedJson = sanitizeAndExtractOcrData(rawResponseText);
+        const normalized = normalizeOcrData(extractedJson, rawResponseText);
+        return res.json(normalized);
+      }
+
+      // If all candidate models and retries failed due to 503 / 429
+      const isTransient = isTransientError(lastAttemptError);
+      console.error('[OCR Server] All model candidate attempts exhausted. Last error:', lastAttemptError?.message);
+
+      if (isTransient) {
+        return res.status(503).json({
+          error: 'Server busy. Please tap Retry or enter items manually.',
+          isServerBusy: true,
+          status: 503,
+        });
+      }
+
+      // If other error, return safe fallback template with clean message
       const safeRecovery = normalizeOcrData(
         {
           supplierName: 'Scanned Supplier Slip',
@@ -539,14 +616,25 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
               unit: 'ea',
             },
           ],
-          notes: `Extraction status: ${error?.message || 'Ready for review'}. You can adjust item descriptions, quantities, and prices directly in the table.`,
+          notes: 'Server busy. Please tap Retry or enter items manually.',
           isPartial: true,
           isFallback: true,
         },
-        error?.message || ''
+        'Server busy. Please tap Retry or enter items manually.'
       );
 
       return res.json(safeRecovery);
+    } catch (error: any) {
+      console.error('[OCR Server Error] Fatal uncaught error during OCR processing:', {
+        message: error?.message,
+        duration: Date.now() - startTime,
+      });
+
+      return res.status(503).json({
+        error: 'Server busy. Please tap Retry or enter items manually.',
+        isServerBusy: true,
+        status: 503,
+      });
     }
   });
 

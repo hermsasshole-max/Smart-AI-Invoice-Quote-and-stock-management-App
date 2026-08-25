@@ -193,6 +193,9 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const [enhanceContrast, setEnhanceContrast] = useState<boolean>(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanStatusMessage, setScanStatusMessage] = useState<string>(
+    'Extracting Materials & Prices with Gemini AI Vision...'
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRawText, setShowRawText] = useState(false);
 
@@ -202,6 +205,51 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  // Sanitizer to convert raw API JSON or 503/429 errors into user-friendly message
+  const formatFriendlyError = (err: any): string => {
+    if (!err) return 'Server busy. Please tap Retry or enter items manually.';
+    const str = typeof err === 'string' ? err : err?.message || JSON.stringify(err);
+    const lower = str.toLowerCase();
+
+    if (
+      lower.includes('503') ||
+      lower.includes('429') ||
+      lower.includes('unavailable') ||
+      lower.includes('high demand') ||
+      lower.includes('rate limit') ||
+      lower.includes('resource exhausted') ||
+      lower.includes('overloaded') ||
+      lower.includes('server busy') ||
+      lower.includes('temporary') ||
+      lower.includes('quota') ||
+      str.includes('{"error"') ||
+      str.includes('"code":503') ||
+      str.includes('"status":"UNAVAILABLE"') ||
+      str.includes('UNAVAILABLE')
+    ) {
+      return 'Server busy. Please tap Retry or enter items manually.';
+    }
+
+    if (str.trim().startsWith('{') && str.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(str);
+        if (parsed?.error?.message) {
+          return formatFriendlyError(parsed.error.message);
+        }
+        if (parsed?.error && typeof parsed.error === 'string') {
+          return formatFriendlyError(parsed.error);
+        }
+      } catch {
+        // ignore
+      }
+      return 'Server busy. Please tap Retry or enter items manually.';
+    }
+
+    return str;
+  };
+
+  const delayMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // Handle new image upload with low memory footprint
   const handleProcessFile = async (file: File) => {
@@ -328,106 +376,161 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setErrorMessage(null);
   };
 
-  // Perform AI OCR scan
+  // Perform AI OCR scan with automatic exponential backoff retries and live status feedback
   const runOcrScan = async () => {
     if (!processedImage) return;
 
     setIsScanning(true);
     setErrorMessage(null);
+    setScanStatusMessage('Extracting Materials & Prices with Gemini AI Vision...');
 
-    try {
-      const response = await fetch('/api/scan-receipt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageBase64: processedImage,
-          mimeType: 'image/jpeg',
-        }),
-      });
+    const maxClientAttempts = 3;
+    let lastErr: any = null;
 
-      if (!response.ok) {
-        let errMessage = 'Failed to extract invoice data.';
-        try {
-          const errData = await response.json();
-          errMessage = errData.error || errMessage;
-        } catch {
-          // not json
+    for (let attempt = 0; attempt < maxClientAttempts; attempt++) {
+      try {
+        if (attempt > 0) {
+          setScanStatusMessage(`High server traffic, retrying extraction (Attempt ${attempt}/3)...`);
         }
-        throw new Error(errMessage);
+
+        const response = await fetch('/api/scan-receipt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageBase64: processedImage,
+            mimeType: 'image/jpeg',
+          }),
+        });
+
+        if (!response.ok) {
+          let errMessage = 'Failed to extract invoice data.';
+          try {
+            const errData = await response.json();
+            errMessage = errData.error || (typeof errData === 'string' ? errData : JSON.stringify(errData));
+          } catch {
+            // not json
+          }
+
+          if (response.status === 503 || response.status === 429) {
+            throw new Error('503: ' + errMessage);
+          }
+          throw new Error(errMessage);
+        }
+
+        const data: ScannedReceiptData = await response.json();
+
+        // Check if server returned a busy status within the JSON
+        if (data.notes && data.notes.includes('Server busy') && (!data.items || data.items.length === 0 || data.items[0]?.unitCost === 0)) {
+          if (attempt < maxClientAttempts - 1) {
+            throw new Error('503: Server busy');
+          }
+        }
+
+        // Normalize items with markup
+        const defaultMarkup = profile.defaultMarkup || 35;
+        const rawItemsList = data.line_items || data.items || [];
+        const normalizedItems: ScannedLineItem[] = rawItemsList.map((item, idx) => {
+          const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
+          const qty = Math.max(1, Number(item.quantity) || 1);
+          const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
+          const barcode = item.code_barcode || item.codeBarcode || '';
+
+          return {
+            id: 'scan_item_' + idx + '_' + Date.now(),
+            code_barcode: barcode,
+            codeBarcode: barcode,
+            description: item.description || 'Materials Item',
+            quantity: qty,
+            unitCost: cost,
+            unit_price: cost,
+            unitPrice: cost,
+            total_price: lineTotal,
+            totalPrice: lineTotal,
+            category: item.category || 'Electrical',
+            unit: item.unit || 'ea',
+            markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
+            total: lineTotal,
+          };
+        });
+
+        // Calculate total amount if 0
+        let total = Number(data.total_amount ?? data.totalAmount) || 0;
+        if (total <= 0 && normalizedItems.length > 0) {
+          total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
+        }
+
+        const vatAmt = Number(data.vat_amount ?? data.vatAmount) || Number(((total * 0.15) / 1.15).toFixed(2));
+        const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
+
+        setScanResult({
+          supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
+          supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
+          address: data.address,
+          vat_number: data.vat_number || data.vatNumber,
+          vatNumber: data.vat_number || data.vatNumber,
+          receipt_number:
+            data.receipt_number ||
+            data.receiptNumber ||
+            data.invoiceNumber ||
+            'INV-' + Math.floor(100000 + Math.random() * 900000),
+          receiptNumber:
+            data.receipt_number ||
+            data.receiptNumber ||
+            data.invoiceNumber ||
+            'INV-' + Math.floor(100000 + Math.random() * 900000),
+          invoiceNumber:
+            data.receipt_number ||
+            data.receiptNumber ||
+            data.invoiceNumber ||
+            'INV-' + Math.floor(100000 + Math.random() * 900000),
+          date: data.date || new Date().toISOString().split('T')[0],
+          time: data.time,
+          cashier: data.cashier,
+          subtotal: subTot,
+          vat_amount: vatAmt,
+          vatAmount: vatAmt,
+          total_amount: total,
+          totalAmount: total,
+          line_items: normalizedItems,
+          items: normalizedItems,
+          notes: data.notes,
+          rawText: data.rawText,
+          isPartial: data.isPartial,
+          isFallback: data.isFallback,
+        });
+
+        setErrorMessage(null);
+        setIsScanning(false);
+        return; // Success!
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`[OCR Frontend] Scan attempt ${attempt + 1} encountered error:`, err);
+
+        const errorStr = String(err?.message || err);
+        const isTransient =
+          errorStr.includes('503') ||
+          errorStr.includes('429') ||
+          errorStr.includes('UNAVAILABLE') ||
+          errorStr.includes('busy') ||
+          errorStr.includes('traffic') ||
+          errorStr.includes('Failed to fetch');
+
+        if (isTransient && attempt < maxClientAttempts - 1) {
+          const waitTime = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 400);
+          setScanStatusMessage(`High server traffic, retrying extraction (Attempt ${attempt + 1}/3)...`);
+          await delayMs(waitTime);
+          continue;
+        }
+
+        break;
       }
-
-      const data: ScannedReceiptData = await response.json();
-
-      // Normalize items with markup
-      const defaultMarkup = profile.defaultMarkup || 35;
-      const rawItemsList = data.line_items || data.items || [];
-      const normalizedItems: ScannedLineItem[] = rawItemsList.map((item, idx) => {
-        const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
-        const qty = Math.max(1, Number(item.quantity) || 1);
-        const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
-        const barcode = item.code_barcode || item.codeBarcode || '';
-
-        return {
-          id: 'scan_item_' + idx + '_' + Date.now(),
-          code_barcode: barcode,
-          codeBarcode: barcode,
-          description: item.description || 'Materials Item',
-          quantity: qty,
-          unitCost: cost,
-          unit_price: cost,
-          unitPrice: cost,
-          total_price: lineTotal,
-          totalPrice: lineTotal,
-          category: item.category || 'Electrical',
-          unit: item.unit || 'ea',
-          markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
-          total: lineTotal,
-        };
-      });
-
-      // Calculate total amount if 0
-      let total = Number(data.total_amount ?? data.totalAmount) || 0;
-      if (total <= 0 && normalizedItems.length > 0) {
-        total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
-      }
-
-      const vatAmt = Number(data.vat_amount ?? data.vatAmount) || Number((total * 0.15 / 1.15).toFixed(2));
-      const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
-
-      setScanResult({
-        supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
-        supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
-        address: data.address,
-        vat_number: data.vat_number || data.vatNumber,
-        vatNumber: data.vat_number || data.vatNumber,
-        receipt_number: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
-        receiptNumber: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
-        invoiceNumber: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
-        date: data.date || new Date().toISOString().split('T')[0],
-        time: data.time,
-        cashier: data.cashier,
-        subtotal: subTot,
-        vat_amount: vatAmt,
-        vatAmount: vatAmt,
-        total_amount: total,
-        totalAmount: total,
-        line_items: normalizedItems,
-        items: normalizedItems,
-        notes: data.notes,
-        rawText: data.rawText,
-        isPartial: data.isPartial,
-        isFallback: data.isFallback,
-      });
-    } catch (err: any) {
-      console.error('[OCR Frontend Error]:', err);
-      setErrorMessage(
-        err.message || 'Error communicating with AI OCR engine. Check your mobile connection or tap below to edit manually.'
-      );
-    } finally {
-      setIsScanning(false);
     }
+
+    const friendlyMessage = formatFriendlyError(lastErr);
+    setErrorMessage(friendlyMessage);
+    setIsScanning(false);
   };
 
   // Edit item helper
@@ -748,7 +851,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   {isScanning ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Extracting Materials & Prices with Gemini AI Vision...</span>
+                      <span>{scanStatusMessage}</span>
                     </>
                   ) : (
                     <>
@@ -761,7 +864,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Error Message Banner */}
           {errorMessage && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -776,10 +879,10 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                       type="button"
                       onClick={runOcrScan}
                       disabled={isScanning}
-                      className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-                      <span>Retry AI Scan</span>
+                      <span>{isScanning ? 'Retrying Extraction...' : 'Retry AI Scan'}</span>
                     </button>
                   )}
                   <button
@@ -818,18 +921,36 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             <div className={`space-y-5 p-4 sm:p-6 rounded-2xl border ${
               sunlightMode ? 'bg-slate-50 border-slate-300' : 'bg-[#12141C] border-[#282E3E]'
             }`}>
-              {/* Notice Banner if Fallback / Partial */}
-              {(scanResult.isPartial || scanResult.isFallback) && (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-2.5">
+              {/* Notice Banner: Review & Verify Document Items with Direct Retry Scan Action */}
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                scanResult.isPartial || scanResult.isFallback
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                  : 'bg-sky-500/10 border-sky-500/30 text-sky-300'
+              }`}>
+                <div className="flex items-start space-x-2.5 flex-1">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div className="flex-1 text-[11px]">
-                    <span className="font-bold block">Review & Verify Document Items:</span>
-                    <span>
-                      {scanResult.notes || 'Data extracted using best-effort OCR heuristics. You can edit any descriptions, quantities, and prices directly in the table below.'}
+                  <div className="text-[11px] space-y-0.5">
+                    <span className="font-bold block text-xs">Review & Verify Document Items:</span>
+                    <span className="text-slate-300 block">
+                      {scanResult.notes || 'Document extracted. You can adjust item descriptions, quantities, and prices directly in the table below.'}
                     </span>
                   </div>
                 </div>
-              )}
+
+                {/* Direct Retry Scan Action on Review Screen using cached image */}
+                {processedImage && (
+                  <button
+                    type="button"
+                    onClick={runOcrScan}
+                    disabled={isScanning}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shrink-0 cursor-pointer disabled:opacity-50 shadow-sm self-end sm:self-center active:scale-95"
+                    title="Re-run AI extraction using the captured image without re-uploading"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                    <span>{isScanning ? 'Retrying Extraction...' : 'Retry Scan'}</span>
+                  </button>
+                )}
+              </div>
 
               {/* Header Slip Metadata Form */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-xl bg-[#1B1E28] border border-[#334155]">
@@ -1090,14 +1211,29 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#282E3E]">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="px-4 py-2.5 rounded-xl bg-[#1B1E28] hover:bg-[#282E3E] text-slate-300 text-xs font-semibold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Scan Another Slip</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="px-3.5 py-2.5 rounded-xl bg-[#1B1E28] hover:bg-[#282E3E] text-slate-300 text-xs font-semibold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Scan Another Slip</span>
+                  </button>
+
+                  {processedImage && (
+                    <button
+                      type="button"
+                      onClick={runOcrScan}
+                      disabled={isScanning}
+                      className="px-3.5 py-2.5 rounded-xl bg-[#1B1E28] hover:bg-sky-950/40 text-sky-400 hover:text-sky-300 text-xs font-semibold flex items-center space-x-1.5 border border-sky-500/40 cursor-pointer disabled:opacity-50"
+                      title="Re-run AI extraction on this slip"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                      <span>{isScanning ? 'Re-scanning...' : 'Re-scan with AI'}</span>
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
