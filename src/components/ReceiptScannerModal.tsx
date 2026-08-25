@@ -256,29 +256,58 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
       // Normalize items with markup
       const defaultMarkup = profile.defaultMarkup || 35;
-      const normalizedItems: ScannedLineItem[] = (data.items || []).map((item, idx) => ({
-        id: 'scan_item_' + idx + '_' + Date.now(),
-        description: item.description || 'Materials Item',
-        quantity: Math.max(1, Number(item.quantity) || 1),
-        unitCost: Math.max(0, Number(item.unitCost) || 0),
-        category: item.category || 'Electrical',
-        unit: item.unit || 'ea',
-        markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
-        total: Number(((item.quantity || 1) * (item.unitCost || 0)).toFixed(2)),
-      }));
+      const rawItemsList = data.line_items || data.items || [];
+      const normalizedItems: ScannedLineItem[] = rawItemsList.map((item, idx) => {
+        const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
+        const barcode = item.code_barcode || item.codeBarcode || '';
+
+        return {
+          id: 'scan_item_' + idx + '_' + Date.now(),
+          code_barcode: barcode,
+          codeBarcode: barcode,
+          description: item.description || 'Materials Item',
+          quantity: qty,
+          unitCost: cost,
+          unit_price: cost,
+          unitPrice: cost,
+          total_price: lineTotal,
+          totalPrice: lineTotal,
+          category: item.category || 'Electrical',
+          unit: item.unit || 'ea',
+          markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
+          total: lineTotal,
+        };
+      });
 
       // Calculate total amount if 0
-      let total = Number(data.totalAmount) || 0;
+      let total = Number(data.total_amount ?? data.totalAmount) || 0;
       if (total <= 0 && normalizedItems.length > 0) {
         total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
       }
 
+      const vatAmt = Number(data.vat_amount ?? data.vatAmount) || Number((total * 0.15 / 1.15).toFixed(2));
+      const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
+
       setScanResult({
-        supplierName: data.supplierName || 'Supplier Slip',
-        invoiceNumber: data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
+        supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
+        supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
+        address: data.address,
+        vat_number: data.vat_number || data.vatNumber,
+        vatNumber: data.vat_number || data.vatNumber,
+        receipt_number: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
+        receiptNumber: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
+        invoiceNumber: data.receipt_number || data.receiptNumber || data.invoiceNumber || 'INV-' + Math.floor(100000 + Math.random() * 900000),
         date: data.date || new Date().toISOString().split('T')[0],
+        time: data.time,
+        cashier: data.cashier,
+        subtotal: subTot,
+        vat_amount: vatAmt,
+        vatAmount: vatAmt,
+        total_amount: total,
         totalAmount: total,
-        vatAmount: data.vatAmount || Number((total * 0.15 / 1.15).toFixed(2)),
+        line_items: normalizedItems,
         items: normalizedItems,
         notes: data.notes,
         rawText: data.rawText,
@@ -666,8 +695,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={scanResult.supplierName}
-                    onChange={(e) => setScanResult({ ...scanResult, supplierName: e.target.value })}
+                    value={scanResult.supplierName || scanResult.supplier_name || ''}
+                    onChange={(e) => setScanResult({ ...scanResult, supplierName: e.target.value, supplier_name: e.target.value })}
                     placeholder="e.g. Voltex / Plumblink"
                     className="w-full px-2.5 py-1.5 rounded-lg bg-[#12141C] border border-[#334155] text-white text-xs font-semibold focus:border-sky-500 focus:outline-none"
                   />
@@ -681,8 +710,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={scanResult.invoiceNumber}
-                    onChange={(e) => setScanResult({ ...scanResult, invoiceNumber: e.target.value })}
+                    value={scanResult.receipt_number || scanResult.invoiceNumber || ''}
+                    onChange={(e) => setScanResult({ ...scanResult, invoiceNumber: e.target.value, receipt_number: e.target.value, receiptNumber: e.target.value })}
                     placeholder="e.g. INV-982314"
                     className="w-full px-2.5 py-1.5 rounded-lg bg-[#12141C] border border-[#334155] text-white text-xs font-mono focus:border-sky-500 focus:outline-none"
                   />
@@ -709,9 +738,43 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                     <span>Total Rand on Slip (ZAR)</span>
                   </label>
                   <div className="px-2.5 py-1.5 rounded-lg bg-[#12141C] border border-amber-500/40 text-amber-400 font-mono font-black text-sm">
-                    {formatZAR(scanResult.totalAmount)}
+                    {formatZAR(scanResult.total_amount ?? scanResult.totalAmount)}
                   </div>
                 </div>
+
+                {/* Optional Extended Metadata Fields: Address, VAT Number, Cashier/Time, Subtotal */}
+                {(scanResult.address || scanResult.vat_number || scanResult.vatNumber || scanResult.cashier || scanResult.time || scanResult.subtotal) && (
+                  <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-2 border-t border-[#282E3E] grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-slate-400">
+                    {(scanResult.vat_number || scanResult.vatNumber) && (
+                      <div className="truncate">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">VAT No</span>
+                        <span className="text-slate-300">{scanResult.vat_number || scanResult.vatNumber}</span>
+                      </div>
+                    )}
+                    {scanResult.address && (
+                      <div className="truncate">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Address</span>
+                        <span className="text-slate-300 truncate block" title={scanResult.address}>{scanResult.address}</span>
+                      </div>
+                    )}
+                    {(scanResult.cashier || scanResult.time) && (
+                      <div className="truncate">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Cashier / Time</span>
+                        <span className="text-slate-300">
+                          {scanResult.cashier || ''} {scanResult.time ? `(${scanResult.time})` : ''}
+                        </span>
+                      </div>
+                    )}
+                    {scanResult.subtotal !== undefined && (
+                      <div className="truncate">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Subtotal / VAT (15%)</span>
+                        <span className="text-slate-300">
+                          {formatZAR(scanResult.subtotal)} + {formatZAR(scanResult.vat_amount ?? scanResult.vatAmount ?? 0)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Interactive Line Items Table */}
@@ -743,15 +806,29 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                         className="p-3 rounded-xl bg-[#1B1E28] border border-[#334155] space-y-2.5 text-xs"
                       >
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                          <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => handleUpdateItem(idx, { description: e.target.value })}
-                            placeholder="Item description"
-                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#12141C] border border-[#334155] text-white font-medium focus:border-sky-500 focus:outline-none"
-                          />
+                          <div className="flex-1 w-full space-y-1">
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => handleUpdateItem(idx, { description: e.target.value })}
+                              placeholder="Item description"
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-[#12141C] border border-[#334155] text-white font-medium focus:border-sky-500 focus:outline-none"
+                            />
+                            {(item.code_barcode || item.codeBarcode) && (
+                              <div className="flex items-center space-x-1.5 text-[10px] font-mono text-slate-400">
+                                <span className="text-slate-500 font-bold">CODE:</span>
+                                <input
+                                  type="text"
+                                  value={item.code_barcode || item.codeBarcode || ''}
+                                  onChange={(e) => handleUpdateItem(idx, { code_barcode: e.target.value, codeBarcode: e.target.value })}
+                                  placeholder="Barcode / Code"
+                                  className="px-1.5 py-0.5 rounded bg-[#12141C] border border-[#334155]/60 text-sky-400 text-[10px] font-mono focus:border-sky-500 focus:outline-none"
+                                />
+                              </div>
+                            )}
+                          </div>
 
-                          <div className="flex items-center space-x-1.5 self-end sm:self-auto">
+                          <div className="flex items-center space-x-1.5 self-end sm:self-auto shrink-0">
                             <select
                               value={item.category || 'Electrical'}
                               onChange={(e) => handleUpdateItem(idx, { category: e.target.value })}

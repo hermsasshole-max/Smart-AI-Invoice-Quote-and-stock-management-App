@@ -53,11 +53,16 @@ function sanitizeAndExtractOcrData(rawText: string): any {
   // 2. Regex Heuristic Extraction if JSON parse fails
   console.log('[OCR Server] Running Regex Heuristics on raw text...');
   const result: any = {
+    supplier_name: 'Supplier Slip',
     supplierName: 'Supplier Slip',
+    receipt_number: '',
     invoiceNumber: '',
     date: new Date().toISOString().split('T')[0],
+    total_amount: 0,
     totalAmount: 0,
+    vat_amount: 0,
     vatAmount: 0,
+    line_items: [],
     items: [],
     rawText: rawText.slice(0, 1000),
     isPartial: true,
@@ -68,21 +73,26 @@ function sanitizeAndExtractOcrData(rawText: string): any {
     /(?:Supplier|Merchant|Vendor|From|Store|Company|Plumblink|Voltex|ARB|ACDC|Builders|Herholdts|Rubicon|Leroy Merlin|Chamberlains)[:\s]+([^\n\r,]+)/i
   );
   if (supplierMatch) {
+    result.supplier_name = supplierMatch[1].trim();
     result.supplierName = supplierMatch[1].trim();
   } else {
     // Try first non-empty line
     const firstLine = rawText.split('\n').map((l) => l.trim()).find((l) => l.length > 2 && !l.toLowerCase().includes('tax invoice'));
     if (firstLine) {
+      result.supplier_name = firstLine.slice(0, 40);
       result.supplierName = firstLine.slice(0, 40);
     }
   }
 
   // Invoice Number Heuristics
-  const invMatch = rawText.match(/(?:Invoice|Tax\s*Invoice|Slip|Doc|Doc\s*No|Order|Reference|Ref)[\s#:]*([A-Z0-9\-_/]{4,20})/i);
+  const invMatch = rawText.match(/(?:Invoice|Tax\s*Invoice|Slip|Doc|Doc\s*No|Order|Reference|Ref|Receipt)[\s#:]*([A-Z0-9\-_/]{4,20})/i);
   if (invMatch) {
+    result.receipt_number = invMatch[1].trim();
     result.invoiceNumber = invMatch[1].trim();
   } else {
-    result.invoiceNumber = 'INV-' + Math.floor(100000 + Math.random() * 900000);
+    const genNum = 'INV-' + Math.floor(100000 + Math.random() * 900000);
+    result.receipt_number = genNum;
+    result.invoiceNumber = genNum;
   }
 
   // Date Heuristics
@@ -105,13 +115,17 @@ function sanitizeAndExtractOcrData(rawText: string): any {
   // Total Amount Heuristics
   const totalMatch = rawText.match(/(?:TOTAL|TOTAL\s*DUE|AMOUNT\s*DUE|GRAND\s*TOTAL|BALANCE|AMOUNT)[\s:R$]*([0-9,]+\.[0-9]{2})/i);
   if (totalMatch) {
-    result.totalAmount = parseNumeric(totalMatch[1]);
+    const parsedTotal = parseNumeric(totalMatch[1]);
+    result.total_amount = parsedTotal;
+    result.totalAmount = parsedTotal;
   }
 
   // VAT Amount Heuristics
   const vatMatch = rawText.match(/(?:VAT|TAX|15%|15\.00%)[\s:R$]*([0-9,]+\.[0-9]{2})/i);
   if (vatMatch) {
-    result.vatAmount = parseNumeric(vatMatch[1]);
+    const parsedVat = parseNumeric(vatMatch[1]);
+    result.vat_amount = parsedVat;
+    result.vatAmount = parsedVat;
   }
 
   // Line Items Regex Scan: look for line items with prices
@@ -125,26 +139,38 @@ function sanitizeAndExtractOcrData(rawText: string): any {
       const qty = itemMatch[2] ? parseInt(itemMatch[2], 10) : 1;
       const cost = parseNumeric(itemMatch[3]);
       if (cost > 0) {
-        result.items.push({
+        const itemObj = {
+          code_barcode: '',
           description: desc,
           quantity: qty,
+          unit_price: cost,
           unitCost: cost,
+          total_price: Number((qty * cost).toFixed(2)),
+          total: Number((qty * cost).toFixed(2)),
           category: 'Electrical',
           unit: 'ea',
-        });
+        };
+        result.items.push(itemObj);
+        result.line_items.push(itemObj);
       }
     }
   }
 
   // If no items were parsed, construct a generic single item matching total
   if (result.items.length === 0 && result.totalAmount > 0) {
-    result.items.push({
+    const genericItem = {
+      code_barcode: '',
       description: 'Materials / Hardware Supplies (' + result.supplierName + ')',
       quantity: 1,
+      unit_price: result.totalAmount,
       unitCost: result.totalAmount,
+      total_price: result.totalAmount,
+      total: result.totalAmount,
       category: 'Electrical',
       unit: 'lot',
-    });
+    };
+    result.items.push(genericItem);
+    result.line_items.push(genericItem);
   }
 
   return result;
@@ -156,39 +182,64 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     data = {};
   }
 
-  const supplierName = typeof data.supplierName === 'string' && data.supplierName.trim()
-    ? data.supplierName.trim()
-    : 'Supplier Invoice';
+  const supplierName = typeof data.supplier_name === 'string' && data.supplier_name.trim()
+    ? data.supplier_name.trim()
+    : (typeof data.supplierName === 'string' && data.supplierName.trim()
+      ? data.supplierName.trim()
+      : 'Supplier Invoice');
 
-  const invoiceNumber = typeof data.invoiceNumber === 'string' && data.invoiceNumber.trim()
-    ? data.invoiceNumber.trim()
-    : 'INV-' + Math.floor(100000 + Math.random() * 900000);
+  const receiptNumber = typeof data.receipt_number === 'string' && data.receipt_number.trim()
+    ? data.receipt_number.trim()
+    : (typeof data.receiptNumber === 'string' && data.receiptNumber.trim()
+      ? data.receiptNumber.trim()
+      : (typeof data.invoiceNumber === 'string' && data.invoiceNumber.trim()
+        ? data.invoiceNumber.trim()
+        : 'INV-' + Math.floor(100000 + Math.random() * 900000)));
 
   const date = typeof data.date === 'string' && data.date.trim()
     ? data.date.trim()
     : new Date().toISOString().split('T')[0];
 
-  let rawItems = Array.isArray(data.items) ? data.items : [];
+  const address = typeof data.address === 'string' && data.address.trim() ? data.address.trim() : undefined;
+  const vatNumber = typeof data.vat_number === 'string' && data.vat_number.trim()
+    ? data.vat_number.trim()
+    : (typeof data.vatNumber === 'string' && data.vatNumber.trim() ? data.vatNumber.trim() : undefined);
+  const time = typeof data.time === 'string' && data.time.trim() ? data.time.trim() : undefined;
+  const cashier = typeof data.cashier === 'string' && data.cashier.trim() ? data.cashier.trim() : undefined;
+
+  let rawItems = Array.isArray(data.line_items)
+    ? data.line_items
+    : (Array.isArray(data.items) ? data.items : []);
+
   let normalizedItems = rawItems.map((item: any) => {
     const desc = typeof item.description === 'string' && item.description.trim()
       ? item.description.trim()
       : (typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Materials Item');
     const qty = Math.max(1, parseNumeric(item.quantity, 1));
-    const cost = Math.max(0, parseNumeric(item.unitCost ?? item.unitPrice ?? item.cost ?? item.price, 0));
+    const unitPrice = Math.max(0, parseNumeric(item.unit_price ?? item.unitCost ?? item.unitPrice ?? item.cost ?? item.price, 0));
+    const totalPrice = parseNumeric(item.total_price ?? item.total ?? item.totalPrice, Number((qty * unitPrice).toFixed(2)));
+    const codeBarcode = typeof item.code_barcode === 'string' && item.code_barcode.trim()
+      ? item.code_barcode.trim()
+      : (typeof item.codeBarcode === 'string' && item.codeBarcode.trim() ? item.codeBarcode.trim() : undefined);
     const cat = typeof item.category === 'string' && item.category.trim() ? item.category.trim() : 'Electrical';
     const u = typeof item.unit === 'string' && item.unit.trim() ? item.unit.trim() : 'ea';
 
     return {
+      code_barcode: codeBarcode,
+      codeBarcode,
       description: desc,
       quantity: qty,
-      unitCost: cost,
+      unit_price: unitPrice,
+      unitCost: unitPrice,
+      total_price: totalPrice,
+      total: totalPrice,
       category: cat,
       unit: u,
     };
   });
 
   // Calculate or normalize total amount
-  let totalAmount = parseNumeric(data.totalAmount, 0);
+  let totalAmount = parseNumeric(data.total_amount ?? data.totalAmount, 0);
   if (totalAmount <= 0 && normalizedItems.length > 0) {
     totalAmount = Number(normalizedItems.reduce((sum: number, it: any) => sum + (it.quantity * it.unitCost), 0).toFixed(2));
   }
@@ -197,26 +248,48 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
   if (normalizedItems.length === 0 && totalAmount > 0) {
     normalizedItems = [
       {
+        code_barcode: undefined,
+        codeBarcode: undefined,
         description: 'Supplier Materials (' + supplierName + ')',
         quantity: 1,
+        unit_price: totalAmount,
         unitCost: totalAmount,
+        total_price: totalAmount,
+        total: totalAmount,
         category: 'Electrical',
         unit: 'lot',
       },
     ];
   }
 
-  let vatAmount = parseNumeric(data.vatAmount, 0);
+  let subtotal = parseNumeric(data.subtotal, 0);
+  if (subtotal <= 0 && totalAmount > 0) {
+    subtotal = Number((totalAmount / 1.15).toFixed(2));
+  }
+
+  let vatAmount = parseNumeric(data.vat_amount ?? data.vatAmount, 0);
   if (vatAmount <= 0 && totalAmount > 0) {
     vatAmount = Number((totalAmount * 0.15 / 1.15).toFixed(2));
   }
 
   return {
+    supplier_name: supplierName,
     supplierName,
-    invoiceNumber,
+    address,
+    vat_number: vatNumber,
+    vatNumber,
+    receipt_number: receiptNumber,
+    receiptNumber,
+    invoiceNumber: receiptNumber,
     date,
-    totalAmount,
+    time,
+    cashier,
+    subtotal: subtotal > 0 ? subtotal : undefined,
+    vat_amount: vatAmount,
     vatAmount,
+    total_amount: totalAmount,
+    totalAmount,
+    line_items: normalizedItems,
     items: normalizedItems,
     notes: typeof data.notes === 'string' ? data.notes : undefined,
     rawText: data.rawText || rawFallbackText || undefined,
@@ -317,28 +390,11 @@ async function startServer() {
       }
 
       // Execute Gemini Vision OCR with 30s timeout guard
-      const promptText = `You are a precision OCR document parsing system for hardware, electrical, plumbing, and HVAC supplier receipts and trade invoices (e.g. Voltex, ARB Electrical, Plumblink, Builders Warehouse, ACDC Express, Herholdts, Rubicon, Makro, Leroy Merlin, Chamberlains, etc.).
-
-Analyze this document image thoroughly (accounting for rotation, paper folds, thermal print fading, or low contrast).
+      const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts.
 Extract key metadata and every itemized line item strictly following the provided JSON schema.
-Convert all string numbers and monetary amounts into standard numerical floats (e.g. 1250.50). Do not omit missing items or invent values.
+Convert string numbers into standard numerical floats. Do not omit missing items or invent values.`;
 
-Output requirements:
-1. supplierName: (string) Vendor or merchant name.
-2. invoiceNumber: (string) Invoice / Slip / Tax Invoice / Reference number.
-3. date: (string) Date in YYYY-MM-DD format.
-4. totalAmount: (number) Total Rand amount on the slip (inclusive of VAT, standard float).
-5. vatAmount: (number) VAT 15% amount if indicated (standard float).
-6. items: (array) Every itemized line item found on the slip:
-   - description: (string) Item name and specifications.
-   - quantity: (number) Quantity purchased as a standard numerical float/integer.
-   - unitCost: (number) Unit cost price as a standard numerical float.
-   - category: (string) Category ('Electrical', 'Air Conditioning', 'Solar & Backup', 'Security & CCTV', 'Hardware & Site Materials', 'Consumables', or 'General').
-   - unit: (string) Unit of measure ('ea', 'm', 'roll', 'box', 'pack', 'length', 'kg', 'set').
-7. rawText: (string) Concise transcription of visible document text.
-8. notes: (string) Additional metadata like VAT numbers, cashier name, or branch location.`;
-
-      // Call Gemini 3.7 Flash with multi-modal payload
+      // Call Gemini 3.7 Flash with multi-modal payload and structured output
       const generatePromise = ai.models.generateContent({
         model: 'gemini-3.7-flash',
         contents: {
@@ -359,29 +415,32 @@ Output requirements:
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              supplierName: { type: Type.STRING, description: 'Supplier or merchant name' },
-              invoiceNumber: { type: Type.STRING, description: 'Invoice number or slip reference' },
-              date: { type: Type.STRING, description: 'Date in YYYY-MM-DD format' },
-              totalAmount: { type: Type.NUMBER, description: 'Total Rand amount on slip' },
-              vatAmount: { type: Type.NUMBER, description: 'VAT amount in ZAR if present' },
-              items: {
+              supplier_name: { type: Type.STRING, description: 'Business or store name at the top of the slip' },
+              address: { type: Type.STRING, description: 'Physical address' },
+              vat_number: { type: Type.STRING, description: 'VAT tax registration number' },
+              receipt_number: { type: Type.STRING, description: 'Till/Sale/Invoice number' },
+              date: { type: Type.STRING, description: 'Date of transaction (YYYY-MM-DD)' },
+              time: { type: Type.STRING, description: 'Time of transaction (HH:MM:SS)' },
+              cashier: { type: Type.STRING, description: 'Cashier or attendant name' },
+              line_items: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    description: { type: Type.STRING, description: 'Item description' },
+                    code_barcode: { type: Type.STRING, description: 'Item product code or barcode string directly below description' },
+                    description: { type: Type.STRING, description: 'Full item description' },
                     quantity: { type: Type.NUMBER, description: 'Quantity purchased' },
-                    unitCost: { type: Type.NUMBER, description: 'Unit cost price in ZAR' },
-                    category: { type: Type.STRING, description: 'Category' },
-                    unit: { type: Type.STRING, description: 'Unit of measure' },
+                    unit_price: { type: Type.NUMBER, description: 'Individual item price' },
+                    total_price: { type: Type.NUMBER, description: 'Line total price' },
                   },
-                  required: ['description', 'quantity', 'unitCost'],
+                  required: ['description', 'quantity', 'unit_price', 'total_price'],
                 },
               },
-              rawText: { type: Type.STRING, description: 'Raw transcription of key receipt text' },
-              notes: { type: Type.STRING, description: 'Notes or remarks' },
+              vat_amount: { type: Type.NUMBER, description: 'Calculated VAT included amount' },
+              subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final payments' },
+              total_amount: { type: Type.NUMBER, description: 'Final total charged' },
             },
-            required: ['supplierName', 'items', 'totalAmount'],
+            required: ['supplier_name', 'line_items', 'total_amount'],
           },
         },
       });
