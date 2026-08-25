@@ -135,6 +135,30 @@ export interface Invoice {
   }[];
 }
 
+export interface ScannedLineItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitCost: number;
+  category?: string;
+  unit?: string;
+  markupPct?: number;
+  total?: number;
+}
+
+export interface ScannedReceiptData {
+  supplierName: string;
+  invoiceNumber: string;
+  date: string;
+  totalAmount: number;
+  vatAmount?: number;
+  items: ScannedLineItem[];
+  notes?: string;
+  rawText?: string;
+  isPartial?: boolean;
+  isFallback?: boolean;
+}
+
 export interface Client {
   id: string;
   name: string;
