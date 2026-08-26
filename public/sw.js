@@ -1,9 +1,15 @@
-const CACHE_NAME = 'harrys-pwa-cache-v1';
+const CACHE_NAME = 'harrys-pwa-cache-v2';
 
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/shortcut-invoice.png',
+  '/icons/shortcut-quote.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -57,7 +63,7 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // If neither network nor cache has it, return offline page (if we had one, but we return index.html for SPA)
+          // If navigation request fails, return cached index.html
           if (event.request.mode === 'navigate') {
             return caches.match('/index.html');
           }
