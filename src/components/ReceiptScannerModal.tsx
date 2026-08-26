@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { QuoteLineItem, ScannedReceiptData, ScannedLineItem, ServiceCategory } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
+import { entitlementManager } from '../services/EntitlementManager';
 import {
   Camera,
   Upload,
@@ -184,7 +185,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   onClose,
   onApplyItemsToQuote,
 }) => {
-  const { profile, addInventoryItem, sunlightMode } = useApp();
+  const { profile, addInventoryItem, sunlightMode, openPaywall, consumeAiCredit } = useApp();
 
   // State
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -380,6 +381,12 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const runOcrScan = async () => {
     if (!processedImage) return;
 
+    const aiCheck = entitlementManager.canUseAiFeature('Supplier Receipt OCR');
+    if (!aiCheck.allowed) {
+      openPaywall(aiCheck.reason);
+      return;
+    }
+
     setIsScanning(true);
     setErrorMessage(null);
     setScanStatusMessage('Extracting Materials & Prices with Gemini AI Vision...');
@@ -413,6 +420,12 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             // not json
           }
 
+          if (response.status === 402) {
+            openPaywall(errMessage || 'You have exhausted your monthly AI credits. Upgrade your subscription for unlimited AI scanning.');
+            setIsScanning(false);
+            return;
+          }
+
           if (response.status === 503 || response.status === 429) {
             throw new Error('503: ' + errMessage);
           }
@@ -420,6 +433,9 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         }
 
         const data: ScannedReceiptData = await response.json();
+
+        // Consume credit on success
+        consumeAiCredit();
 
         // Check if server returned a busy status within the JSON
         if (data.notes && data.notes.includes('Server busy') && (!data.items || data.items.length === 0 || data.items[0]?.unitCost === 0)) {

@@ -10,6 +10,7 @@ import { InventoryManager } from './components/InventoryManager';
 import { SettingsManager } from './components/SettingsManager';
 import { SqlSchemaViewer } from './components/SqlSchemaViewer';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
+import { PaywallModal } from './components/PaywallModal';
 import { DebugModal } from './components/DebugModal';
 import { DebugFloatingButton } from './components/DebugFloatingButton';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -20,7 +21,7 @@ const AppContent: React.FC<{
 }> = ({ isDebugOpen, setIsDebugOpen }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const { sunlightMode } = useApp();
+  const { sunlightMode, isPaywallOpen, closePaywall, paywallReason } = useApp();
   const { isLandscape } = useSafeArea();
 
   // Keyboard shortcut: Ctrl+Shift+D or Cmd+Shift+D to toggle Debug Modal
@@ -91,6 +92,13 @@ const AppContent: React.FC<{
       <ReceiptScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
+      />
+
+      {/* Global Monetization Paywall Modal */}
+      <PaywallModal
+        isOpen={isPaywallOpen}
+        onClose={closePaywall}
+        triggerReason={paywallReason}
       />
 
       {/* Global Visual Debug Modal / Overlay */}

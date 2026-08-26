@@ -16,6 +16,8 @@ import {
   LayoutDashboard,
   Download,
   Bug,
+  Sparkles,
+  Crown,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -31,7 +33,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   openReceiptScanner,
   openDebugModal,
 }) => {
-  const { profile, sunlightMode, toggleSunlightMode, isInstallable, promptInstall } = useApp();
+  const {
+    profile,
+    sunlightMode,
+    toggleSunlightMode,
+    isInstallable,
+    promptInstall,
+    tier,
+    entitlements,
+    openPaywall,
+  } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -70,6 +81,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Subscription Tier & AI Credits Pill */}
+            <button
+              id="navbar-subscription-badge"
+              type="button"
+              onClick={() => openPaywall('Upgrade or manage your subscription plan.')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                tier === 'BUSINESS'
+                  ? 'bg-sky-950/80 border-sky-500/50 text-sky-300 hover:bg-sky-900'
+                  : tier === 'PRO'
+                  ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-amber-500/60 hover:text-amber-400'
+              }`}
+              title="Click to view subscription tiers & AI credits"
+            >
+              {tier === 'BUSINESS' ? (
+                <Crown className="w-3.5 h-3.5 text-sky-400" />
+              ) : tier === 'PRO' ? (
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className="font-extrabold">{tier}</span>
+              <span className="hidden sm:inline opacity-40">|</span>
+              <span className="hidden sm:inline font-mono text-[11px]">
+                {entitlements.unlimitedAi
+                  ? '∞ AI'
+                  : `${entitlements.creditsRemaining} AI`}
+              </span>
+              {tier === 'FREE' && (
+                <span className="hidden md:inline ml-1 px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black text-[10px]">
+                  UPGRADE
+                </span>
+              )}
+            </button>
+
             {/* Install App CTA */}
             {isInstallable && (
               <button

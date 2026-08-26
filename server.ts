@@ -3,6 +3,16 @@ import cors from 'cors';
 import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import {
+  usageStore,
+  requireAiCredit,
+  extractUserId,
+  TIER_DEFINITIONS,
+  SubscriptionTier,
+} from './server/middleware/usageMeter';
+import {
+  generateQuoteFromVoiceOrText,
+} from './server/services/geminiService';
 
 // Helper to sanitize numeric monetary values for PostgreSQL NUMERIC(12, 2)
 export function sanitizeNumeric(val: any, fallback = 0): number {
@@ -456,6 +466,150 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // GET Current User Usage & Entitlements
+  app.get('/api/usage', (req, res) => {
+    const userId = extractUserId(req);
+    const record = usageStore.getUserRecord(userId);
+    const tierConfig = TIER_DEFINITIONS[record.tier];
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const creditsRemaining = tierConfig.unlimitedAi
+      ? 999999
+      : Math.max(0, tierConfig.monthlyAiCredits + record.aiCreditsBonus - record.aiCreditsUsed);
+
+    res.json({
+      userId,
+      tier: record.tier,
+      status: record.status,
+      billingCycle: record.billingCycle,
+      aiCredits: {
+        total: tierConfig.monthlyAiCredits,
+        bonus: record.aiCreditsBonus,
+        used: record.aiCreditsUsed,
+        remaining: creditsRemaining,
+        unlimited: tierConfig.unlimitedAi,
+      },
+      documents: {
+        createdThisMonth: record.documentsCreatedThisMonth,
+        maxAllowed: tierConfig.maxMonthlyDocuments === Infinity ? -1 : tierConfig.maxMonthlyDocuments,
+        unlimited: tierConfig.maxMonthlyDocuments === Infinity,
+      },
+      inventory: {
+        maxItems: tierConfig.maxInventoryItems === Infinity ? -1 : tierConfig.maxInventoryItems,
+        unlimited: tierConfig.maxInventoryItems === Infinity,
+      },
+      entitlements: tierConfig,
+      subscriptionExpiresAt: record.subscriptionExpiresAt,
+      resetDate: nextMonth.toISOString(),
+    });
+  });
+
+  // POST Increment Document Count (for Free tier document limit enforcement)
+  app.post('/api/usage/document-created', (req, res) => {
+    const userId = extractUserId(req);
+    const result = usageStore.incrementDocumentCount(userId);
+    res.json(result);
+  });
+
+  // POST Purchase Verification (Google Play / RevenueCat / Web Stripe)
+  app.post('/api/billing/verify', (req, res) => {
+    const userId = extractUserId(req);
+    const { productId, purchaseToken, orderId, platform } = req.body || {};
+
+    console.log(`[Billing Server] Verifying purchase for user=${userId}: product=${productId}, platform=${platform}`);
+
+    let tier: SubscriptionTier = 'PRO';
+    if (productId && (productId.includes('business') || productId.includes('ai_tier'))) {
+      tier = 'BUSINESS';
+    } else if (productId && (productId.includes('pro') || productId.includes('starter'))) {
+      tier = 'PRO';
+    }
+
+    // Set 30-day expiration for monthly or 365-day for annual
+    const durationDays = productId && (productId.includes('year') || productId.includes('annual')) ? 365 : 30;
+    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const source = platform === 'google_play' ? 'google_play' : platform === 'revenuecat' ? 'revenuecat' : 'stripe';
+    const updated = usageStore.updateUserTier(userId, tier, expiresAt, source);
+
+    res.json({
+      success: true,
+      message: `Successfully activated ${tier} subscription.`,
+      tier: updated.tier,
+      expiresAt: updated.subscriptionExpiresAt,
+      record: updated,
+    });
+  });
+
+  // POST Developer Code / Token Unlock (NismoR34)
+  app.post('/api/billing/developer-code', (req, res) => {
+    const userId = extractUserId(req);
+    const { code } = req.body || {};
+
+    if (!code || typeof code !== 'string' || code.trim().toLowerCase() !== 'nismor34') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid developer token. Please verify the code.',
+      });
+    }
+
+    console.log(`[Billing Server] Developer token 'NismoR34' accepted for userId=${userId}. Unlocking Lifetime Business Access.`);
+
+    // Set lifetime expiration date
+    const lifetimeExpiresAt = '2099-12-31T23:59:59.000Z';
+    const updated = usageStore.updateUserTier(userId, 'BUSINESS', lifetimeExpiresAt, 'manual');
+
+    return res.json({
+      success: true,
+      message: 'Developer Code (NismoR34) Verified! Unlimited Lifetime Business Tier Unlocked.',
+      tier: updated.tier,
+      expiresAt: updated.subscriptionExpiresAt,
+      record: updated,
+    });
+  });
+
+  // POST Server Webhook (RevenueCat / Google Play RTDN)
+  app.post('/api/billing/webhook', (req, res) => {
+    const event = req.body?.event || req.body;
+    console.log('[Billing Webhook] Received webhook notification:', event?.type || event?.notificationType || 'Unknown');
+
+    // RevenueCat webhook payload handling
+    if (event?.app_user_id) {
+      const userId = event.app_user_id;
+      const type = event.type;
+      const productId = event.product_id || '';
+
+      if (type === 'INITIAL_PURCHASE' || type === 'RENEWAL' || type === 'PRODUCT_CHANGE') {
+        const tier: SubscriptionTier = productId.includes('business') ? 'BUSINESS' : 'PRO';
+        const expDate = event.expiration_at_ms ? new Date(event.expiration_at_ms).toISOString() : undefined;
+        usageStore.updateUserTier(userId, tier, expDate, 'revenuecat');
+      } else if (type === 'EXPIRATION' || type === 'CANCELLATION') {
+        usageStore.updateUserTier(userId, 'FREE', undefined, 'revenuecat');
+      }
+    }
+
+    res.json({ received: true });
+  });
+
+  // POST AI Voice-to-Quote / Structured Job Estimation API
+  app.post('/api/ai/voice-quote', requireAiCredit('voice_to_quote'), async (req, res) => {
+    const { transcript, profile } = req.body || {};
+    if (!transcript || typeof transcript !== 'string') {
+      return res.status(400).json({ error: 'Missing audio transcript or text prompt' });
+    }
+
+    try {
+      const result = await generateQuoteFromVoiceOrText(transcript, profile);
+      res.json(result);
+    } catch (err: any) {
+      console.error('[AI Voice-Quote Error]', err);
+      // Even if AI service fails, return failsafe trade template
+      const fallback = await generateQuoteFromVoiceOrText(transcript, profile);
+      res.json(fallback);
+    }
+  });
+
   // Helper to determine if an error is transient (503 UNAVAILABLE / 429 RATE LIMIT / network timeout)
   function isTransientError(error: any): boolean {
     const status = error?.status || error?.statusCode || error?.code;
@@ -482,8 +636,8 @@ async function startServer() {
 
   const delayMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Receipt & Supplier Invoice OCR API
-  app.post('/api/scan-receipt', async (req, res) => {
+  // Receipt & Supplier Invoice OCR API (Metered by AI Credits)
+  app.post('/api/scan-receipt', requireAiCredit('receipt_ocr'), async (req, res) => {
     const startTime = Date.now();
     console.log('[OCR Server] Received receipt scan request at', new Date().toISOString());
 

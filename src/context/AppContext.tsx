@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   BusinessProfile,
   Client,
@@ -15,6 +15,8 @@ import {
   initialInvoices,
 } from '../data/seedData';
 import { debugLogger } from '../utils/debugLogger';
+import { billingService, CachedEntitlements, SubscriptionTier } from '../services/billingService';
+import { entitlementManager } from '../services/EntitlementManager';
 
 interface AppContextType {
   profile: BusinessProfile;
@@ -54,6 +56,15 @@ interface AppContextType {
   resetToSampleData: () => void;
   isInstallable: boolean;
   promptInstall: () => Promise<void>;
+  // Monetization & Entitlements
+  tier: SubscriptionTier;
+  entitlements: CachedEntitlements;
+  isPaywallOpen: boolean;
+  paywallReason?: string;
+  openPaywall: (reason?: string) => void;
+  closePaywall: () => void;
+  refreshEntitlements: () => Promise<void>;
+  consumeAiCredit: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,6 +72,43 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
+
+  // Billing & Paywall State
+  const [entitlements, setEntitlements] = useState<CachedEntitlements>(() => billingService.getCachedEntitlements());
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<string | undefined>(undefined);
+
+  const refreshEntitlements = useCallback(async () => {
+    const updated = await billingService.syncWithServer();
+    setEntitlements(updated);
+  }, []);
+
+  useEffect(() => {
+    // Initial online sync
+    refreshEntitlements();
+
+    // Subscribe to EntitlementManager client updates
+    const unsubscribe = entitlementManager.subscribe(() => {
+      setEntitlements(billingService.getCachedEntitlements());
+    });
+
+    return () => unsubscribe();
+  }, [refreshEntitlements]);
+
+  const openPaywall = (reason?: string) => {
+    setPaywallReason(reason);
+    setIsPaywallOpen(true);
+  };
+
+  const closePaywall = () => {
+    setIsPaywallOpen(false);
+    setPaywallReason(undefined);
+  };
+
+  const consumeAiCredit = () => {
+    entitlementManager.consumeAiCreditLocal();
+    setEntitlements(billingService.getCachedEntitlements());
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -264,6 +312,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'q_' + Date.now(),
     };
     setQuotes((prev) => [newQuote, ...prev]);
+    entitlementManager.recordDocumentCreated();
     debugLogger.log({
       level: 'state',
       category: 'STATE_QUOTE_CREATED',
@@ -298,6 +347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: 'inv_' + Date.now(),
     };
     setInvoices((prev) => [newInvoice, ...prev]);
+    entitlementManager.recordDocumentCreated();
     debugLogger.log({
       level: 'state',
       category: 'STATE_INVOICE_CREATED',
@@ -563,6 +613,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetToSampleData,
         isInstallable,
         promptInstall,
+        tier: entitlements.tier,
+        entitlements,
+        isPaywallOpen,
+        paywallReason,
+        openPaywall,
+        closePaywall,
+        refreshEntitlements,
+        consumeAiCredit,
       }}
     >
       {children}

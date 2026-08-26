@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { InventoryItem } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
 import { ReceiptScannerModal } from './ReceiptScannerModal';
+import { entitlementManager } from '../services/EntitlementManager';
 import {
   Package,
   Plus,
@@ -17,7 +18,16 @@ import {
 } from 'lucide-react';
 
 export const InventoryManager: React.FC = () => {
-  const { inventory, addInventoryItem, addBulkInventory, updateInventoryItem, deleteInventoryItem, profile, sunlightMode } = useApp();
+  const {
+    inventory,
+    addInventoryItem,
+    addBulkInventory,
+    updateInventoryItem,
+    deleteInventoryItem,
+    profile,
+    sunlightMode,
+    openPaywall,
+  } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
@@ -52,6 +62,12 @@ export const InventoryManager: React.FC = () => {
   });
 
   const openAdd = () => {
+    const check = entitlementManager.canAddInventoryItem(inventory.length);
+    if (!check.allowed) {
+      openPaywall(check.reason);
+      return;
+    }
+
     setEditingId(null);
     setSku('FAST-' + Math.floor(1000 + Math.random() * 9000));
     setName('');
