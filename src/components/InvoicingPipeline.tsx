@@ -37,6 +37,10 @@ import {
   Package,
   Layers,
   Archive,
+  RotateCcw,
+  Undo2,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const InvoicingPipeline: React.FC = () => {
@@ -46,6 +50,7 @@ export const InvoicingPipeline: React.FC = () => {
     updateInvoice,
     deleteInvoice,
     recordPayment,
+    revertInvoicePayment,
     clients,
     inventory,
     profile,
@@ -55,6 +60,7 @@ export const InvoicingPipeline: React.FC = () => {
   // Modals & Active Edit States
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<Invoice | null>(null);
+  const [revertModalInvoice, setRevertModalInvoice] = useState<Invoice | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
   const [payReference, setPayReference] = useState('');
@@ -63,6 +69,8 @@ export const InvoicingPipeline: React.FC = () => {
   // Invoice Form (Create & Edit) State
   const [isEditing, setIsEditing] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [formAmountPaid, setFormAmountPaid] = useState<number>(0);
+  const [formPaymentStatus, setFormPaymentStatus] = useState<InvoiceStatus>('issued');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -121,6 +129,8 @@ export const InvoicingPipeline: React.FC = () => {
 
   const resetForm = () => {
     setEditingInvoiceId(null);
+    setFormAmountPaid(0);
+    setFormPaymentStatus('issued');
     setSelectedClientId('');
     setClientName('');
     setClientPhone('');
@@ -171,6 +181,8 @@ export const InvoicingPipeline: React.FC = () => {
 
   const handleOpenEdit = (inv: Invoice) => {
     setEditingInvoiceId(inv.id);
+    setFormAmountPaid(inv.amountPaid || 0);
+    setFormPaymentStatus(inv.status);
     setSelectedClientId(inv.clientId);
     setClientName(inv.clientName);
     setClientPhone(inv.clientPhone);
@@ -179,7 +191,7 @@ export const InvoicingPipeline: React.FC = () => {
     setServiceType(inv.serviceType);
     setScopeOfWork(inv.scopeOfWork);
     setDueDate(inv.dueDate);
-    setItems(inv.items);
+    setItems(inv.items || []);
     setCalloutFee(inv.calloutFee ?? profile.defaultCalloutFee ?? 650);
     setLabourHours(inv.labourHours ?? 0);
     setLabourRatePerHour(inv.labourRatePerHour ?? profile.defaultLabourRate ?? 450);
@@ -201,6 +213,21 @@ export const InvoicingPipeline: React.FC = () => {
     setDepositReference(inv.depositReference || '');
     setNotes(inv.notes || '');
     setIsEditing(true);
+  };
+
+  const handleRevertPaymentDirectly = (inv: Invoice, keepDeposit: boolean = false) => {
+    revertInvoicePayment(inv.id, { keepDepositOnly: keepDeposit });
+    setRevertModalInvoice(null);
+  };
+
+  const handleRevertAndOpenEdit = (inv: Invoice, keepDeposit: boolean = false) => {
+    const updated = revertInvoicePayment(inv.id, { keepDepositOnly: keepDeposit });
+    setRevertModalInvoice(null);
+    if (updated) {
+      handleOpenEdit(updated);
+    } else {
+      handleOpenEdit(inv);
+    }
   };
 
   const handleSelectClient = (cId: string) => {
@@ -278,22 +305,55 @@ export const InvoicingPipeline: React.FC = () => {
       : `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
 
     const existingInv = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
-    const initialPaid = existingInv
-      ? existingInv.amountPaid
+    
+    // Determine effective paid amount from form
+    let effectivePaid = editingInvoiceId
+      ? formAmountPaid
       : isDepositPaid
       ? depositAmountPaid
       : 0;
 
-    const finalStatus: InvoiceStatus =
-      initialPaid >= totals.totalAmount && totals.totalAmount > 0
-        ? 'paid'
-        : initialPaid > 0
-        ? 'partially_paid'
-        : status;
+    effectivePaid = Math.max(0, effectivePaid);
+
+    let finalStatus: InvoiceStatus = formPaymentStatus;
+    if (effectivePaid >= totals.totalAmount && totals.totalAmount > 0) {
+      finalStatus = (formPaymentStatus === 'issued' || formPaymentStatus === 'draft') ? formPaymentStatus : 'paid';
+    } else if (effectivePaid > 0 && effectivePaid < totals.totalAmount) {
+      finalStatus = 'partially_paid';
+    } else if (effectivePaid === 0) {
+      finalStatus = (formPaymentStatus === 'paid') ? 'issued' : formPaymentStatus;
+    }
+
+    // Retain or adjust payments history
+    let finalPayments = existingInv?.payments ? [...existingInv.payments] : [];
+    if (effectivePaid === 0) {
+      finalPayments = [];
+    } else if (effectivePaid < (existingInv?.amountPaid || 0)) {
+      // Reverted or reduced amount: retain payments that fit within effectivePaid or create an adjustment record
+      let runningTotal = 0;
+      finalPayments = finalPayments.filter((p) => {
+        if (runningTotal + p.amount <= effectivePaid) {
+          runningTotal += p.amount;
+          return true;
+        }
+        return false;
+      });
+      if (finalPayments.length === 0 && effectivePaid > 0) {
+        finalPayments = [
+          {
+            id: 'pay_' + Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            amount: effectivePaid,
+            method: 'EFT',
+            reference: 'ADJUSTED-BALANCE',
+          },
+        ];
+      }
+    }
 
     const payload: Omit<Invoice, 'id'> = {
       invoiceNumber,
-      date: new Date().toISOString().split('T')[0],
+      date: existingInv ? existingInv.date : new Date().toISOString().split('T')[0],
       dueDate,
       clientId: selectedClientId || 'c_' + Date.now(),
       clientName,
@@ -322,8 +382,8 @@ export const InvoicingPipeline: React.FC = () => {
       vatEnabled: totals.vatEnabled,
       vatAmount: totals.vatAmount,
       totalAmount: totals.totalAmount,
-      amountPaid: initialPaid,
-      isDepositPaid,
+      amountPaid: effectivePaid,
+      isDepositPaid: isDepositPaid && effectivePaid >= depositAmountPaid,
       depositPercentage,
       depositAmount: totals.depositRequired,
       depositAmountPaid: isDepositPaid ? depositAmountPaid : 0,
@@ -331,8 +391,9 @@ export const InvoicingPipeline: React.FC = () => {
       depositPaymentMethod: isDepositPaid ? depositPaymentMethod : undefined,
       depositReference: isDepositPaid ? depositReference : undefined,
       status: finalStatus,
-      terms: 'Strictly 7 days from invoice presentation. EFT / Card payments accepted.',
+      terms: existingInv?.terms || 'Strictly 7 days from invoice presentation. EFT / Card payments accepted.',
       notes,
+      payments: finalPayments,
     };
 
     if (editingInvoiceId) {
@@ -857,7 +918,14 @@ export const InvoicingPipeline: React.FC = () => {
                         const checked = e.target.checked;
                         setIsDepositPaid(checked);
                         if (checked && depositAmountPaid === 0) {
-                          setDepositAmountPaid(Number((totals.totalAmount * (depositPercentage / 100)).toFixed(2)));
+                          const depAmount = Number((totals.totalAmount * (depositPercentage / 100)).toFixed(2));
+                          setDepositAmountPaid(depAmount);
+                          setFormAmountPaid(depAmount);
+                          setFormPaymentStatus('partially_paid');
+                        } else if (!checked && formAmountPaid === depositAmountPaid) {
+                          setDepositAmountPaid(0);
+                          setFormAmountPaid(0);
+                          setFormPaymentStatus('issued');
                         }
                       }}
                       className="rounded border-[#334155] text-emerald-500 focus:ring-emerald-500"
@@ -875,7 +943,13 @@ export const InvoicingPipeline: React.FC = () => {
                             <input
                               type="number"
                               value={depositAmountPaid}
-                              onChange={(e) => setDepositAmountPaid(Number(e.target.value) || 0)}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                setDepositAmountPaid(val);
+                                if (formAmountPaid <= depositAmountPaid || formAmountPaid === 0) {
+                                  setFormAmountPaid(val);
+                                }
+                              }}
                               className="w-full pl-7 pr-2 py-1 rounded bg-[#141722] border border-[#334155] text-emerald-300 font-mono text-xs font-bold"
                             />
                           </div>
@@ -918,6 +992,146 @@ export const InvoicingPipeline: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* 5. Payment Settlement & Status Adjustment (Revert to Unpaid / Change Status) */}
+              <div className="p-4 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-sky-400 uppercase font-mono flex items-center space-x-1.5">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>5. Invoice Payment & Settlement Status</span>
+                  </h5>
+                  <div>
+                    {formAmountPaid >= totals.totalAmount && totals.totalAmount > 0 ? (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/40 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> PAID IN FULL
+                      </span>
+                    ) : formAmountPaid > 0 ? (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/40">
+                        PARTIALLY PAID
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-mono font-bold border border-sky-500/40">
+                        UNPAID / OUTSTANDING
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {editingInvoiceId && formAmountPaid >= totals.totalAmount && totals.totalAmount > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Invoice is currently marked Paid in Full.</span>
+                      <p className="text-[11px] text-amber-300/80 mt-0.5">
+                        You can adjust the invoice line items, pricing, or scope. If payment should no longer be marked as settled, use the quick buttons below to revert to unpaid.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Payment State Preset Buttons */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormAmountPaid(0);
+                      setFormPaymentStatus('issued');
+                      setIsDepositPaid(false);
+                      setDepositAmountPaid(0);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                      formAmountPaid === 0
+                        ? 'bg-sky-600 text-white shadow'
+                        : 'bg-[#1E2330] hover:bg-[#282E3E] text-slate-300 border border-[#334155]'
+                    }`}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Revert to Unpaid (R0.00 Paid)</span>
+                  </button>
+
+                  {depositAmountPaid > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormAmountPaid(depositAmountPaid);
+                        setFormPaymentStatus('partially_paid');
+                        setIsDepositPaid(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                        formAmountPaid === depositAmountPaid && formAmountPaid > 0
+                          ? 'bg-teal-600 text-white shadow'
+                          : 'bg-[#1E2330] hover:bg-[#282E3E] text-slate-300 border border-[#334155]'
+                      }`}
+                    >
+                      <DollarSign className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Set to Deposit Only ({formatZAR(depositAmountPaid)})</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormAmountPaid(totals.totalAmount);
+                      setFormPaymentStatus('paid');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                      formAmountPaid >= totals.totalAmount && totals.totalAmount > 0
+                        ? 'bg-emerald-600 text-white shadow'
+                        : 'bg-[#1E2330] hover:bg-[#282E3E] text-slate-300 border border-[#334155]'
+                    }`}
+                  >
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Mark Paid in Full ({formatZAR(totals.totalAmount)})</span>
+                  </button>
+                </div>
+
+                {/* Granular Amount Paid & Status Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#1F2432]">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1 font-mono uppercase font-bold">
+                      Amount Paid to Date (ZAR)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">R</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formAmountPaid}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setFormAmountPaid(val);
+                          if (val >= totals.totalAmount && totals.totalAmount > 0) {
+                            setFormPaymentStatus('paid');
+                          } else if (val > 0) {
+                            setFormPaymentStatus('partially_paid');
+                          } else {
+                            setFormPaymentStatus('issued');
+                          }
+                        }}
+                        className="w-full pl-7 pr-2 py-1.5 rounded-lg bg-[#141722] border border-[#334155] text-white font-mono text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1 font-mono uppercase font-bold">
+                      Document Status Override
+                    </label>
+                    <select
+                      value={formPaymentStatus}
+                      onChange={(e) => setFormPaymentStatus(e.target.value as InvoiceStatus)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#141722] border border-[#334155] text-white text-xs font-semibold"
+                    >
+                      <option value="issued">Issued / Unpaid</option>
+                      <option value="partially_paid">Partially Paid</option>
+                      <option value="paid">Paid in Full</option>
+                      <option value="draft">Draft</option>
+                      <option value="overdue">Overdue</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1001,19 +1215,31 @@ export const InvoicingPipeline: React.FC = () => {
                     <span className="text-emerald-400 text-lg">{formatZAR(totals.totalAmount)}</span>
                   </div>
 
-                  {/* Deposit Breakdown */}
-                  {isDepositPaid && depositAmountPaid > 0 && (
-                    <div className="pt-3 border-t border-[#282E3E] space-y-2">
-                      <div className="flex justify-between text-emerald-400 font-bold">
-                        <span>Deposit / Prior Paid:</span>
-                        <span>-{formatZAR(depositAmountPaid)}</span>
+                  {/* Payment Settlement Breakdown in Summary */}
+                  <div className="pt-3 border-t border-[#282E3E] space-y-2">
+                    {formAmountPaid > 0 ? (
+                      <div className="flex justify-between text-teal-400 font-bold">
+                        <span>Amount Paid / Settled:</span>
+                        <span>-{formatZAR(formAmountPaid)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-sm font-black p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
-                        <span>REMAINING BALANCE DUE:</span>
-                        <span className="text-base">{formatZAR(Math.max(0, totals.totalAmount - depositAmountPaid))}</span>
+                    ) : (
+                      <div className="flex justify-between text-slate-400">
+                        <span>Payment Status:</span>
+                        <span className="text-sky-300 font-semibold">Unpaid (R0.00)</span>
                       </div>
+                    )}
+
+                    <div className={`flex justify-between items-center text-sm font-black p-2 rounded-lg border ${
+                      formAmountPaid >= totals.totalAmount && totals.totalAmount > 0
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}>
+                      <span>REMAINING BALANCE DUE:</span>
+                      <span className="text-base">
+                        {formatZAR(Math.max(0, totals.totalAmount - formAmountPaid))}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1123,8 +1349,28 @@ export const InvoicingPipeline: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Record Payment CTA */}
-                  {!isPaid && (
+                  {/* Payment & Revert Actions */}
+                  {isPaid ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setRevertModalInvoice(inv)}
+                        className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95 shadow-sm"
+                        title="Revert payment status to unpaid or adjust settlement"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Revert Payment</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleRevertAndOpenEdit(inv, false)}
+                        className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
+                        title="Revert invoice to unpaid and open the full editor"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Revert & Edit</span>
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       onClick={() => handleOpenPayment(inv)}
                       className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
@@ -1134,11 +1380,11 @@ export const InvoicingPipeline: React.FC = () => {
                     </button>
                   )}
 
-                  {/* Edit Invoice */}
+                  {/* Edit Invoice (Always Available) */}
                   <button
                     onClick={() => handleOpenEdit(inv)}
                     className="p-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 hover:text-sky-400 transition-colors cursor-pointer"
-                    title="Edit Invoice Details"
+                    title={isPaid ? "Edit Paid Invoice" : "Edit Invoice Details"}
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -1163,18 +1409,54 @@ export const InvoicingPipeline: React.FC = () => {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {/* Export Options */}
+                  {/* Export & Extended Options */}
                   <div className="relative">
                     <button
                       onClick={() => setOpenExportMenuId(openExportMenuId === inv.id ? null : inv.id)}
                       className="p-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 cursor-pointer"
-                      title="Export Options"
+                      title="More Options"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
 
                     {openExportMenuId === inv.id && (
-                      <div className="absolute right-0 mt-2 w-48 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                      <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                        {isPaid && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setRevertModalInvoice(inv);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-amber-300 font-semibold border-b border-[#282E3E] cursor-pointer"
+                            >
+                              <RotateCcw className="w-4 h-4 text-amber-400" />
+                              <span>Revert Payment (Unpay)</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleRevertAndOpenEdit(inv, false);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-sky-300 font-semibold border-b border-[#282E3E] cursor-pointer"
+                            >
+                              <Undo2 className="w-4 h-4 text-sky-400" />
+                              <span>Revert Payment & Edit</span>
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            handleOpenEdit(inv);
+                            setOpenExportMenuId(null);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200 border-b border-[#282E3E] cursor-pointer"
+                        >
+                          <Edit2 className="w-4 h-4 text-sky-400" />
+                          <span>Edit Tax Invoice</span>
+                        </button>
+
                         <button
                           onClick={() => {
                             printHtmlDocument('invoice', inv, profile);
@@ -1337,6 +1619,137 @@ export const InvoicingPipeline: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
               >
                 Confirm Settlement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revert Payment Modal */}
+      {revertModalInvoice && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start pb-3 border-b border-[#282E3E]">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Revert Payment Status</h3>
+                  <p className="text-xs text-slate-400 font-mono">{revertModalInvoice.invoiceNumber} • {revertModalInvoice.clientName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRevertModalInvoice(null)}
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Information Alert */}
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">Revert invoice to unpaid status?</p>
+                <p className="text-amber-300/80 text-[11px]">
+                  This invoice is currently settled in full ({formatZAR(revertModalInvoice.amountPaid)}). Reverting will revoke the paid status, re-establish an outstanding balance due, and allow you to modify line items or payment details.
+                </p>
+              </div>
+            </div>
+
+            {/* Invoice Breakdown */}
+            <div className="p-3.5 rounded-xl bg-[#12141C] border border-[#282E3E] space-y-2 font-mono text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Invoice Total:</span>
+                <span className="text-white font-bold">{formatZAR(revertModalInvoice.totalAmount)}</span>
+              </div>
+              <div className="flex justify-between text-emerald-400 font-bold">
+                <span>Currently Recorded as Paid:</span>
+                <span>{formatZAR(revertModalInvoice.amountPaid)}</span>
+              </div>
+              {revertModalInvoice.depositAmountPaid && revertModalInvoice.depositAmountPaid > 0 ? (
+                <div className="flex justify-between text-teal-400 text-[11px] pl-2 border-l border-teal-500/40">
+                  <span>Upfront Deposit Portion:</span>
+                  <span>{formatZAR(revertModalInvoice.depositAmountPaid)} ({revertModalInvoice.depositPaymentMethod || 'EFT'})</span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Reversion Action Options */}
+            <div className="space-y-2.5 pt-1">
+              <div className="text-xs font-bold text-slate-300 font-mono uppercase tracking-wider">
+                Select Reversion Method:
+              </div>
+
+              {/* Option 1: Complete Reversion */}
+              <button
+                onClick={() => handleRevertPaymentDirectly(revertModalInvoice, false)}
+                className="w-full p-3 rounded-xl bg-[#141722] hover:bg-[#1E2330] border border-[#334155] hover:border-amber-500/50 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <RotateCcw className="w-4 h-4 text-amber-400 group-hover:rotate-[-45deg] transition-transform" />
+                    <span className="text-xs font-bold text-white">Full Revert to Unpaid (R0.00 Paid)</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono font-bold">
+                    Status: Issued
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 pl-6">
+                  Clears all recorded payments. Restores total outstanding balance of {formatZAR(revertModalInvoice.totalAmount)}.
+                </p>
+              </button>
+
+              {/* Option 2: Keep Deposit (if applicable) */}
+              {revertModalInvoice.depositAmountPaid && revertModalInvoice.depositAmountPaid > 0 ? (
+                <button
+                  onClick={() => handleRevertPaymentDirectly(revertModalInvoice, true)}
+                  className="w-full p-3 rounded-xl bg-[#141722] hover:bg-[#1E2330] border border-[#334155] hover:border-teal-500/50 text-left transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-4 h-4 text-teal-400" />
+                      <span className="text-xs font-bold text-white">
+                        Revert Settlement, Keep Deposit ({formatZAR(revertModalInvoice.depositAmountPaid)})
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/10 text-teal-400 font-mono font-bold">
+                      Partially Paid
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1 pl-6">
+                    Revokes final settlement, keeping the upfront deposit. Outstanding balance: {formatZAR(Math.max(0, revertModalInvoice.totalAmount - revertModalInvoice.depositAmountPaid))}.
+                  </p>
+                </button>
+              ) : null}
+
+              {/* Option 3: Revert & Immediately Open Editor */}
+              <button
+                onClick={() => handleRevertAndOpenEdit(revertModalInvoice, false)}
+                className="w-full p-3 rounded-xl bg-gradient-to-r from-sky-900/40 to-blue-900/40 hover:from-sky-900/60 hover:to-blue-900/60 border border-sky-500/40 text-left transition-all group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Edit2 className="w-4 h-4 text-sky-400" />
+                    <span className="text-xs font-bold text-white">Revert to Unpaid & Open Full Editor</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono font-bold">
+                    Revert & Edit
+                  </span>
+                </div>
+                <p className="text-[11px] text-sky-200/70 mt-1 pl-6">
+                  Reverts payment status and immediately opens the Tax Invoice editor so you can adjust line items, materials, labour, or discounts.
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-[#282E3E]">
+              <button
+                onClick={() => setRevertModalInvoice(null)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] text-slate-300 text-xs font-bold cursor-pointer hover:bg-[#334155]"
+              >
+                Cancel
               </button>
             </div>
           </div>

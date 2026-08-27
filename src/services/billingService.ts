@@ -1,3 +1,5 @@
+import { getApiUrl } from '../config/api';
+
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS';
 
 export interface BillingProduct {
@@ -208,7 +210,7 @@ class BillingService {
    */
   public async syncWithServer(): Promise<CachedEntitlements> {
     try {
-      const res = await fetch(`/api/usage?userId=${encodeURIComponent(this.userId)}`, {
+      const res = await fetch(getApiUrl(`/api/usage?userId=${encodeURIComponent(this.userId)}`), {
         headers: {
           'x-user-id': this.userId,
         },
@@ -256,7 +258,7 @@ class BillingService {
       }
 
       // 2. Call server verification endpoint to register and activate the entitlement
-      const verifyRes = await fetch('/api/billing/verify', {
+      const verifyRes = await fetch(getApiUrl('/api/billing/verify'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -352,7 +354,7 @@ class BillingService {
 
     // 2. Sync with backend so server-side usage meters & AI calls recognize Developer Access
     try {
-      await fetch('/api/billing/developer-code', {
+      await fetch(getApiUrl('/api/billing/developer-code'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -379,7 +381,7 @@ class BillingService {
    */
   public async restorePurchases(): Promise<{ success: boolean; message: string; tier: SubscriptionTier }> {
     try {
-      const res = await fetch(`/api/usage?userId=${encodeURIComponent(this.userId)}`, {
+      const res = await fetch(getApiUrl(`/api/usage?userId=${encodeURIComponent(this.userId)}`), {
         headers: { 'x-user-id': this.userId },
       });
 

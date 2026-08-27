@@ -51,6 +51,14 @@ interface AppContextType {
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
   recordPayment: (invoiceId: string, amount: number, method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT', reference?: string) => void;
+  revertInvoicePayment: (
+    invoiceId: string,
+    options?: {
+      keepDepositOnly?: boolean;
+      newAmountPaid?: number;
+      newStatus?: InvoiceStatus;
+    }
+  ) => Invoice | null;
   sunlightMode: boolean;
   toggleSunlightMode: () => void;
   resetToSampleData: () => void;
@@ -574,6 +582,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const revertInvoicePayment = (
+    invoiceId: string,
+    options?: {
+      keepDepositOnly?: boolean;
+      newAmountPaid?: number;
+      newStatus?: InvoiceStatus;
+    }
+  ): Invoice | null => {
+    let resultInv: Invoice | null = null;
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.id !== invoiceId) return inv;
+
+        let targetAmountPaid = 0;
+        let targetStatus: InvoiceStatus = options?.newStatus || 'issued';
+        let remainingPayments: NonNullable<Invoice['payments']> = [];
+
+        if (options?.newAmountPaid !== undefined) {
+          targetAmountPaid = Math.max(0, options.newAmountPaid);
+          targetStatus =
+            options?.newStatus ||
+            (targetAmountPaid >= inv.totalAmount && inv.totalAmount > 0
+              ? 'paid'
+              : targetAmountPaid > 0
+              ? 'partially_paid'
+              : 'issued');
+          remainingPayments = (inv.payments || []).filter((p) => p.amount <= targetAmountPaid);
+        } else if (options?.keepDepositOnly && inv.depositAmountPaid && inv.depositAmountPaid > 0) {
+          targetAmountPaid = inv.depositAmountPaid;
+          targetStatus = 'partially_paid';
+          remainingPayments = (inv.payments || []).filter(
+            (p) =>
+              p.reference?.includes('DEP-') ||
+              p.id?.includes('dep') ||
+              p.amount === inv.depositAmountPaid
+          );
+          if (remainingPayments.length === 0 && targetAmountPaid > 0) {
+            remainingPayments = [
+              {
+                id: 'pay_dep_' + Date.now(),
+                date: inv.depositPaidDate || inv.date,
+                amount: targetAmountPaid,
+                method: inv.depositPaymentMethod || 'EFT',
+                reference: inv.depositReference || `DEP-KEEP`,
+              },
+            ];
+          }
+        } else {
+          targetAmountPaid = 0;
+          targetStatus = options?.newStatus || 'issued';
+          remainingPayments = [];
+        }
+
+        resultInv = {
+          ...inv,
+          amountPaid: targetAmountPaid,
+          status: targetStatus,
+          payments: remainingPayments,
+          isDepositPaid: options?.keepDepositOnly ? inv.isDepositPaid : false,
+          depositAmountPaid: options?.keepDepositOnly ? inv.depositAmountPaid : 0,
+        };
+
+        debugLogger.log({
+          level: 'state',
+          category: 'STATE_INVOICE_PAYMENT_REVERTED',
+          message: `Invoice ${inv.invoiceNumber} payment reverted from R${inv.amountPaid} to R${targetAmountPaid} (Status: ${targetStatus})`,
+          data: {
+            invoiceNumber: inv.invoiceNumber,
+            oldAmountPaid: inv.amountPaid,
+            newAmountPaid: targetAmountPaid,
+            newStatus: targetStatus,
+          },
+        });
+
+        return resultInv;
+      })
+    );
+    return resultInv;
+  };
+
   const resetToSampleData = () => {
     setProfile(initialBusinessProfile);
     setClients(initialClients);
@@ -608,6 +696,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateInvoice,
         deleteInvoice,
         recordPayment,
+        revertInvoicePayment,
         sunlightMode,
         toggleSunlightMode,
         resetToSampleData,

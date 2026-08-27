@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { debugLogger, DebugLogEntry, LogLevel } from '../utils/debugLogger';
 import { useApp } from '../context/AppContext';
+import { getApiUrl, API_BASE_URL } from '../config/api';
 import {
   Terminal,
   Bug,
@@ -169,10 +170,10 @@ export const DebugModal: React.FC<DebugModalProps> = ({ isOpen, onClose }) => {
 
   const handleTestHealth = async () => {
     setIsTestingHealth(true);
-    setHealthStatus('Pinging /api/health endpoint...');
+    setHealthStatus(`Pinging health endpoint at ${getApiUrl('/api/health')}...`);
     try {
       const startTime = performance.now();
-      const res = await fetch('/api/health');
+      const res = await fetch(getApiUrl('/api/health'));
       const duration = Math.round(performance.now() - startTime);
       const data = await res.json();
       setHealthStatus(`200 OK (${duration}ms): ${JSON.stringify(data)}`);
@@ -191,7 +192,7 @@ export const DebugModal: React.FC<DebugModalProps> = ({ isOpen, onClose }) => {
     });
 
     try {
-      await fetch('/api/scan-receipt', {
+      await fetch(getApiUrl('/api/scan-receipt'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -429,6 +429,7 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     vatAmount,
     total_amount: totalAmount,
     totalAmount,
+    total: totalAmount,
     line_items: normalizedItems,
     items: normalizedItems,
     notes: typeof data.notes === 'string' ? data.notes : undefined,
@@ -468,41 +469,77 @@ async function startServer() {
 
   // GET Current User Usage & Entitlements
   app.get('/api/usage', (req, res) => {
-    const userId = extractUserId(req);
-    const record = usageStore.getUserRecord(userId);
-    const tierConfig = TIER_DEFINITIONS[record.tier];
-    const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    try {
+      const userId = extractUserId(req) || 'anonymous_user';
+      const record = usageStore.getUserRecord(userId);
+      const tierConfig = TIER_DEFINITIONS[record.tier] || TIER_DEFINITIONS.FREE;
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const creditsRemaining = tierConfig.unlimitedAi
-      ? 999999
-      : Math.max(0, tierConfig.monthlyAiCredits + record.aiCreditsBonus - record.aiCreditsUsed);
+      const creditsRemaining = tierConfig.unlimitedAi
+        ? 999999
+        : Math.max(0, tierConfig.monthlyAiCredits + record.aiCreditsBonus - record.aiCreditsUsed);
 
-    res.json({
-      userId,
-      tier: record.tier,
-      status: record.status,
-      billingCycle: record.billingCycle,
-      aiCredits: {
-        total: tierConfig.monthlyAiCredits,
-        bonus: record.aiCreditsBonus,
-        used: record.aiCreditsUsed,
-        remaining: creditsRemaining,
-        unlimited: tierConfig.unlimitedAi,
-      },
-      documents: {
-        createdThisMonth: record.documentsCreatedThisMonth,
-        maxAllowed: tierConfig.maxMonthlyDocuments === Infinity ? -1 : tierConfig.maxMonthlyDocuments,
-        unlimited: tierConfig.maxMonthlyDocuments === Infinity,
-      },
-      inventory: {
-        maxItems: tierConfig.maxInventoryItems === Infinity ? -1 : tierConfig.maxInventoryItems,
-        unlimited: tierConfig.maxInventoryItems === Infinity,
-      },
-      entitlements: tierConfig,
-      subscriptionExpiresAt: record.subscriptionExpiresAt,
-      resetDate: nextMonth.toISOString(),
-    });
+      const scanLimit = tierConfig.unlimitedAi ? 999999 : tierConfig.monthlyAiCredits;
+      const scansUsed = record.aiCreditsUsed || 0;
+      const scansRemaining = creditsRemaining;
+
+      return res.status(200).json({
+        userId,
+        tier: record.tier,
+        status: record.status,
+        billingCycle: record.billingCycle,
+        scansUsed,
+        scanLimit,
+        scansRemaining,
+        aiCredits: {
+          total: tierConfig.monthlyAiCredits,
+          bonus: record.aiCreditsBonus,
+          used: record.aiCreditsUsed,
+          remaining: creditsRemaining,
+          unlimited: tierConfig.unlimitedAi,
+        },
+        documents: {
+          createdThisMonth: record.documentsCreatedThisMonth,
+          maxAllowed: tierConfig.maxMonthlyDocuments === Infinity ? -1 : tierConfig.maxMonthlyDocuments,
+          unlimited: tierConfig.maxMonthlyDocuments === Infinity,
+        },
+        inventory: {
+          maxItems: tierConfig.maxInventoryItems === Infinity ? -1 : tierConfig.maxInventoryItems,
+          unlimited: tierConfig.maxInventoryItems === Infinity,
+        },
+        entitlements: tierConfig,
+        subscriptionExpiresAt: record.subscriptionExpiresAt,
+        resetDate: nextMonth.toISOString(),
+      });
+    } catch (err: any) {
+      console.error('[Usage API Error]', err);
+      const fallbackUserId = (req.query?.userId as string) || 'default_user';
+      return res.status(200).json({
+        userId: fallbackUserId,
+        tier: 'FREE',
+        status: 'active',
+        scansUsed: 0,
+        scanLimit: 100,
+        scansRemaining: 100,
+        aiCredits: {
+          total: 100,
+          bonus: 0,
+          used: 0,
+          remaining: 100,
+          unlimited: false,
+        },
+        documents: {
+          createdThisMonth: 0,
+          maxAllowed: 5,
+          unlimited: false,
+        },
+        inventory: {
+          maxItems: 20,
+          unlimited: false,
+        },
+      });
+    }
   });
 
   // POST Increment Document Count (for Free tier document limit enforcement)
@@ -670,19 +707,9 @@ async function startServer() {
         }
       }
 
-      if (!rawImagePayload || typeof rawImagePayload !== 'string') {
-        console.warn('[OCR Server] Missing or non-string image data received');
-        const emptyFallback = normalizeOcrData({
-          supplierName: 'Supplier Slip',
-          invoiceNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
-          date: new Date().toISOString().split('T')[0],
-          totalAmount: 0,
-          items: [],
-          notes: 'No image payload received. Please retry or enter items manually.',
-          isPartial: true,
-          isFallback: true,
-        });
-        return res.json(emptyFallback);
+      if (!rawImagePayload || typeof rawImagePayload !== 'string' || rawImagePayload.trim().length === 0) {
+        console.warn('[OCR Server] Missing or empty image data received');
+        return res.status(500).json({ error: 'Failed to parse receipt image' });
       }
 
       // If URL-encoded base64 was passed from mobile WebView/client
@@ -708,6 +735,10 @@ async function startServer() {
 
       // Clean all whitespace, newlines, carriage returns
       cleanBase64 = cleanBase64.trim().replace(/\s+/g, '');
+
+      if (!cleanBase64 || cleanBase64.length === 0) {
+        return res.status(500).json({ error: 'Failed to parse receipt image' });
+      }
 
       // Normalize common mobile MIME variants
       if (effectiveMime.includes('jpg') || effectiveMime.includes('pjpeg')) {
@@ -754,7 +785,11 @@ async function startServer() {
           notes: 'Extracted using local fallback parser. Add GEMINI_API_KEY in Settings > Secrets for live Vision AI OCR.',
           isFallback: true,
         });
-        return res.json(fallbackData);
+
+        if (!fallbackData || typeof fallbackData !== 'object') {
+          return res.status(500).json({ error: 'Failed to parse receipt image' });
+        }
+        return res.status(200).json(fallbackData);
       }
 
       const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts and trade invoices.
@@ -833,8 +868,8 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
             const response: any = await Promise.race([generatePromise, timeoutPromise]);
             const extractedText = response?.text || '';
 
-            if (extractedText && extractedText.trim().length > 0) {
-              rawResponseText = extractedText;
+            if (extractedText && typeof extractedText === 'string' && extractedText.trim().length > 0) {
+              rawResponseText = extractedText.trim();
               successfulModel = currentModel;
               console.log(
                 `[OCR Server] Gemini response received via ${currentModel} on attempt ${attempt + 1} in ${Date.now() - startTime}ms.`
@@ -879,10 +914,26 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
       }
 
       // If we got valid response text from any model tier
-      if (rawResponseText) {
-        const extractedJson = sanitizeAndExtractOcrData(rawResponseText);
-        const normalized = normalizeOcrData(extractedJson, rawResponseText);
-        return res.json(normalized);
+      if (rawResponseText && rawResponseText.length > 0) {
+        try {
+          const extractedJson = sanitizeAndExtractOcrData(rawResponseText);
+          const parsedData = normalizeOcrData(extractedJson, rawResponseText);
+
+          if (
+            !parsedData ||
+            typeof parsedData !== 'object' ||
+            typeof parsedData === 'string' ||
+            !Array.isArray(parsedData.items)
+          ) {
+            console.warn('[OCR Server] Parsed data is invalid or empty string');
+            return res.status(500).json({ error: 'Failed to parse receipt image' });
+          }
+
+          return res.status(200).json(parsedData);
+        } catch (parseErr: any) {
+          console.error('[OCR Server] Error parsing model response JSON:', parseErr);
+          return res.status(500).json({ error: 'Failed to parse receipt image' });
+        }
       }
 
       // If all candidate models and retries failed due to 503 / 429
@@ -897,41 +948,15 @@ If any value is missing or unreadable, provide reasonable defaults instead of fa
         });
       }
 
-      // If other error, return safe fallback template with clean message
-      const safeRecovery = normalizeOcrData(
-        {
-          supplierName: 'Scanned Supplier Slip',
-          invoiceNumber: 'INV-' + Math.floor(100000 + Math.random() * 900000),
-          date: new Date().toISOString().split('T')[0],
-          totalAmount: 0,
-          items: [
-            {
-              description: 'Scanned Materials (Tap to edit item name & cost)',
-              quantity: 1,
-              unitCost: 0,
-              category: 'Electrical',
-              unit: 'ea',
-            },
-          ],
-          notes: 'Server busy. Please tap Retry or enter items manually.',
-          isPartial: true,
-          isFallback: true,
-        },
-        'Server busy. Please tap Retry or enter items manually.'
-      );
-
-      return res.json(safeRecovery);
+      // If model returned empty or could not parse receipt
+      return res.status(500).json({ error: 'Failed to parse receipt image' });
     } catch (error: any) {
       console.error('[OCR Server Error] Fatal uncaught error during OCR processing:', {
         message: error?.message,
         duration: Date.now() - startTime,
       });
 
-      return res.status(503).json({
-        error: 'Server busy. Please tap Retry or enter items manually.',
-        isServerBusy: true,
-        status: 503,
-      });
+      return res.status(500).json({ error: 'Failed to parse receipt image' });
     }
   });
 

@@ -6,11 +6,20 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:web": "vite build",
+    "cap:add:android": "cap add android",
+    "cap:sync": "cap sync",
+    "cap:build": "vite build && cap sync",
+    "cap:open:android": "cap open android",
+    "cap:run:android": "cap run android",
     "lint": "tsc --noEmit",
     "preview": "vite preview",
     "start": "node dist/server.cjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@google/genai": "*",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",

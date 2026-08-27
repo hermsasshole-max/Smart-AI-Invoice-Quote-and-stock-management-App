@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { QuoteLineItem, ScannedReceiptData, ScannedLineItem, ServiceCategory } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
 import { entitlementManager } from '../services/EntitlementManager';
+import { getApiUrl } from '../config/api';
 import {
   Camera,
   Upload,
@@ -400,7 +401,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
           setScanStatusMessage(`High server traffic, retrying extraction (Attempt ${attempt}/3)...`);
         }
 
-        const response = await fetch('/api/scan-receipt', {
+        const response = await fetch(getApiUrl('/api/scan-receipt'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

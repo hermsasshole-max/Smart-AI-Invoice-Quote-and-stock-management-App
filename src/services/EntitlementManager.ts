@@ -1,4 +1,5 @@
 import { billingService, CachedEntitlements, SubscriptionTier } from './billingService';
+import { getApiUrl } from '../config/api';
 
 export interface EntitlementCheckResult {
   allowed: boolean;
@@ -149,7 +150,7 @@ class EntitlementManager {
     });
 
     // Notify backend
-    fetch('/api/usage/document-created', {
+    fetch(getApiUrl('/api/usage/document-created'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
