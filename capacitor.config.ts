@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.smartai.invoicequote',
   appName: 'Smart AI Invoice & Quote',
   webDir: 'dist',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
     cleartext: true,
