@@ -46,11 +46,13 @@ jobs:
 
       - name: ⚡ Initialize & Sync Capacitor Android
         run: |
-          if [ ! -d "android" ]; then
-            echo "Initializing Android platform with Capacitor..."
+          # If android directory is missing or incomplete (missing gradlew), re-add android platform
+          if [ ! -f "android/gradlew" ]; then
+            echo "Android platform missing or incomplete. Initializing fresh Capacitor Android platform..."
+            rm -rf android
             npx cap add android
           fi
-          echo "Syncing web assets to native Android project..."
+          echo "Syncing web assets and plugins to Android project..."
           npx cap sync android
 
       - name: 🔒 Configure Android Permissions (Camera & Internet)
@@ -65,7 +67,12 @@ jobs:
 
       - name: 🔨 Grant Executable Permission to Gradlew
         run: |
-          chmod +x ./android/gradlew
+          if [ -f "./android/gradlew" ]; then
+            chmod +x ./android/gradlew
+          else
+            echo "Warning: ./android/gradlew not found directly; looking in android/"
+            find . -name "gradlew" -exec chmod +x {} +
+          fi
 
       - name: 🚀 Build Debug APK with Gradle
         working-directory: ./android
