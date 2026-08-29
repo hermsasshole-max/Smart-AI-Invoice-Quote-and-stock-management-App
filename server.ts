@@ -328,17 +328,24 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
       ? data.supplierName.trim()
       : 'Supplier Invoice');
 
-  const receiptNumber = typeof data.receipt_number === 'string' && data.receipt_number.trim()
-    ? data.receipt_number.trim()
-    : (typeof data.receiptNumber === 'string' && data.receiptNumber.trim()
-      ? data.receiptNumber.trim()
-      : (typeof data.invoiceNumber === 'string' && data.invoiceNumber.trim()
-        ? data.invoiceNumber.trim()
-        : 'INV-' + Math.floor(100000 + Math.random() * 900000)));
+  const receiptNumber = typeof data.invoice_number === 'string' && data.invoice_number.trim()
+    ? data.invoice_number.trim()
+    : (typeof data.receipt_number === 'string' && data.receipt_number.trim()
+      ? data.receipt_number.trim()
+      : (typeof data.receiptNumber === 'string' && data.receiptNumber.trim()
+        ? data.receiptNumber.trim()
+        : (typeof data.invoiceNumber === 'string' && data.invoiceNumber.trim()
+          ? data.invoiceNumber.trim()
+          : 'INV-' + Math.floor(100000 + Math.random() * 900000))));
 
-  const rawDate = data.date || data.scan_date || data.scanDate;
+  const rawDate = data.issue_date || data.issueDate || data.date || data.scan_date || data.scanDate;
   const rawTime = typeof data.time === 'string' ? data.time.trim() : undefined;
   const { isoDate, isoTimestamp } = standardizeIsoDate(rawDate, rawTime);
+  const monthKey = typeof data.month_key === 'string' && data.month_key.trim()
+    ? data.month_key.trim()
+    : (typeof data.monthKey === 'string' && data.monthKey.trim()
+      ? data.monthKey.trim()
+      : isoDate.substring(0, 7));
 
   const address = typeof data.address === 'string' && data.address.trim() ? data.address.trim() : undefined;
   const vatNumber = typeof data.vat_number === 'string' && data.vat_number.trim()
@@ -346,14 +353,16 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     : (typeof data.vatNumber === 'string' && data.vatNumber.trim() ? data.vatNumber.trim() : undefined);
   const cashier = typeof data.cashier === 'string' && data.cashier.trim() ? data.cashier.trim() : undefined;
 
-  let rawItems = Array.isArray(data.line_items)
-    ? data.line_items
-    : (Array.isArray(data.items) ? data.items : []);
+  let rawItems = Array.isArray(data.items)
+    ? data.items
+    : (Array.isArray(data.line_items) ? data.line_items : []);
 
   let normalizedItems = rawItems.map((item: any) => {
-    const desc = typeof item.description === 'string' && item.description.trim()
-      ? item.description.trim()
-      : (typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Materials Item');
+    const desc = typeof item.item_name === 'string' && item.item_name.trim()
+      ? item.item_name.trim()
+      : (typeof item.description === 'string' && item.description.trim()
+        ? item.description.trim()
+        : (typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Materials Item'));
     const qty = Math.max(1, sanitizeNumeric(item.quantity, 1));
     const unitPrice = Math.max(0, sanitizeNumeric(item.unit_price ?? item.unitCost ?? item.unitPrice ?? item.cost ?? item.price, 0));
     const totalPrice = sanitizeNumeric(item.total_price ?? item.total ?? item.totalPrice, Number((qty * unitPrice).toFixed(2)));
@@ -366,6 +375,7 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     return {
       code_barcode: codeBarcode,
       codeBarcode,
+      item_name: desc,
       description: desc,
       quantity: qty,
       unit_price: unitPrice,
@@ -378,7 +388,7 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
   });
 
   // Calculate or normalize total amount
-  let totalAmount = sanitizeNumeric(data.total_amount ?? data.totalAmount, 0);
+  let totalAmount = sanitizeNumeric(data.grand_total ?? data.grandTotal ?? data.total_amount ?? data.totalAmount, 0);
   if (totalAmount <= 0 && normalizedItems.length > 0) {
     totalAmount = Number(normalizedItems.reduce((sum: number, it: any) => sum + (it.quantity * it.unitCost), 0).toFixed(2));
   }
@@ -389,6 +399,7 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
       {
         code_barcode: undefined,
         codeBarcode: undefined,
+        item_name: 'Supplier Materials (' + supplierName + ')',
         description: 'Supplier Materials (' + supplierName + ')',
         quantity: 1,
         unit_price: totalAmount,
@@ -417,16 +428,21 @@ function normalizeOcrData(data: any, rawFallbackText = ''): any {
     address,
     vat_number: vatNumber,
     vatNumber,
+    invoice_number: receiptNumber,
     receipt_number: receiptNumber,
     receiptNumber,
     invoiceNumber: receiptNumber,
+    issue_date: isoDate,
     date: isoDate,
+    month_key: monthKey,
+    monthKey,
     scan_date: isoTimestamp,
     time: rawTime,
     cashier,
     subtotal: subtotal > 0 ? subtotal : undefined,
     vat_amount: vatAmount,
     vatAmount,
+    grand_total: totalAmount,
     total_amount: totalAmount,
     totalAmount,
     total: totalAmount,
@@ -443,7 +459,12 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'Origin', 'X-Requested-With'],
+    credentials: false,
+  }));
   app.use(express.json({ limit: '50mb' }));
 
   // Lazy initialize Gemini client
@@ -792,38 +813,53 @@ async function startServer() {
         return res.status(200).json(fallbackData);
       }
 
-      const promptText = `You are a precision OCR document parsing system for hardware, electrical, and plumbing supplier receipts and trade invoices.
-Extract key metadata and every itemized line item strictly following the provided JSON schema.
-Convert string numbers into standard numerical floats. If a barcode, product code, or SKU is present, capture it in code_barcode.
-If any value is missing or unreadable, provide reasonable defaults instead of failing.`;
+      const promptText = `You are a robust document data extraction engine. Your job is to extract invoice items and issue dates from scanned invoice images and format them strictly into a standard JSON schema.
+Rules:
+Always respond with raw, valid JSON only. Do not include markdown ticks, backticks (\`\`\`json), or commentary.
+Clean numeric strings: Ensure quantities, unit prices, and totals are parsed as raw numbers (e.g. 12.50, not '$12.50').
+Standardize dates to YYYY-MM-DD. If year is missing or ambiguous, use the current year.
+If an item name is truncated or unclear, extract best-effort plain text. Never omit the items array.
+Required JSON structure:
+{
+  "invoice_number": string | null,
+  "issue_date": string,
+  "month_key": string, // Format: 'YYYY-MM'
+  "items": [
+    {
+      "item_name": string,
+      "quantity": number,
+      "unit_price": number,
+      "total_price": number
+    }
+  ],
+  "grand_total": number
+}`;
 
       const ocrSchema = {
         type: Type.OBJECT,
         properties: {
-          supplier_name: { type: Type.STRING, description: 'Business or store name at the top of the slip' },
-          address: { type: Type.STRING, description: 'Physical address' },
-          vat_number: { type: Type.STRING, description: 'VAT tax registration number' },
-          receipt_number: { type: Type.STRING, description: 'Till/Sale/Invoice number' },
-          date: { type: Type.STRING, description: 'Date of transaction (YYYY-MM-DD)' },
-          time: { type: Type.STRING, description: 'Time of transaction (HH:MM:SS)' },
-          cashier: { type: Type.STRING, description: 'Cashier or attendant name' },
-          line_items: {
+          invoice_number: { type: Type.STRING, description: 'Invoice or receipt reference number, or null if unreadable' },
+          issue_date: { type: Type.STRING, description: 'Date in YYYY-MM-DD format' },
+          month_key: { type: Type.STRING, description: 'Accounting month in YYYY-MM format' },
+          items: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                code_barcode: { type: Type.STRING, description: 'Item product code, SKU, or barcode' },
-                description: { type: Type.STRING, description: 'Full item description' },
-                quantity: { type: Type.NUMBER, description: 'Quantity purchased' },
-                unit_price: { type: Type.NUMBER, description: 'Individual item unit price' },
-                total_price: { type: Type.NUMBER, description: 'Line total price' },
+                item_name: { type: Type.STRING, description: 'Item description or product name' },
+                quantity: { type: Type.NUMBER, description: 'Numeric quantity parsed cleanly' },
+                unit_price: { type: Type.NUMBER, description: 'Numeric unit price' },
+                total_price: { type: Type.NUMBER, description: 'Numeric total price' },
               },
+              required: ['item_name', 'quantity', 'unit_price', 'total_price'],
             },
           },
-          vat_amount: { type: Type.NUMBER, description: 'Calculated VAT included amount' },
-          subtotal: { type: Type.NUMBER, description: 'Subtotal amount before final tax' },
-          total_amount: { type: Type.NUMBER, description: 'Final total charged' },
+          grand_total: { type: Type.NUMBER, description: 'Numeric grand total amount' },
+          supplier_name: { type: Type.STRING, description: 'Supplier or store name at the top of the invoice' },
+          address: { type: Type.STRING, description: 'Physical address' },
+          vat_number: { type: Type.STRING, description: 'Tax/VAT registration number' },
         },
+        required: ['issue_date', 'month_key', 'items', 'grand_total'],
       };
 
       // Model Redundancy Hierarchy: Primary (gemini-3.7-flash) -> Fast Alias (gemini-flash-latest) -> High-Throughput (gemini-3.1-flash-lite)

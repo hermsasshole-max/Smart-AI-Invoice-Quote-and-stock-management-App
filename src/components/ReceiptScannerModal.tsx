@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { QuoteLineItem, ScannedReceiptData, ScannedLineItem, ServiceCategory } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
 import { entitlementManager } from '../services/EntitlementManager';
 import { getApiUrl } from '../config/api';
+import { fetchWithRetry, wakeBackendServer } from '../utils/apiClient';
+import { offlineSyncQueue } from '../services/offlineSyncQueue';
 import {
   Camera,
   Upload,
@@ -206,6 +208,13 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Pre-wake backend Render server as soon as the modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      wakeBackendServer().catch(() => {});
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Sanitizer to convert raw API JSON or 503/429 errors into user-friendly message
@@ -382,172 +391,162 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const runOcrScan = async () => {
     if (!processedImage) return;
 
-    const aiCheck = entitlementManager.canUseAiFeature('Supplier Receipt OCR');
-    if (!aiCheck.allowed) {
-      openPaywall(aiCheck.reason);
-      return;
+    try {
+      const aiCheck = entitlementManager.canUseAiFeature('Supplier Receipt OCR');
+      if (!aiCheck.allowed) {
+        openPaywall(aiCheck.reason);
+        return;
+      }
+    } catch {
+      // In offline or fallback mode, allow scan to proceed
     }
 
     setIsScanning(true);
     setErrorMessage(null);
     setScanStatusMessage('Extracting Materials & Prices with Gemini AI Vision...');
 
-    const maxClientAttempts = 3;
-    let lastErr: any = null;
+    try {
+      const response = await fetchWithRetry('/api/scan-receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: processedImage,
+          mimeType: 'image/jpeg',
+        }),
+        timeoutMs: 60000,
+        retries: 3,
+        onRetry: (attempt, maxRetries, delayMs, error) => {
+          setScanStatusMessage(`Waking cloud server & extracting items (Attempt ${attempt}/${maxRetries})...`);
+        },
+      });
 
-    for (let attempt = 0; attempt < maxClientAttempts; attempt++) {
-      try {
-        if (attempt > 0) {
-          setScanStatusMessage(`High server traffic, retrying extraction (Attempt ${attempt}/3)...`);
+      if (!response.ok) {
+        let errMessage = 'Failed to extract invoice data.';
+        try {
+          const errData = await response.json();
+          errMessage = errData.error || (typeof errData === 'string' ? errData : JSON.stringify(errData));
+        } catch {
+          // not json
         }
 
-        const response = await fetch(getApiUrl('/api/scan-receipt'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            imageBase64: processedImage,
-            mimeType: 'image/jpeg',
-          }),
-        });
-
-        if (!response.ok) {
-          let errMessage = 'Failed to extract invoice data.';
-          try {
-            const errData = await response.json();
-            errMessage = errData.error || (typeof errData === 'string' ? errData : JSON.stringify(errData));
-          } catch {
-            // not json
-          }
-
-          if (response.status === 402) {
-            openPaywall(errMessage || 'You have exhausted your monthly AI credits. Upgrade your subscription for unlimited AI scanning.');
-            setIsScanning(false);
-            return;
-          }
-
-          if (response.status === 503 || response.status === 429) {
-            throw new Error('503: ' + errMessage);
-          }
-          throw new Error(errMessage);
+        if (response.status === 402) {
+          openPaywall(errMessage || 'You have exhausted your monthly AI credits. Upgrade your subscription for unlimited AI scanning.');
+          setIsScanning(false);
+          return;
         }
 
-        const data: ScannedReceiptData = await response.json();
-
-        // Consume credit on success
-        consumeAiCredit();
-
-        // Check if server returned a busy status within the JSON
-        if (data.notes && data.notes.includes('Server busy') && (!data.items || data.items.length === 0 || data.items[0]?.unitCost === 0)) {
-          if (attempt < maxClientAttempts - 1) {
-            throw new Error('503: Server busy');
-          }
-        }
-
-        // Normalize items with markup
-        const defaultMarkup = profile.defaultMarkup || 35;
-        const rawItemsList = data.line_items || data.items || [];
-        const normalizedItems: ScannedLineItem[] = rawItemsList.map((item, idx) => {
-          const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
-          const qty = Math.max(1, Number(item.quantity) || 1);
-          const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
-          const barcode = item.code_barcode || item.codeBarcode || '';
-
-          return {
-            id: 'scan_item_' + idx + '_' + Date.now(),
-            code_barcode: barcode,
-            codeBarcode: barcode,
-            description: item.description || 'Materials Item',
-            quantity: qty,
-            unitCost: cost,
-            unit_price: cost,
-            unitPrice: cost,
-            total_price: lineTotal,
-            totalPrice: lineTotal,
-            category: item.category || 'Electrical',
-            unit: item.unit || 'ea',
-            markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
-            total: lineTotal,
-          };
-        });
-
-        // Calculate total amount if 0
-        let total = Number(data.total_amount ?? data.totalAmount) || 0;
-        if (total <= 0 && normalizedItems.length > 0) {
-          total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
-        }
-
-        const vatAmt = Number(data.vat_amount ?? data.vatAmount) || Number(((total * 0.15) / 1.15).toFixed(2));
-        const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
-
-        setScanResult({
-          supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
-          supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
-          address: data.address,
-          vat_number: data.vat_number || data.vatNumber,
-          vatNumber: data.vat_number || data.vatNumber,
-          receipt_number:
-            data.receipt_number ||
-            data.receiptNumber ||
-            data.invoiceNumber ||
-            'INV-' + Math.floor(100000 + Math.random() * 900000),
-          receiptNumber:
-            data.receipt_number ||
-            data.receiptNumber ||
-            data.invoiceNumber ||
-            'INV-' + Math.floor(100000 + Math.random() * 900000),
-          invoiceNumber:
-            data.receipt_number ||
-            data.receiptNumber ||
-            data.invoiceNumber ||
-            'INV-' + Math.floor(100000 + Math.random() * 900000),
-          date: data.date || new Date().toISOString().split('T')[0],
-          time: data.time,
-          cashier: data.cashier,
-          subtotal: subTot,
-          vat_amount: vatAmt,
-          vatAmount: vatAmt,
-          total_amount: total,
-          totalAmount: total,
-          line_items: normalizedItems,
-          items: normalizedItems,
-          notes: data.notes,
-          rawText: data.rawText,
-          isPartial: data.isPartial,
-          isFallback: data.isFallback,
-        });
-
-        setErrorMessage(null);
-        setIsScanning(false);
-        return; // Success!
-      } catch (err: any) {
-        lastErr = err;
-        console.warn(`[OCR Frontend] Scan attempt ${attempt + 1} encountered error:`, err);
-
-        const errorStr = String(err?.message || err);
-        const isTransient =
-          errorStr.includes('503') ||
-          errorStr.includes('429') ||
-          errorStr.includes('UNAVAILABLE') ||
-          errorStr.includes('busy') ||
-          errorStr.includes('traffic') ||
-          errorStr.includes('Failed to fetch');
-
-        if (isTransient && attempt < maxClientAttempts - 1) {
-          const waitTime = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 400);
-          setScanStatusMessage(`High server traffic, retrying extraction (Attempt ${attempt + 1}/3)...`);
-          await delayMs(waitTime);
-          continue;
-        }
-
-        break;
+        throw new Error(errMessage);
       }
-    }
 
-    const friendlyMessage = formatFriendlyError(lastErr);
-    setErrorMessage(friendlyMessage);
-    setIsScanning(false);
+      const data: ScannedReceiptData = await response.json();
+
+      // Consume credit on success
+      try {
+        consumeAiCredit();
+      } catch {
+        // silent
+      }
+
+      // Normalize items with markup
+      const defaultMarkup = profile.defaultMarkup || 35;
+      const rawItemsList = data.items || data.line_items || [];
+      const normalizedItems: ScannedLineItem[] = rawItemsList.map((item: any, idx: number) => {
+        const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
+        const barcode = item.code_barcode || item.codeBarcode || '';
+        const desc = item.item_name || item.description || 'Materials Item';
+
+        return {
+          id: 'scan_item_' + idx + '_' + Date.now(),
+          code_barcode: barcode,
+          codeBarcode: barcode,
+          description: desc,
+          quantity: qty,
+          unitCost: cost,
+          unit_price: cost,
+          unitPrice: cost,
+          total_price: lineTotal,
+          totalPrice: lineTotal,
+          category: item.category || 'Electrical',
+          unit: item.unit || 'ea',
+          markupPct: item.markupPct !== undefined ? item.markupPct : defaultMarkup,
+          total: lineTotal,
+        };
+      });
+
+      // Calculate total amount if 0
+      let total = Number(data.grand_total ?? data.total_amount ?? data.totalAmount) || 0;
+      if (total <= 0 && normalizedItems.length > 0) {
+        total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
+      }
+
+      const vatAmt = Number(data.vat_amount ?? data.vatAmount) || Number(((total * 0.15) / 1.15).toFixed(2));
+      const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
+
+      const structuredResult: ScannedReceiptData = {
+        supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
+        supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
+        address: data.address,
+        vat_number: data.vat_number || data.vatNumber,
+        vatNumber: data.vat_number || data.vatNumber,
+        receipt_number:
+          data.invoice_number ||
+          data.receipt_number ||
+          data.receiptNumber ||
+          data.invoiceNumber ||
+          'INV-' + Math.floor(100000 + Math.random() * 900000),
+        receiptNumber:
+          data.invoice_number ||
+          data.receipt_number ||
+          data.receiptNumber ||
+          data.invoiceNumber ||
+          'INV-' + Math.floor(100000 + Math.random() * 900000),
+        invoiceNumber:
+          data.invoice_number ||
+          data.receipt_number ||
+          data.receiptNumber ||
+          data.invoiceNumber ||
+          'INV-' + Math.floor(100000 + Math.random() * 900000),
+        date: data.issue_date || data.date || new Date().toISOString().split('T')[0],
+        time: data.time,
+        cashier: data.cashier,
+        subtotal: subTot,
+        vat_amount: vatAmt,
+        vatAmount: vatAmt,
+        total_amount: total,
+        totalAmount: total,
+        line_items: normalizedItems,
+        items: normalizedItems,
+        notes: data.notes,
+        rawText: data.rawText,
+        isPartial: data.isPartial,
+        isFallback: data.isFallback,
+      };
+
+      setScanResult(structuredResult);
+
+      // Failsafe local state persistence: Store scanned invoice items directly to offline queue
+      offlineSyncQueue.enqueueScannedReceipt({
+        supplierName: structuredResult.supplierName,
+        invoiceNumber: structuredResult.invoiceNumber,
+        issueDate: structuredResult.date,
+        totalAmount: structuredResult.totalAmount,
+        items: structuredResult.items,
+        rawPayload: data,
+      });
+
+      setErrorMessage(null);
+      setIsScanning(false);
+      return; // Success!
+    } catch (err: any) {
+      console.warn('[OCR Frontend] Scan failed after retries:', err);
+      const friendlyMessage = formatFriendlyError(err);
+      setErrorMessage(friendlyMessage);
+      setIsScanning(false);
+    }
   };
 
   // Edit item helper

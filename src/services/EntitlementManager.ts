@@ -1,5 +1,5 @@
 import { billingService, CachedEntitlements, SubscriptionTier } from './billingService';
-import { getApiUrl } from '../config/api';
+import { fetchWithRetry } from '../utils/apiClient';
 
 export interface EntitlementCheckResult {
   allowed: boolean;
@@ -149,13 +149,16 @@ class EntitlementManager {
       documentsCreatedThisMonth: newCount,
     });
 
-    // Notify backend
-    fetch(getApiUrl('/api/usage/document-created'), {
+    // Notify backend silently with background retry
+    fetchWithRetry('/api/usage/document-created', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': billingService.getUserId(),
       },
+      timeoutMs: 20000,
+      retries: 2,
+      silent: true,
     }).catch(() => {});
 
     this.notify();

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { debugLogger, DebugLogEntry, LogLevel } from '../utils/debugLogger';
 import { useApp } from '../context/AppContext';
 import { getApiUrl, API_BASE_URL } from '../config/api';
+import { fetchWithRetry } from '../utils/apiClient';
 import {
   Terminal,
   Bug,
@@ -170,10 +171,13 @@ export const DebugModal: React.FC<DebugModalProps> = ({ isOpen, onClose }) => {
 
   const handleTestHealth = async () => {
     setIsTestingHealth(true);
-    setHealthStatus(`Pinging health endpoint at ${getApiUrl('/api/health')}...`);
+    setHealthStatus(`Pinging health endpoint at ${getApiUrl('/api/health')} with auto-wake logic...`);
     try {
       const startTime = performance.now();
-      const res = await fetch(getApiUrl('/api/health'));
+      const res = await fetchWithRetry('/api/health', {
+        timeoutMs: 30000,
+        retries: 2,
+      });
       const duration = Math.round(performance.now() - startTime);
       const data = await res.json();
       setHealthStatus(`200 OK (${duration}ms): ${JSON.stringify(data)}`);
@@ -188,17 +192,20 @@ export const DebugModal: React.FC<DebugModalProps> = ({ isOpen, onClose }) => {
     debugLogger.log({
       level: 'info',
       category: 'TEST_DIAGNOSTIC',
-      message: 'Triggering mock scan request to verify 503 retry interceptor...',
+      message: 'Triggering mock scan request to verify retry & error interceptor...',
     });
 
     try {
-      await fetch(getApiUrl('/api/scan-receipt'), {
+      await fetchWithRetry('/api/scan-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: 'mock_invalid_short_test_payload',
           mimeType: 'image/jpeg',
         }),
+        timeoutMs: 15000,
+        retries: 1,
+        silent: true,
       });
     } catch (err: any) {
       console.warn('Simulated test error completed:', err);

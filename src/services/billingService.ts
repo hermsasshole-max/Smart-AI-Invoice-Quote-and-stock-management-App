@@ -1,4 +1,5 @@
 import { getApiUrl } from '../config/api';
+import { fetchWithRetry } from '../utils/apiClient';
 
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS';
 
@@ -207,33 +208,40 @@ class BillingService {
 
   /**
    * Sync entitlements with backend /api/usage
+   * Gracefully falls back to cached/offline state without blocking or throwing
    */
   public async syncWithServer(): Promise<CachedEntitlements> {
     try {
-      const res = await fetch(getApiUrl(`/api/usage?userId=${encodeURIComponent(this.userId)}`), {
+      const res = await fetchWithRetry(`/api/usage?userId=${encodeURIComponent(this.userId)}`, {
+        method: 'GET',
         headers: {
           'x-user-id': this.userId,
         },
+        timeoutMs: 30000,
+        retries: 2,
+        silent: true,
       });
 
       if (res.ok) {
         const data = await res.json();
-        const updated = this.saveEntitlements({
-          tier: data.tier,
-          status: 'active',
-          lastVerifiedOnline: Date.now(),
-          creditsRemaining: data.aiCredits?.remaining ?? 3,
-          creditsUsed: data.aiCredits?.used ?? 0,
-          totalMonthlyCredits: data.aiCredits?.total ?? 3,
-          documentsCreatedThisMonth: data.documents?.createdThisMonth ?? 0,
-          maxMonthlyDocuments: data.documents?.maxAllowed ?? 5,
-          unlimitedDocuments: data.documents?.unlimited ?? false,
-          unlimitedAi: data.aiCredits?.unlimited ?? false,
-          unlimitedInventory: data.inventory?.unlimited ?? false,
-          customPdfBranding: data.entitlements?.customPdfBranding ?? false,
-          subscriptionExpiresAt: data.subscriptionExpiresAt,
-        });
-        return updated;
+        if (data && typeof data === 'object' && !data.offline) {
+          const updated = this.saveEntitlements({
+            tier: data.tier || 'FREE',
+            status: 'active',
+            lastVerifiedOnline: Date.now(),
+            creditsRemaining: data.aiCredits?.remaining ?? (data.tier === 'BUSINESS' ? 999999 : 3),
+            creditsUsed: data.aiCredits?.used ?? 0,
+            totalMonthlyCredits: data.aiCredits?.total ?? 3,
+            documentsCreatedThisMonth: data.documents?.createdThisMonth ?? 0,
+            maxMonthlyDocuments: data.documents?.maxAllowed ?? 5,
+            unlimitedDocuments: data.documents?.unlimited ?? false,
+            unlimitedAi: data.aiCredits?.unlimited ?? (data.tier === 'BUSINESS'),
+            unlimitedInventory: data.inventory?.unlimited ?? false,
+            customPdfBranding: data.entitlements?.customPdfBranding ?? false,
+            subscriptionExpiresAt: data.subscriptionExpiresAt,
+          });
+          return updated;
+        }
       }
     } catch (err) {
       console.warn('[BillingService] Server unreachable, relying on offline cached entitlements:', err);
@@ -258,7 +266,7 @@ class BillingService {
       }
 
       // 2. Call server verification endpoint to register and activate the entitlement
-      const verifyRes = await fetch(getApiUrl('/api/billing/verify'), {
+      const verifyRes = await fetchWithRetry('/api/billing/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,6 +279,8 @@ class BillingService {
           orderId: 'ORD-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
           purchaseToken: 'tok_' + Math.random().toString(36).substring(2, 18),
         }),
+        timeoutMs: 45000,
+        retries: 3,
       });
 
       if (verifyRes.ok) {
@@ -354,7 +364,7 @@ class BillingService {
 
     // 2. Sync with backend so server-side usage meters & AI calls recognize Developer Access
     try {
-      await fetch(getApiUrl('/api/billing/developer-code'), {
+      await fetchWithRetry('/api/billing/developer-code', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -364,6 +374,9 @@ class BillingService {
           code: 'NismoR34',
           userId: this.userId,
         }),
+        timeoutMs: 30000,
+        retries: 2,
+        silent: true,
       });
     } catch (err) {
       console.warn('[BillingService] Server sync for developer token failed (offline mode active):', err);
@@ -381,8 +394,11 @@ class BillingService {
    */
   public async restorePurchases(): Promise<{ success: boolean; message: string; tier: SubscriptionTier }> {
     try {
-      const res = await fetch(getApiUrl(`/api/usage?userId=${encodeURIComponent(this.userId)}`), {
+      const res = await fetchWithRetry(`/api/usage?userId=${encodeURIComponent(this.userId)}`, {
         headers: { 'x-user-id': this.userId },
+        timeoutMs: 30000,
+        retries: 2,
+        silent: true,
       });
 
       if (res.ok) {

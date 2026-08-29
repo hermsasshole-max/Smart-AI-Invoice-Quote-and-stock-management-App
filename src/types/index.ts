@@ -139,6 +139,7 @@ export interface ScannedLineItem {
   id?: string;
   code_barcode?: string;
   codeBarcode?: string;
+  item_name?: string;
   description: string;
   quantity: number;
   unitCost: number;
@@ -158,15 +159,20 @@ export interface ScannedReceiptData {
   address?: string;
   vat_number?: string;
   vatNumber?: string;
+  invoice_number?: string;
   receipt_number?: string;
   receiptNumber?: string;
   invoiceNumber: string;
+  issue_date?: string;
   date: string;
+  month_key?: string;
+  monthKey?: string;
   time?: string;
   cashier?: string;
   subtotal?: number;
   vat_amount?: number;
   vatAmount?: number;
+  grand_total?: number;
   total_amount?: number;
   totalAmount: number;
   line_items?: ScannedLineItem[];
