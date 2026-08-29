@@ -537,13 +537,13 @@ async function startServer() {
     });
   }
 
-  // Health check API
-  app.get('/api/health', (req, res) => {
+  // Health check API (supporting both /api/health and /health)
+  app.get(['/api/health', '/health'], (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // GET Current User Usage & Entitlements
-  app.get('/api/usage', (req, res) => {
+  // GET Current User Usage & Entitlements (supporting both /api/usage and /usage)
+  app.get(['/api/usage', '/usage'], (req, res) => {
     try {
       const userId = extractUserId(req) || 'anonymous_user';
       const record = usageStore.getUserRecord(userId);
@@ -617,15 +617,15 @@ async function startServer() {
     }
   });
 
-  // POST Increment Document Count (for Free tier document limit enforcement)
-  app.post('/api/usage/document-created', (req, res) => {
+  // POST Increment Document Count
+  app.post(['/api/usage/document-created', '/usage/document-created'], (req, res) => {
     const userId = extractUserId(req);
     const result = usageStore.incrementDocumentCount(userId);
     res.json(result);
   });
 
   // POST Purchase Verification (Google Play / RevenueCat / Web Stripe)
-  app.post('/api/billing/verify', (req, res) => {
+  app.post(['/api/billing/verify', '/billing/verify'], (req, res) => {
     const userId = extractUserId(req);
     const { productId, purchaseToken, orderId, platform } = req.body || {};
 
@@ -705,7 +705,7 @@ async function startServer() {
   });
 
   // POST AI Voice-to-Quote / Structured Job Estimation API
-  app.post('/api/ai/voice-quote', requireAiCredit('voice_to_quote'), async (req, res) => {
+  app.post(['/api/ai/voice-quote', '/ai/voice-quote'], requireAiCredit('voice_to_quote'), async (req, res) => {
     const { transcript, profile } = req.body || {};
     if (!transcript || typeof transcript !== 'string') {
       return res.status(400).json({ error: 'Missing audio transcript or text prompt' });
@@ -749,7 +749,7 @@ async function startServer() {
   const delayMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // Receipt & Supplier Invoice OCR API (Metered by AI Credits)
-  app.post('/api/scan-receipt', requireAiCredit('receipt_ocr'), async (req, res) => {
+  app.post(['/api/scan-receipt', '/scan-receipt'], requireAiCredit('receipt_ocr'), async (req, res) => {
     const startTime = Date.now();
     console.log('[OCR Server] Received receipt scan request at', new Date().toISOString());
 
@@ -843,16 +843,20 @@ async function startServer() {
           vatAmount: 241.30,
           items: [
             {
+              item_name: '2.5mm² Surfix Twin+Earth Cable (100m Roll)',
               description: '2.5mm² Surfix Twin+Earth Cable (100m Roll)',
               quantity: 1,
-              unitCost: 1250.00,
+              unit_price: 1250.00,
+              total_price: 1250.00,
               category: 'Electrical',
               unit: 'roll',
             },
             {
+              item_name: 'Double 16A Veti 1 Wall Sockets (White)',
               description: 'Double 16A Veti 1 Wall Sockets (White)',
               quantity: 4,
-              unitCost: 150.00,
+              unit_price: 150.00,
+              total_price: 600.00,
               category: 'Electrical',
               unit: 'ea',
             },
@@ -864,7 +868,21 @@ async function startServer() {
         if (!fallbackData || typeof fallbackData !== 'object') {
           return res.status(500).json({ error: 'Failed to parse receipt image' });
         }
-        return res.status(200).json(fallbackData);
+        return res.status(200).json({
+          success: true,
+          invoice: {
+            issueDate: fallbackData.issue_date,
+            invoiceNumber: fallbackData.invoice_number,
+            grandTotal: fallbackData.grand_total,
+            items: (fallbackData.items || []).map((it: any) => ({
+              item_name: it.item_name || it.description,
+              quantity: it.quantity,
+              unit_price: it.unit_price ?? it.unitCost,
+              total_price: it.total_price ?? it.total,
+            })),
+          },
+          ...fallbackData,
+        });
       }
 
       const promptText = `You are a robust document data extraction engine. Your job is to extract invoice items and issue dates from scanned invoice images and format them strictly into a standard JSON schema.
@@ -1019,7 +1037,23 @@ Required JSON structure:
             return res.status(500).json({ error: 'Failed to parse receipt image' });
           }
 
-          return res.status(200).json(parsedData);
+          const formattedResponse = {
+            success: true,
+            invoice: {
+              issueDate: parsedData.issue_date,
+              invoiceNumber: parsedData.invoice_number,
+              grandTotal: parsedData.grand_total,
+              items: (parsedData.items || []).map((it: any) => ({
+                item_name: it.item_name || it.description,
+                quantity: it.quantity,
+                unit_price: it.unit_price ?? it.unitCost,
+                total_price: it.total_price ?? it.total,
+              })),
+            },
+            ...parsedData,
+          };
+
+          return res.status(200).json(formattedResponse);
         } catch (parseErr: any) {
           console.error('[OCR Server] Error parsing model response JSON:', parseErr);
           return res.status(500).json({ error: 'Failed to parse receipt image' });
@@ -1054,7 +1088,7 @@ Required JSON structure:
    * Receipt Scan Database Ingestion & Parameterized Validation Endpoint
    * Safeguards against SQL type mismatches, non-numeric values, invalid dates, and unescaped JSON.
    */
-  app.post('/api/receipt-scans', async (req, res) => {
+  app.post(['/api/receipt-scans', '/receipt-scans'], async (req, res) => {
     try {
       const payload = req.body || {};
 

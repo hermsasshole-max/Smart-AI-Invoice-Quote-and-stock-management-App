@@ -451,18 +451,20 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
       // Normalize items with markup
       const defaultMarkup = profile.defaultMarkup || 35;
-      const rawItemsList = data.items || data.line_items || [];
+      const rawInvoice = (data as any).invoice || {};
+      const rawItemsList = rawInvoice.items || data.items || data.line_items || [];
       const normalizedItems: ScannedLineItem[] = rawItemsList.map((item: any, idx: number) => {
-        const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? 0));
+        const cost = Math.max(0, Number(item.unit_price ?? item.unitCost ?? item.unitPrice ?? item.cost ?? item.price ?? 0));
         const qty = Math.max(1, Number(item.quantity) || 1);
         const lineTotal = Number(item.total_price ?? item.total ?? item.totalPrice ?? (qty * cost).toFixed(2));
         const barcode = item.code_barcode || item.codeBarcode || '';
-        const desc = item.item_name || item.description || 'Materials Item';
+        const desc = item.item_name || item.description || item.name || 'Materials Item';
 
         return {
           id: 'scan_item_' + idx + '_' + Date.now(),
           code_barcode: barcode,
           codeBarcode: barcode,
+          item_name: desc,
           description: desc,
           quantity: qty,
           unitCost: cost,
@@ -478,7 +480,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       });
 
       // Calculate total amount if 0
-      let total = Number(data.grand_total ?? data.total_amount ?? data.totalAmount) || 0;
+      let total = Number(rawInvoice.grandTotal ?? rawInvoice.grand_total ?? data.grand_total ?? data.total_amount ?? data.totalAmount) || 0;
       if (total <= 0 && normalizedItems.length > 0) {
         total = normalizedItems.reduce((acc, it) => acc + it.quantity * it.unitCost, 0);
       }
@@ -487,30 +489,36 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       const subTot = Number(data.subtotal) || Number((total / 1.15).toFixed(2));
 
       const structuredResult: ScannedReceiptData = {
-        supplier_name: data.supplier_name || data.supplierName || 'Supplier Slip',
-        supplierName: data.supplier_name || data.supplierName || 'Supplier Slip',
+        supplier_name: data.supplier_name || data.supplierName || rawInvoice.supplierName || 'Supplier Slip',
+        supplierName: data.supplier_name || data.supplierName || rawInvoice.supplierName || 'Supplier Slip',
         address: data.address,
         vat_number: data.vat_number || data.vatNumber,
         vatNumber: data.vat_number || data.vatNumber,
         receipt_number:
+          rawInvoice.invoiceNumber ||
+          rawInvoice.invoice_number ||
           data.invoice_number ||
           data.receipt_number ||
           data.receiptNumber ||
           data.invoiceNumber ||
           'INV-' + Math.floor(100000 + Math.random() * 900000),
         receiptNumber:
+          rawInvoice.invoiceNumber ||
+          rawInvoice.invoice_number ||
           data.invoice_number ||
           data.receipt_number ||
           data.receiptNumber ||
           data.invoiceNumber ||
           'INV-' + Math.floor(100000 + Math.random() * 900000),
         invoiceNumber:
+          rawInvoice.invoiceNumber ||
+          rawInvoice.invoice_number ||
           data.invoice_number ||
           data.receipt_number ||
           data.receiptNumber ||
           data.invoiceNumber ||
           'INV-' + Math.floor(100000 + Math.random() * 900000),
-        date: data.issue_date || data.date || new Date().toISOString().split('T')[0],
+        date: rawInvoice.issueDate || rawInvoice.issue_date || data.issue_date || data.date || new Date().toISOString().split('T')[0],
         time: data.time,
         cashier: data.cashier,
         subtotal: subTot,
