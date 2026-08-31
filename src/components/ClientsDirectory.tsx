@@ -13,14 +13,19 @@ import {
   Search,
   X,
   Check,
+  Smartphone,
+  Globe,
+  UploadCloud,
 } from 'lucide-react';
 import { VoiceDictationButton } from './VoiceDictationButton';
+import { ContactImportModal } from './ContactImportModal';
 
 export const ClientsDirectory: React.FC = () => {
-  const { clients, addClient, updateClient, deleteClient, sunlightMode } = useApp();
+  const { clients, addClient, addBulkClients, updateClient, deleteClient, sunlightMode } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
@@ -28,6 +33,17 @@ export const ClientsDirectory: React.FC = () => {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+
+  const showNotice = (msg: string) => {
+    setFeedbackNotice(msg);
+    setTimeout(() => setFeedbackNotice(null), 3500);
+  };
+
+  const handleImportContacts = (newClientsData: Omit<Client, 'id'>[]) => {
+    const importedCount = addBulkClients(newClientsData);
+    showNotice(`Successfully imported ${importedCount} client(s) into your directory!`);
+  };
 
   const filteredClients = clients.filter(
     (c) =>
@@ -98,13 +114,24 @@ export const ClientsDirectory: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={openAdd}
-          className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New Client</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="px-3.5 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-sky-400 border border-sky-500/30 font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-sm cursor-pointer active:scale-95 transition-all"
+            title="Import from Google Contacts or Android phone address book"
+          >
+            <Globe className="w-4 h-4 text-sky-400" />
+            <span>Import Contacts</span>
+          </button>
+
+          <button
+            onClick={openAdd}
+            className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Client</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Input */}
@@ -298,6 +325,22 @@ export const ClientsDirectory: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Feedback Notice */}
+      {feedbackNotice && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-xl border border-emerald-400 animate-in fade-in slide-in-from-bottom-2 flex items-center space-x-2">
+          <Check className="w-4 h-4" />
+          <span>{feedbackNotice}</span>
+        </div>
+      )}
+
+      {/* Google Contacts & Android Phonebook Import Modal */}
+      <ContactImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportContacts}
+        existingClients={clients}
+      />
     </div>
   );
 };

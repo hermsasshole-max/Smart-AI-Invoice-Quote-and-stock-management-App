@@ -81,6 +81,15 @@ export interface Quotation {
   terms?: string;
 }
 
+export interface InvoicePayment {
+  id: string;
+  date: string;
+  amount: number;
+  method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
+  reference?: string;
+  notes?: string;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -126,13 +135,7 @@ export interface Invoice {
   status: InvoiceStatus;
   notes?: string;
   terms?: string;
-  payments?: {
-    id: string;
-    date: string;
-    amount: number;
-    method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
-    reference?: string;
-  }[];
+  payments?: InvoicePayment[];
 }
 
 export interface ScannedLineItem {

@@ -380,15 +380,25 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     ((data as Invoice).amountPaid > 0 || (data as Invoice).depositAmountPaid) && (
                       <div className="pt-2.5 border-t border-slate-200 text-xs space-y-1.5">
                         <div className="flex justify-between text-emerald-600 font-bold">
-                          <span>Deposit / Paid to Date:</span>
+                          <span>Total Paid to Date:</span>
                           <span>-{formatZAR((data as Invoice).amountPaid || (data as Invoice).depositAmountPaid || 0)}</span>
                         </div>
-                        {(data as Invoice).depositPaidDate && (
+                        {(data as Invoice).payments && (data as Invoice).payments!.length > 0 ? (
+                          <div className="bg-emerald-50/70 border border-emerald-200 rounded p-2 text-[10px] space-y-1">
+                            <div className="font-bold text-emerald-800 uppercase font-mono text-[9px]">Payments Logged:</div>
+                            {(data as Invoice).payments!.map((pmt, pIdx) => (
+                              <div key={pIdx} className="flex justify-between text-slate-700 font-mono">
+                                <span>{pmt.date} • {pmt.method} {pmt.reference ? `(${pmt.reference})` : ''}</span>
+                                <span className="font-bold text-emerald-700">{formatZAR(pmt.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (data as Invoice).depositPaidDate ? (
                           <div className="text-[10px] text-slate-500 font-sans">
                             Paid via {(data as Invoice).depositPaymentMethod || 'EFT'} on {(data as Invoice).depositPaidDate}
                             {(data as Invoice).depositReference ? ` (Ref: ${(data as Invoice).depositReference})` : ''}
                           </div>
-                        )}
+                        ) : null}
                         <div className="flex justify-between text-sm font-black text-red-600 bg-red-50 p-2 rounded border border-red-200">
                           <span>REMAINING BALANCE DUE:</span>
                           <span>{formatZAR(Math.max(0, data.totalAmount - ((data as Invoice).amountPaid || (data as Invoice).depositAmountPaid || 0)))}</span>

@@ -225,8 +225,21 @@ export function generateWhatsAppQuoteSummary(
     const inv = data as Invoice;
     const paid = inv.amountPaid || inv.depositAmountPaid || 0;
     if (paid > 0) {
-      msg += `✅ *Deposit / Paid to Date:* ${formatZAR(paid)} ${inv.depositPaidDate ? `(${inv.depositPaidDate})` : ''}\n`;
-      msg += `🚨 *Remaining Balance Due: ${formatZAR(Math.max(0, inv.totalAmount - paid))}*\n`;
+      msg += `✅ *Total Paid to Date:* ${formatZAR(paid)}\n`;
+      if (inv.payments && inv.payments.length > 0) {
+        msg += `*Payment Breakdown:*\n`;
+        inv.payments.forEach((p, idx) => {
+          msg += `  ${idx + 1}. ${formatZAR(p.amount)} on ${p.date} (${p.method}${p.reference ? ` - Ref: ${p.reference}` : ''})\n`;
+        });
+      } else if (inv.depositPaidDate) {
+        msg += `  • Upfront Deposit: ${formatZAR(inv.depositAmountPaid || paid)} on ${inv.depositPaidDate}\n`;
+      }
+      const balance = Math.max(0, inv.totalAmount - paid);
+      if (balance > 0) {
+        msg += `🚨 *Outstanding Balance Due: ${formatZAR(balance)}*\n`;
+      } else {
+        msg += `🎉 *Status: PAID IN FULL*\n`;
+      }
     }
   }
 

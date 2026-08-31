@@ -50,6 +50,7 @@ export const InvoicingPipeline: React.FC = () => {
     updateInvoice,
     deleteInvoice,
     recordPayment,
+    deleteInvoicePayment,
     revertInvoicePayment,
     clients,
     inventory,
@@ -64,6 +65,8 @@ export const InvoicingPipeline: React.FC = () => {
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
   const [payReference, setPayReference] = useState('');
+  const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [payNotes, setPayNotes] = useState('');
   const [openExportMenuId, setOpenExportMenuId] = useState<string | null>(null);
 
   // Invoice Form (Create & Edit) State
@@ -411,11 +414,20 @@ export const InvoicingPipeline: React.FC = () => {
     setPayAmount(balance > 0 ? balance : 0);
     setPayMethod('EFT');
     setPayReference(`PAY-${Date.now().toString().slice(-4)}`);
+    setPayDate(new Date().toISOString().split('T')[0]);
+    setPayNotes('');
   };
 
   const handleRecordPayment = () => {
     if (!paymentModalInvoice || payAmount <= 0) return;
-    recordPayment(paymentModalInvoice.id, payAmount, payMethod, payReference);
+    recordPayment(
+      paymentModalInvoice.id,
+      payAmount,
+      payMethod,
+      payReference,
+      payDate,
+      payNotes
+    );
     setPaymentModalInvoice(null);
   };
 
@@ -1373,10 +1385,14 @@ export const InvoicingPipeline: React.FC = () => {
                   ) : (
                     <button
                       onClick={() => handleOpenPayment(inv)}
-                      className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+                      className={`px-3 py-2 rounded-xl text-white text-xs font-bold flex items-center space-x-1.5 shadow-md cursor-pointer active:scale-95 transition-all ${
+                        inv.amountPaid > 0
+                          ? 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-600/20'
+                          : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20'
+                      }`}
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Settle Balance</span>
+                      <span>{inv.amountPaid > 0 ? 'Add Payment' : 'Record Payment'}</span>
                     </button>
                   )}
 
@@ -1532,10 +1548,10 @@ export const InvoicingPipeline: React.FC = () => {
       {/* Record Payment Modal */}
       {paymentModalInvoice && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+          <div className="relative w-full max-w-lg bg-[#1B1E28] border border-[#334155] rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div className="flex justify-between items-center pb-3 border-b border-[#282E3E]">
               <div>
-                <h3 className="font-bold text-white text-base">Record Payment Settlement</h3>
+                <h3 className="font-bold text-white text-base">Record Payment / Partial Settlement</h3>
                 <p className="text-xs text-slate-400 font-mono">{paymentModalInvoice.invoiceNumber} • {paymentModalInvoice.clientName}</p>
               </div>
               <button
@@ -1566,13 +1582,90 @@ export const InvoicingPipeline: React.FC = () => {
               )}
               <div className="flex justify-between items-center pt-1.5 border-t border-[#282E3E] text-amber-300 font-black">
                 <span>Remaining Balance Due:</span>
-                <span className="text-sm">{formatZAR(Math.max(0, paymentModalInvoice.totalAmount - (paymentModalInvoice.amountPaid || 0)))}</span>
+                <span className="text-sm">
+                  {formatZAR(Math.max(0, paymentModalInvoice.totalAmount - (paymentModalInvoice.amountPaid || 0)))}
+                </span>
               </div>
             </div>
 
+            {/* Previous Payments History */}
+            {paymentModalInvoice.payments && paymentModalInvoice.payments.length > 0 && (
+              <div className="p-3 rounded-xl bg-[#141722] border border-[#282E3E] space-y-2">
+                <div className="text-[11px] font-bold text-slate-300 uppercase font-mono flex items-center justify-between">
+                  <span>Payment History ({paymentModalInvoice.payments.length})</span>
+                  <span className="text-emerald-400 font-bold">{formatZAR(paymentModalInvoice.amountPaid)} Total Paid</span>
+                </div>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                  {paymentModalInvoice.payments.map((pmt, pIdx) => (
+                    <div
+                      key={pmt.id || pIdx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-[#1B1E28] border border-[#282E3E] text-xs font-mono"
+                    >
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center space-x-1.5 text-white font-bold truncate">
+                          <span>{formatZAR(pmt.amount)}</span>
+                          <span className="text-[10px] font-normal text-slate-400">• {pmt.method}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate">
+                          📅 {pmt.date} {pmt.reference ? `• Ref: ${pmt.reference}` : ''} {pmt.notes ? `• ${pmt.notes}` : ''}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteInvoicePayment(paymentModalInvoice.id, pmt.id)}
+                        className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer transition-colors"
+                        title="Remove this payment entry"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Amount Selection Buttons */}
+            {(() => {
+              const currentBalance = Math.max(0, paymentModalInvoice.totalAmount - (paymentModalInvoice.amountPaid || 0));
+              return (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase font-mono text-slate-400 font-bold">Quick Amount Presets:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(Number(currentBalance.toFixed(2)))}
+                      className="px-2.5 py-1 rounded-lg bg-[#282E3E] hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 text-xs font-mono font-bold transition-colors cursor-pointer"
+                    >
+                      Full Balance ({formatZAR(currentBalance)})
+                    </button>
+                    {currentBalance > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setPayAmount(Number((currentBalance / 2).toFixed(2)))}
+                          className="px-2.5 py-1 rounded-lg bg-[#282E3E] hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 text-xs font-mono font-bold transition-colors cursor-pointer"
+                        >
+                          50% ({formatZAR(currentBalance / 2)})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPayAmount(Number((currentBalance / 3).toFixed(2)))}
+                          className="px-2.5 py-1 rounded-lg bg-[#282E3E] hover:bg-teal-600/30 text-teal-400 border border-teal-500/30 text-xs font-mono font-bold transition-colors cursor-pointer"
+                        >
+                          1/3 Partial ({formatZAR(currentBalance / 3)})
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Amount (ZAR)</label>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">
+                  Amount to Record (ZAR)
+                </label>
                 <input
                   type="number"
                   value={payAmount}
@@ -1581,18 +1674,30 @@ export const InvoicingPipeline: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Method</label>
-                <select
-                  value={payMethod}
-                  onChange={(e) => setPayMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white focus:outline-none focus:border-sky-500"
-                >
-                  <option value="EFT">Electronic Funds Transfer (EFT)</option>
-                  <option value="Instant EFT">Instant EFT / Ozow / PayFast</option>
-                  <option value="Cash">Cash on Hand</option>
-                  <option value="Card">Card Machine (Yoco / Speedpoint)</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Method</label>
+                  <select
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="EFT">Electronic Funds Transfer (EFT)</option>
+                    <option value="Instant EFT">Instant EFT / Ozow / PayFast</option>
+                    <option value="Cash">Cash on Hand</option>
+                    <option value="Card">Card Machine (Yoco / Speedpoint)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Date</label>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono focus:outline-none focus:border-sky-500"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1601,8 +1706,19 @@ export const InvoicingPipeline: React.FC = () => {
                   type="text"
                   value={payReference}
                   onChange={(e) => setPayReference(e.target.value)}
-                  placeholder="e.g. TYME-REF-9921"
+                  placeholder="e.g. TYME-REF-9921 or EFT-INSTALLMENT-1"
                   className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Payment Notes (Optional)</label>
+                <input
+                  type="text"
+                  value={payNotes}
+                  onChange={(e) => setPayNotes(e.target.value)}
+                  placeholder="e.g. 1st installment paid after rough-in cabling"
+                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
             </div>
@@ -1616,9 +1732,14 @@ export const InvoicingPipeline: React.FC = () => {
               </button>
               <button
                 onClick={handleRecordPayment}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95 flex items-center space-x-1.5"
               >
-                Confirm Settlement
+                <Check className="w-4 h-4" />
+                <span>
+                  {payAmount >= (paymentModalInvoice.totalAmount - (paymentModalInvoice.amountPaid || 0))
+                    ? 'Settle in Full'
+                    : 'Record Partial Payment'}
+                </span>
               </button>
             </div>
           </div>

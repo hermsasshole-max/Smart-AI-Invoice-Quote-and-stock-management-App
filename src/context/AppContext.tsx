@@ -50,7 +50,16 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id'>, deductStockItems?: boolean) => Invoice;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
-  recordPayment: (invoiceId: string, amount: number, method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT', reference?: string) => void;
+  recordPayment: (
+    invoiceId: string,
+    amount: number,
+    method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT',
+    reference?: string,
+    date?: string,
+    notes?: string
+  ) => void;
+  deleteInvoicePayment: (invoiceId: string, paymentId: string) => void;
+  addBulkClients: (newClients: Omit<Client, 'id'>[]) => number;
   revertInvoicePayment: (
     invoiceId: string,
     options?: {
@@ -220,6 +229,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return next;
     });
+  };
+
+  const addBulkClients = (newClientsData: Omit<Client, 'id'>[]): number => {
+    if (!newClientsData.length) return 0;
+    
+    // De-duplicate by phone number and name
+    const existingPhones = new Set(clients.map(c => c.phone.replace(/[^0-9]/g, '')));
+    const existingNames = new Set(clients.map(c => c.name.trim().toLowerCase()));
+
+    const clientsToAdd: Client[] = [];
+    newClientsData.forEach((item, idx) => {
+      const cleanPhone = (item.phone || '').replace(/[^0-9]/g, '');
+      const cleanName = (item.name || '').trim().toLowerCase();
+
+      // Avoid duplicates if phone or exact name exists
+      if (cleanPhone && existingPhones.has(cleanPhone)) return;
+      if (cleanName && existingNames.has(cleanName)) return;
+
+      if (cleanPhone) existingPhones.add(cleanPhone);
+      if (cleanName) existingNames.add(cleanName);
+
+      clientsToAdd.push({
+        ...item,
+        id: 'c_' + (Date.now() + idx) + '_' + Math.random().toString(36).substring(2, 6),
+        totalBilled: 0,
+      });
+    });
+
+    if (clientsToAdd.length > 0) {
+      setClients((prev) => [...clientsToAdd, ...prev]);
+      debugLogger.log({
+        level: 'state',
+        category: 'STATE_CLIENT_ADD_BULK',
+        message: `Imported ${clientsToAdd.length} new client(s) into directory`,
+        data: { count: clientsToAdd.length },
+      });
+    }
+
+    return clientsToAdd.length;
   };
 
   const addClient = (clientData: Omit<Client, 'id'>): Client => {
@@ -558,25 +606,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     invoiceId: string,
     amount: number,
     method: 'EFT' | 'Cash' | 'Card' | 'Instant EFT',
-    reference?: string
+    reference?: string,
+    date?: string,
+    notes?: string
   ) => {
     setInvoices((prev) =>
       prev.map((inv) => {
         if (inv.id !== invoiceId) return inv;
-        const newPaid = Number((inv.amountPaid + amount).toFixed(2));
-        const newStatus = newPaid >= inv.totalAmount ? 'paid' : 'partially_paid';
+        const newPaid = Number(((inv.amountPaid || 0) + amount).toFixed(2));
+        const newStatus: InvoiceStatus = newPaid >= inv.totalAmount && inv.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'issued';
         const newPayment = {
-          id: 'pay_' + Date.now(),
-          date: new Date().toISOString().split('T')[0],
+          id: 'pay_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          date: date || new Date().toISOString().split('T')[0],
           amount,
           method,
           reference: reference || `REF-${Date.now().toString().slice(-4)}`,
+          notes: notes || undefined,
         };
+
+        debugLogger.log({
+          level: 'state',
+          category: 'STATE_INVOICE_PARTIAL_PAYMENT',
+          message: `Recorded payment of R${amount} on ${inv.invoiceNumber} (Total paid: R${newPaid}/${inv.totalAmount}, Status: ${newStatus})`,
+          data: { invoiceId, payment: newPayment, newPaid, newStatus },
+        });
+
         return {
           ...inv,
           amountPaid: newPaid,
           status: newStatus,
           payments: [...(inv.payments || []), newPayment],
+        };
+      })
+    );
+  };
+
+  const deleteInvoicePayment = (invoiceId: string, paymentId: string) => {
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.id !== invoiceId) return inv;
+        const updatedPayments = (inv.payments || []).filter((p) => p.id !== paymentId);
+        const newPaid = Number(updatedPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2));
+        const newStatus: InvoiceStatus = newPaid >= inv.totalAmount && inv.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'issued';
+
+        debugLogger.log({
+          level: 'state',
+          category: 'STATE_INVOICE_PAYMENT_DELETED',
+          message: `Deleted payment ${paymentId} from ${inv.invoiceNumber}. New total paid: R${newPaid}`,
+          data: { invoiceId, paymentId, newPaid, newStatus },
+        });
+
+        return {
+          ...inv,
+          amountPaid: newPaid,
+          status: newStatus,
+          payments: updatedPayments,
         };
       })
     );
@@ -696,6 +780,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateInvoice,
         deleteInvoice,
         recordPayment,
+        deleteInvoicePayment,
+        addBulkClients,
         revertInvoicePayment,
         sunlightMode,
         toggleSunlightMode,
