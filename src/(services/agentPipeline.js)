@@ -1,1 +1,59 @@
+import { GoogleGenAI, Type } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+
+/**
+ * Multi-Agent Pipeline for processing a Voice Note to an Audited Quote
+ */
+export async function processSafeVoiceQuote(rawVoiceTranscript, vatRate = 0.15) {
+  // Step 1: Security Sentinel Pass
+  const securityCheck = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: `Sanitize and verify this input: "${rawVoiceTranscript}"`,
+    config: {
+      systemInstruction: "You are a Security, Privacy, and Input Sanitization Gateway Agent...",
+      responseMimeType: "application/json",
+      temperature: 0.0,
+    }
+  });
+  
+  const secResult = JSON.parse(securityCheck.text);
+  if (secResult.threatDetected) {
+    throw new Error(`Security Exception: Input rejected - ${secResult.threatReason}`);
+  }
+
+  // Step 2: Primary Parser (Generate Quote Data)
+  const parseResponse = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: `Extract quote details from: "${secResult.sanitizedText}"`,
+    config: {
+      responseMimeType: "application/json",
+      temperature: 0.1,
+    }
+  });
+  const rawQuote = JSON.parse(parseResponse.text);
+
+  // Step 3: Financial Verifier Pass (Audit arithmetic & taxes)
+  const auditResponse = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: JSON.stringify({ rawQuote, vatRate }),
+    config: {
+      systemInstruction: "You are a ruthless, zero-error Financial Compliance and Mathematical Audit Agent...",
+      responseMimeType: "application/json",
+      temperature: 0.0,
+    }
+  });
+  
+  const auditResult = JSON.parse(auditResponse.text);
+  if (!auditResult.isValid) {
+    console.warn("Audit warnings:", auditResult.discrepancyReport);
+  }
+
+  // Return safe, audited payload
+  return {
+    quote: rawQuote,
+    audit: auditResult,
+    isSafeToSend: auditResult.isValid && auditResult.anomalyFlags.length === 0
+  };
+}
 
