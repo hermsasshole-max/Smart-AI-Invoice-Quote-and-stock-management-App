@@ -1,31 +1,51 @@
-import os
-from google import genai
+package com.example;
 
-client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY"),
-)
+import com.google.common.collect.ImmutableList;
+import com.google.genai.Client;
+import com.google.genai.interactions.models.interactions.CreateModelInteractionParams;
+import com.google.genai.interactions.models.interactions.Content;
+import com.google.genai.interactions.models.interactions.Input;
+import com.google.genai.interactions.models.interactions.Interaction;
+import com.google.genai.interactions.models.interactions.Step;
+import com.google.genai.interactions.models.interactions.TextContent;
+import com.google.genai.interactions.models.interactions.ImageContent;
+import com.google.genai.interactions.models.interactions.AudioContent;
+import com.google.genai.interactions.models.interactions.Tool;
+import com.google.genai.interactions.models.interactions.Function;
+import com.google.genai.interactions.models.interactions.GenerationConfig;
+import com.google.genai.interactions.models.interactions.GoogleSearch;
+import com.google.genai.interactions.core.JsonValue;
+import com.google.genai.JsonSerializable;
 
-tools = [
-    {
-        'type': 'google_search',
-    },
-]
+public class  {
+    public static void main(String[] args) {
+        String apiKey = System.getenv("GEMINI_API_KEY");
+        Client client = Client.builder().apiKey(apiKey).build();
 
-generation_config = {
-    'temperature': 1,
-    'max_output_tokens': 65536,
-    'top_p': 0.95,
-    'thinking_level': 'high',
+        CreateModelInteractionParams.Builder paramsBuilder =
+            CreateModelInteractionParams.builder()
+                .model("models/gemini-3-flash-preview");
+
+        paramsBuilder = paramsBuilder.input("INSERT_INPUT_HERE");
+        paramsBuilder = paramsBuilder.generationConfig(GenerationConfig.builder()
+            .temperature(1f)
+            .maxOutputTokens(65536)
+            .topP(0.95f)
+            .build());
+        CreateModelInteractionParams params = paramsBuilder.build();
+
+        Interaction interaction = client.interactions.create(params);
+
+        for (Step step : interaction.steps()) {
+            if (step.isModelOutput()) {
+                step.asModelOutput().content().ifPresent(contents -> {
+                    for (Content output : contents) {
+                        output.text().ifPresent(text -> System.out.println(text.text()));
+                    }
+                });
+            }
+        }
+    }
 }
 
-interaction = client.interactions.create(
-    model='models/gemini-3-flash-preview',
-    input="""INSERT_INPUT_HERE""",
-    tools=tools,
-    generation_config=generation_config,
-)
 
-print(interaction.steps[-1])
-
-
-  
