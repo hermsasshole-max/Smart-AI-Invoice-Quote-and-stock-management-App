@@ -17,6 +17,12 @@ import {
 import { debugLogger } from '../utils/debugLogger';
 import { billingService, CachedEntitlements, SubscriptionTier } from '../services/billingService';
 import { entitlementManager } from '../services/EntitlementManager';
+import {
+  calculateNextInvoiceNumber,
+  calculateNextQuoteNumber,
+  parseDocNumber,
+  formatDocNumber,
+} from '../utils/numbering';
 
 interface AppContextType {
   profile: BusinessProfile;
@@ -68,6 +74,14 @@ interface AppContextType {
       newStatus?: InvoiceStatus;
     }
   ) => Invoice | null;
+  // Document Sequence & Numbering Controls
+  getNextQuoteNumber: () => string;
+  getNextInvoiceNumber: () => string;
+  setNextQuoteNumber: (num: string) => void;
+  setNextInvoiceNumber: (num: string) => void;
+  syncSequenceFromDocument: (docNumber: string, docType: 'invoice' | 'quote') => void;
+  updateQuoteNumber: (quoteId: string, newQuoteNumber: string) => void;
+  updateInvoiceNumber: (invoiceId: string, newInvoiceNumber: string) => void;
   sunlightMode: boolean;
   toggleSunlightMode: () => void;
   resetToSampleData: () => void;
@@ -185,6 +199,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return profile.sunlightMode || false;
   });
 
+  const [customNextQuoteNumber, setCustomNextQuoteNumber] = useState<string>(() => {
+    return localStorage.getItem('harrys_next_quote_number') || profile.nextQuoteNumber || '';
+  });
+
+  const [customNextInvoiceNumber, setCustomNextInvoiceNumber] = useState<string>(() => {
+    return localStorage.getItem('harrys_next_invoice_number') || profile.nextInvoiceNumber || '';
+  });
+
   useEffect(() => {
     localStorage.setItem('harrys_profile', JSON.stringify(profile));
   }, [profile]);
@@ -204,6 +226,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('harrys_invoices', JSON.stringify(invoices));
   }, [invoices]);
+
+  const getNextQuoteNumber = useCallback((): string => {
+    return calculateNextQuoteNumber(quotes, customNextQuoteNumber, invoices);
+  }, [quotes, customNextQuoteNumber, invoices]);
+
+  const getNextInvoiceNumber = useCallback((): string => {
+    return calculateNextInvoiceNumber(invoices, customNextInvoiceNumber, quotes);
+  }, [invoices, customNextInvoiceNumber, quotes]);
+
+  const setNextQuoteNumber = useCallback((num: string) => {
+    const clean = num.trim();
+    setCustomNextQuoteNumber(clean);
+    if (clean) {
+      localStorage.setItem('harrys_next_quote_number', clean);
+    } else {
+      localStorage.removeItem('harrys_next_quote_number');
+    }
+  }, []);
+
+  const setNextInvoiceNumber = useCallback((num: string) => {
+    const clean = num.trim();
+    setCustomNextInvoiceNumber(clean);
+    if (clean) {
+      localStorage.setItem('harrys_next_invoice_number', clean);
+    } else {
+      localStorage.removeItem('harrys_next_invoice_number');
+    }
+  }, []);
+
+  const syncSequenceFromDocument = useCallback(
+    (docNumber: string, docType: 'invoice' | 'quote') => {
+      if (!docNumber || !docNumber.trim()) return;
+      const parsed = parseDocNumber(docNumber);
+      const nextNum = parsed.number + 1;
+      const currentYear = new Date().getFullYear();
+
+      if (docType === 'invoice') {
+        const nextInv = formatDocNumber(parsed.prefix || `INV-${currentYear}-`, nextNum, parsed.padLength || 4);
+        setCustomNextInvoiceNumber(nextInv);
+        localStorage.setItem('harrys_next_invoice_number', nextInv);
+
+        // Advance next quote number so quotations seamlessly follow edited number sequence
+        const quotePrefix = profile.quotePrefix || `Q-${currentYear}-`;
+        const nextQ = formatDocNumber(quotePrefix, nextNum, parsed.padLength || 4);
+        setCustomNextQuoteNumber(nextQ);
+        localStorage.setItem('harrys_next_quote_number', nextQ);
+
+        debugLogger.log({
+          level: 'state',
+          category: 'DOCUMENT_SEQUENCE_ADVANCED',
+          message: `Invoice sequence advanced from "${docNumber}" -> Next Invoice: "${nextInv}", Next Quote: "${nextQ}"`,
+          data: { lastDocNumber: docNumber, nextInvoice: nextInv, nextQuote: nextQ },
+        });
+      } else {
+        const nextQ = formatDocNumber(parsed.prefix || `Q-${currentYear}-`, nextNum, parsed.padLength || 4);
+        setCustomNextQuoteNumber(nextQ);
+        localStorage.setItem('harrys_next_quote_number', nextQ);
+
+        // Advance next invoice number so invoices seamlessly follow edited quote sequence
+        const invPrefix = profile.invoicePrefix || `INV-${currentYear}-`;
+        const nextInv = formatDocNumber(invPrefix, nextNum, parsed.padLength || 4);
+        setCustomNextInvoiceNumber(nextInv);
+        localStorage.setItem('harrys_next_invoice_number', nextInv);
+
+        debugLogger.log({
+          level: 'state',
+          category: 'DOCUMENT_SEQUENCE_ADVANCED',
+          message: `Quote sequence advanced from "${docNumber}" -> Next Quote: "${nextQ}", Next Invoice: "${nextInv}"`,
+          data: { lastDocNumber: docNumber, nextQuote: nextQ, nextInvoice: nextInv },
+        });
+      }
+    },
+    [profile.quotePrefix, profile.invoicePrefix]
+  );
+
+  const updateQuoteNumber = useCallback(
+    (quoteId: string, newQuoteNumber: string) => {
+      const trimmed = newQuoteNumber.trim();
+      if (!trimmed) return;
+      setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, quoteNumber: trimmed } : q)));
+      syncSequenceFromDocument(trimmed, 'quote');
+      debugLogger.log({
+        level: 'state',
+        category: 'QUOTE_NUMBER_CHANGED',
+        message: `Quote ${quoteId} number updated to ${trimmed}`,
+        data: { quoteId, newQuoteNumber: trimmed },
+      });
+    },
+    [syncSequenceFromDocument]
+  );
+
+  const updateInvoiceNumber = useCallback(
+    (invoiceId: string, newInvoiceNumber: string) => {
+      const trimmed = newInvoiceNumber.trim();
+      if (!trimmed) return;
+      setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, invoiceNumber: trimmed } : inv)));
+      syncSequenceFromDocument(trimmed, 'invoice');
+      debugLogger.log({
+        level: 'state',
+        category: 'INVOICE_NUMBER_CHANGED',
+        message: `Invoice ${invoiceId} number updated to ${trimmed}`,
+        data: { invoiceId, newInvoiceNumber: trimmed },
+      });
+    },
+    [syncSequenceFromDocument]
+  );
 
   const updateProfile = (updates: Partial<BusinessProfile>) => {
     setProfile((prev) => {
@@ -363,11 +491,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addQuote = (quoteData: Omit<Quotation, 'id'>): Quotation => {
+    const finalQuoteNumber = (quoteData.quoteNumber || '').trim() || getNextQuoteNumber();
     const newQuote: Quotation = {
       ...quoteData,
+      quoteNumber: finalQuoteNumber,
       id: 'q_' + Date.now(),
     };
     setQuotes((prev) => [newQuote, ...prev]);
+    syncSequenceFromDocument(finalQuoteNumber, 'quote');
     entitlementManager.recordDocumentCreated();
     debugLogger.log({
       level: 'state',
@@ -385,6 +516,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateQuote = (id: string, updates: Partial<Quotation>) => {
     setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
+    if (updates.quoteNumber && updates.quoteNumber.trim()) {
+      syncSequenceFromDocument(updates.quoteNumber.trim(), 'quote');
+    }
     debugLogger.log({
       level: 'state',
       category: 'STATE_QUOTE_UPDATED',
@@ -398,11 +532,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addInvoice = (invoiceData: Omit<Invoice, 'id'>, deductStockItems: boolean = false): Invoice => {
+    const finalInvoiceNumber = (invoiceData.invoiceNumber || '').trim() || getNextInvoiceNumber();
     const newInvoice: Invoice = {
       ...invoiceData,
+      invoiceNumber: finalInvoiceNumber,
       id: 'inv_' + Date.now(),
     };
     setInvoices((prev) => [newInvoice, ...prev]);
+    syncSequenceFromDocument(finalInvoiceNumber, 'invoice');
     entitlementManager.recordDocumentCreated();
     debugLogger.log({
       level: 'state',
@@ -429,6 +566,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
     setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv)));
+    if (updates.invoiceNumber && updates.invoiceNumber.trim()) {
+      syncSequenceFromDocument(updates.invoiceNumber.trim(), 'invoice');
+    }
   };
 
   const deleteInvoice = (id: string) => {
@@ -439,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const quote = quotes.find((q) => q.id === quoteId);
     if (!quote) return null;
 
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
+    const invoiceNumber = getNextInvoiceNumber();
     const today = new Date().toISOString().split('T')[0];
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -502,6 +642,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
+    syncSequenceFromDocument(invoiceNumber, 'invoice');
     updateQuote(quoteId, { status: 'invoiced' });
     return newInvoice;
   };
@@ -538,7 +679,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let newInvoice: Invoice | null = null;
     if (depositData.autoConvertToInvoice) {
-      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
+      const invoiceNumber = getNextInvoiceNumber();
       const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const initialStatus: InvoiceStatus = depositData.amount >= quote.totalAmount ? 'paid' : 'partially_paid';
 
@@ -596,6 +737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setInvoices((prev) => [newInvoice!, ...prev]);
+      syncSequenceFromDocument(invoiceNumber, 'invoice');
       setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'invoiced' } : q)));
     }
 
@@ -783,6 +925,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteInvoicePayment,
         addBulkClients,
         revertInvoicePayment,
+        // Document Sequence & Numbering Controls
+        getNextQuoteNumber,
+        getNextInvoiceNumber,
+        setNextQuoteNumber,
+        setNextInvoiceNumber,
+        syncSequenceFromDocument,
+        updateQuoteNumber,
+        updateInvoiceNumber,
         sunlightMode,
         toggleSunlightMode,
         resetToSampleData,

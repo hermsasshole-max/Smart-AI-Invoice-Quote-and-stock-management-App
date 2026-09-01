@@ -41,6 +41,8 @@ import {
   Undo2,
   AlertTriangle,
   CheckCircle2,
+  Hash,
+  Edit3,
 } from 'lucide-react';
 
 export const InvoicingPipeline: React.FC = () => {
@@ -52,6 +54,9 @@ export const InvoicingPipeline: React.FC = () => {
     recordPayment,
     deleteInvoicePayment,
     revertInvoicePayment,
+    getNextInvoiceNumber,
+    updateInvoiceNumber,
+    syncSequenceFromDocument,
     clients,
     inventory,
     profile,
@@ -69,9 +74,14 @@ export const InvoicingPipeline: React.FC = () => {
   const [payNotes, setPayNotes] = useState('');
   const [openExportMenuId, setOpenExportMenuId] = useState<string | null>(null);
 
+  // Quick Edit Invoice Number Modal
+  const [numberEditInvoice, setNumberEditInvoice] = useState<Invoice | null>(null);
+  const [tempInvoiceNumber, setTempInvoiceNumber] = useState<string>('');
+
   // Invoice Form (Create & Edit) State
   const [isEditing, setIsEditing] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [formInvoiceNumber, setFormInvoiceNumber] = useState<string>('');
   const [formAmountPaid, setFormAmountPaid] = useState<number>(0);
   const [formPaymentStatus, setFormPaymentStatus] = useState<InvoiceStatus>('issued');
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -132,6 +142,7 @@ export const InvoicingPipeline: React.FC = () => {
 
   const resetForm = () => {
     setEditingInvoiceId(null);
+    setFormInvoiceNumber('');
     setFormAmountPaid(0);
     setFormPaymentStatus('issued');
     setSelectedClientId('');
@@ -168,6 +179,7 @@ export const InvoicingPipeline: React.FC = () => {
 
   const handleOpenCreate = () => {
     resetForm();
+    setFormInvoiceNumber(getNextInvoiceNumber());
     setIsEditing(true);
   };
 
@@ -184,6 +196,7 @@ export const InvoicingPipeline: React.FC = () => {
 
   const handleOpenEdit = (inv: Invoice) => {
     setEditingInvoiceId(inv.id);
+    setFormInvoiceNumber(inv.invoiceNumber);
     setFormAmountPaid(inv.amountPaid || 0);
     setFormPaymentStatus(inv.status);
     setSelectedClientId(inv.clientId);
@@ -303,9 +316,11 @@ export const InvoicingPipeline: React.FC = () => {
       return;
     }
 
-    const invoiceNumber = editingInvoiceId
-      ? invoices.find((i) => i.id === editingInvoiceId)?.invoiceNumber || 'INV-2026-0001'
-      : `INV-${new Date().getFullYear()}-${String(invoices.length + 101).padStart(4, '0')}`;
+    const invoiceNumber = (formInvoiceNumber || '').trim() || (
+      editingInvoiceId
+        ? invoices.find((i) => i.id === editingInvoiceId)?.invoiceNumber || getNextInvoiceNumber()
+        : getNextInvoiceNumber()
+    );
 
     const existingInv = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
     
@@ -476,6 +491,41 @@ export const InvoicingPipeline: React.FC = () => {
             <button onClick={resetForm} className="text-slate-400 hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>
+          </div>
+
+          {/* Invoice Number & Sequence Tracker */}
+          <div className="p-3.5 rounded-xl bg-[#12141C] border border-[#334155]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <Hash className="w-4 h-4" />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-mono font-bold uppercase text-[11px]">
+                  Tax Invoice Number (Customizable)
+                </label>
+                <span className="text-slate-400 text-[10px]">
+                  Subsequent invoices will automatically follow sequentially from the number after this one.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={formInvoiceNumber}
+                onChange={(e) => setFormInvoiceNumber(e.target.value)}
+                placeholder="e.g. INV-2026-0102"
+                className="px-3 py-1.5 rounded-xl bg-[#1B1E28] border border-emerald-500/50 text-emerald-300 font-mono font-bold text-sm w-44 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={() => setFormInvoiceNumber(getNextInvoiceNumber())}
+                title="Reset to Next Sequential Number"
+                className="p-2 rounded-lg bg-[#282E3E] hover:bg-[#334155] text-slate-300 hover:text-emerald-400 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -1301,9 +1351,19 @@ export const InvoicingPipeline: React.FC = () => {
                 {/* Invoice Details */}
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
-                      {inv.invoiceNumber}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNumberEditInvoice(inv);
+                        setTempInvoiceNumber(inv.invoiceNumber);
+                      }}
+                      className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center space-x-1 cursor-pointer transition-colors"
+                      title="Click to manually change Tax Invoice Number"
+                    >
+                      <Hash className="w-3 h-3" />
+                      <span>{inv.invoiceNumber}</span>
+                      <Edit3 className="w-2.5 h-2.5 opacity-60 ml-0.5" />
+                    </button>
                     <h4 className="font-bold text-base">{inv.clientName}</h4>
                     <span
                       className={`text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded ${
@@ -1471,6 +1531,18 @@ export const InvoicingPipeline: React.FC = () => {
                         >
                           <Edit2 className="w-4 h-4 text-sky-400" />
                           <span>Edit Tax Invoice</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setNumberEditInvoice(inv);
+                            setTempInvoiceNumber(inv.invoiceNumber);
+                            setOpenExportMenuId(null);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-emerald-500/10 flex items-center space-x-2 text-emerald-400 font-semibold border-b border-[#282E3E] cursor-pointer"
+                        >
+                          <Hash className="w-4 h-4 text-emerald-400" />
+                          <span>Change Invoice #</span>
                         </button>
 
                         <button
@@ -1871,6 +1943,82 @@ export const InvoicingPipeline: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-[#282E3E] text-slate-300 text-xs font-bold cursor-pointer hover:bg-[#334155]"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Edit Invoice Number Modal */}
+      {numberEditInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-[#1B1E28] border border-[#282E3E] rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 bg-[#12141C] border-b border-[#282E3E] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Hash className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-white text-sm">Change Tax Invoice Number</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNumberEditInvoice(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <span className="text-slate-400 block mb-1">Client Name:</span>
+                <span className="text-white font-bold text-sm">{numberEditInvoice.clientName}</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-mono font-bold uppercase mb-1">
+                  Tax Invoice Number
+                </label>
+                <input
+                  type="text"
+                  value={tempInvoiceNumber}
+                  onChange={(e) => setTempInvoiceNumber(e.target.value)}
+                  placeholder="e.g. INV-2026-0102"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#12141C] border border-emerald-500/50 text-emerald-300 font-mono font-bold text-base focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 space-y-1">
+                <p className="font-bold flex items-center space-x-1">
+                  <span>⚡ Automatic Sequence Tracking</span>
+                </p>
+                <p className="text-slate-300">
+                  Changing this invoice number will update the document, and all subsequent invoices will automatically continue sequentially from the number after this one.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#12141C] border-t border-[#282E3E] flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setNumberEditInvoice(null)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleaned = tempInvoiceNumber.trim();
+                  if (!cleaned) {
+                    alert('Please enter a valid invoice number.');
+                    return;
+                  }
+                  updateInvoiceNumber(numberEditInvoice.id, cleaned);
+                  setNumberEditInvoice(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-95"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save Number</span>
               </button>
             </div>
           </div>

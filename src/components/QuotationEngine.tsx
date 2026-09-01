@@ -44,6 +44,10 @@ import {
   Wrench,
   Package,
   Layers,
+  Hash,
+  Edit3,
+  Edit2,
+  RotateCcw,
 } from 'lucide-react';
 
 export const QuotationEngine: React.FC = () => {
@@ -54,6 +58,9 @@ export const QuotationEngine: React.FC = () => {
     deleteQuote,
     convertQuoteToInvoice,
     recordQuoteDeposit,
+    getNextQuoteNumber,
+    updateQuoteNumber,
+    syncSequenceFromDocument,
     clients,
     inventory,
     profile,
@@ -64,6 +71,7 @@ export const QuotationEngine: React.FC = () => {
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
 
   // Form State
+  const [formQuoteNumber, setFormQuoteNumber] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -109,6 +117,10 @@ export const QuotationEngine: React.FC = () => {
   const [modalDepositMethod, setModalDepositMethod] = useState<'EFT' | 'Cash' | 'Card' | 'Instant EFT'>('EFT');
   const [modalDepositRef, setModalDepositRef] = useState<string>('');
   const [modalAutoConvert, setModalAutoConvert] = useState<boolean>(true);
+
+  // Quick Edit Quotation Number Modal
+  const [numberEditQuote, setNumberEditQuote] = useState<Quotation | null>(null);
+  const [tempQuoteNumber, setTempQuoteNumber] = useState<string>('');
 
   // Modals
   const [previewQuote, setPreviewQuote] = useState<Quotation | null>(null);
@@ -224,6 +236,7 @@ export const QuotationEngine: React.FC = () => {
   // Reset form
   const resetForm = () => {
     setEditingQuoteId(null);
+    setFormQuoteNumber('');
     setSelectedClientId('');
     setClientName('');
     setClientPhone('');
@@ -256,6 +269,12 @@ export const QuotationEngine: React.FC = () => {
     setIsCreating(false);
   };
 
+  const handleOpenCreate = () => {
+    resetForm();
+    setFormQuoteNumber(getNextQuoteNumber());
+    setIsCreating(true);
+  };
+
   // Save Quote
   const handleSaveQuote = (status: QuoteStatus = 'sent') => {
     if (!clientName || !clientPhone) {
@@ -263,9 +282,11 @@ export const QuotationEngine: React.FC = () => {
       return;
     }
 
-    const quoteNumber = editingQuoteId
-      ? quotes.find((q) => q.id === editingQuoteId)?.quoteNumber || 'Q-2026-0001'
-      : `Q-${new Date().getFullYear()}-${String(quotes.length + 143).padStart(4, '0')}`;
+    const quoteNumber = (formQuoteNumber || '').trim() || (
+      editingQuoteId
+        ? quotes.find((q) => q.id === editingQuoteId)?.quoteNumber || getNextQuoteNumber()
+        : getNextQuoteNumber()
+    );
 
     const calculatedDepositReq = totals.depositRequired;
 
@@ -325,6 +346,7 @@ export const QuotationEngine: React.FC = () => {
 
   const handleEditQuote = (quote: Quotation) => {
     setEditingQuoteId(quote.id);
+    setFormQuoteNumber(quote.quoteNumber);
     setSelectedClientId(quote.clientId);
     setClientName(quote.clientName);
     setClientPhone(quote.clientPhone);
@@ -377,7 +399,7 @@ export const QuotationEngine: React.FC = () => {
         {!isCreating && (
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setIsCreating(true)}
+              onClick={handleOpenCreate}
               className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4" />
@@ -415,6 +437,41 @@ export const QuotationEngine: React.FC = () => {
               >
                 <Scan className="w-4 h-4 text-sky-400" />
                 <span>Scan Supplier Slip</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quotation Number & Document Sequence Banner */}
+          <div className="p-3.5 rounded-xl bg-[#12141C] border border-[#334155]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                <Hash className="w-4 h-4" />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-mono font-bold uppercase text-[11px]">
+                  Quotation Number (Customizable)
+                </label>
+                <span className="text-slate-400 text-[10px]">
+                  Next quotes & invoices follow sequentially from the number after this one.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={formQuoteNumber}
+                onChange={(e) => setFormQuoteNumber(e.target.value)}
+                placeholder="e.g. Q-2026-0144"
+                className="px-3 py-1.5 rounded-xl bg-[#1B1E28] border border-sky-500/50 text-sky-300 font-mono font-bold text-sm w-44 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"
+              />
+              <button
+                type="button"
+                onClick={() => setFormQuoteNumber(getNextQuoteNumber())}
+                title="Reset to Next Sequential Number"
+                className="p-2 rounded-lg bg-[#282E3E] hover:bg-[#334155] text-slate-300 hover:text-sky-400 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1201,9 +1258,19 @@ export const QuotationEngine: React.FC = () => {
                     {/* Left: Info */}
                     <div className="space-y-1.5 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 font-bold border border-sky-500/30">
-                          {quote.quoteNumber}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNumberEditQuote(quote);
+                            setTempQuoteNumber(quote.quoteNumber);
+                          }}
+                          className="font-mono text-xs px-2 py-0.5 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30 flex items-center space-x-1 cursor-pointer transition-colors"
+                          title="Click to manually change Quote Number"
+                        >
+                          <Hash className="w-3 h-3" />
+                          <span>{quote.quoteNumber}</span>
+                          <Edit3 className="w-2.5 h-2.5 opacity-60 ml-0.5" />
+                        </button>
                         <h4 className="font-bold text-base">{quote.clientName}</h4>
                         <span
                           className={`text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded ${
@@ -1391,6 +1458,18 @@ export const QuotationEngine: React.FC = () => {
                             >
                               <FileText className="w-4 h-4 text-slate-400" />
                               <span>Edit Quotation</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setNumberEditQuote(quote);
+                                setTempQuoteNumber(quote.quoteNumber);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-sky-500/10 flex items-center space-x-2 text-sky-400 font-semibold"
+                            >
+                              <Hash className="w-4 h-4 text-sky-400" />
+                              <span>Change Quote #</span>
                             </button>
 
                             <button
@@ -1624,6 +1703,82 @@ export const QuotationEngine: React.FC = () => {
               >
                 <Check className="w-4 h-4" />
                 <span>Confirm & Save Deposit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Edit Quotation Number Modal */}
+      {numberEditQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-[#1B1E28] border border-[#282E3E] rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 bg-[#12141C] border-b border-[#282E3E] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Hash className="w-5 h-5 text-sky-400" />
+                <h3 className="font-bold text-white text-sm">Change Quotation Number</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNumberEditQuote(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <span className="text-slate-400 block mb-1">Client Name:</span>
+                <span className="text-white font-bold text-sm">{numberEditQuote.clientName}</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-mono font-bold uppercase mb-1">
+                  Quotation Number
+                </label>
+                <input
+                  type="text"
+                  value={tempQuoteNumber}
+                  onChange={(e) => setTempQuoteNumber(e.target.value)}
+                  placeholder="e.g. Q-2026-0144"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#12141C] border border-sky-500/50 text-sky-300 font-mono font-bold text-base focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 space-y-1">
+                <p className="font-bold flex items-center space-x-1">
+                  <span>⚡ Automatic Sequence Tracking</span>
+                </p>
+                <p className="text-slate-300">
+                  Changing this quote number will update the document, and all subsequent quotations and invoices will automatically continue from the next number in sequence.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#12141C] border-t border-[#282E3E] flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setNumberEditQuote(null)}
+                className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleaned = tempQuoteNumber.trim();
+                  if (!cleaned) {
+                    alert('Please enter a valid quotation number.');
+                    return;
+                  }
+                  updateQuoteNumber(numberEditQuote.id, cleaned);
+                  setNumberEditQuote(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-sky-600/20 cursor-pointer active:scale-95"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save Number</span>
               </button>
             </div>
           </div>

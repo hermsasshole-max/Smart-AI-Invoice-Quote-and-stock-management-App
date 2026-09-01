@@ -238,6 +238,10 @@ export interface BusinessProfile {
   vatPercentage: number;
   sansComplianceNotice: string;
   sunlightMode: boolean;
+  nextQuoteNumber?: string;
+  nextInvoiceNumber?: string;
+  quotePrefix?: string;
+  invoicePrefix?: string;
 }
 
 export interface AndroidBridge {

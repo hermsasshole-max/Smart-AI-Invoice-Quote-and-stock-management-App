@@ -18,6 +18,7 @@ import {
   KeyRound,
   Unlock,
   X,
+  Hash,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { billingService } from '../services/billingService';
@@ -32,6 +33,10 @@ export const SettingsManager: React.FC = () => {
     entitlements,
     openPaywall,
     refreshEntitlements,
+    getNextQuoteNumber,
+    getNextInvoiceNumber,
+    setNextQuoteNumber,
+    setNextInvoiceNumber,
   } = useApp();
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -61,6 +66,10 @@ export const SettingsManager: React.FC = () => {
   const [vatEnabled, setVatEnabled] = useState(profile.vatEnabled);
   const [sansNotice, setSansNotice] = useState(profile.sansComplianceNotice);
 
+  // Document Sequence State
+  const [nextQuoteNum, setNextQuoteNum] = useState<string>(() => getNextQuoteNumber());
+  const [nextInvNum, setNextInvNum] = useState<string>(() => getNextInvoiceNumber());
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateProfile({
@@ -82,7 +91,16 @@ export const SettingsManager: React.FC = () => {
       defaultMarkup,
       vatEnabled,
       sansComplianceNotice: sansNotice,
+      nextQuoteNumber: nextQuoteNum.trim() || undefined,
+      nextInvoiceNumber: nextInvNum.trim() || undefined,
     });
+
+    if (nextQuoteNum.trim()) {
+      setNextQuoteNumber(nextQuoteNum.trim());
+    }
+    if (nextInvNum.trim()) {
+      setNextInvoiceNumber(nextInvNum.trim());
+    }
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
@@ -295,6 +313,34 @@ export const SettingsManager: React.FC = () => {
                 value={defaultMarkup}
                 onChange={(e) => setDefaultMarkup(Number(e.target.value) || 0)}
                 className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white font-mono font-bold"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-slate-400 mb-1 font-mono uppercase font-bold flex items-center justify-between">
+                <span>Next Quote Number</span>
+                <span className="text-[10px] text-sky-400 font-normal">Auto-Sequence</span>
+              </label>
+              <input
+                type="text"
+                value={nextQuoteNum}
+                onChange={(e) => setNextQuoteNum(e.target.value)}
+                placeholder="e.g. Q-2026-0144"
+                className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-sky-300 font-mono font-bold"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-slate-400 mb-1 font-mono uppercase font-bold flex items-center justify-between">
+                <span>Next Invoice Number</span>
+                <span className="text-[10px] text-emerald-400 font-normal">Auto-Sequence</span>
+              </label>
+              <input
+                type="text"
+                value={nextInvNum}
+                onChange={(e) => setNextInvNum(e.target.value)}
+                placeholder="e.g. INV-2026-0102"
+                className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-emerald-300 font-mono font-bold"
               />
             </div>
 
