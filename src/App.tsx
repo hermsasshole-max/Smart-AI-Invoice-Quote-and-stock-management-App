@@ -5,6 +5,7 @@ import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { QuotationEngine } from './components/QuotationEngine';
 import { InvoicingPipeline } from './components/InvoicingPipeline';
+import { FinancialAnalysis } from './components/FinancialAnalysis';
 import { ClientsDirectory } from './components/ClientsDirectory';
 import { InventoryManager } from './components/InventoryManager';
 import { SettingsManager } from './components/SettingsManager';
@@ -60,6 +61,7 @@ const AppContent: React.FC<{
         )}
         {activeTab === 'quotes' && <QuotationEngine />}
         {activeTab === 'invoices' && <InvoicingPipeline />}
+        {activeTab === 'financials' && <FinancialAnalysis />}
         {activeTab === 'clients' && <ClientsDirectory />}
         {activeTab === 'inventory' && <InventoryManager />}
         {activeTab === 'schema' && <SqlSchemaViewer />}

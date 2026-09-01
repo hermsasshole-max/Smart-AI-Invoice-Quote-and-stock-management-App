@@ -6,6 +6,7 @@ import {
   Quotation,
   Invoice,
   InvoiceStatus,
+  Expense,
 } from '../types';
 import {
   initialBusinessProfile,
@@ -13,6 +14,7 @@ import {
   initialInventory,
   initialQuotes,
   initialInvoices,
+  initialExpenses,
 } from '../data/seedData';
 import { debugLogger } from '../utils/debugLogger';
 import { billingService, CachedEntitlements, SubscriptionTier } from '../services/billingService';
@@ -56,6 +58,10 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id'>, deductStockItems?: boolean) => Invoice;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
+  expenses: Expense[];
+  addExpense: (expense: Omit<Expense, 'id'>) => Expense;
+  updateExpense: (id: string, updates: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
   recordPayment: (
     invoiceId: string,
     amount: number,
@@ -195,6 +201,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : initialInvoices;
   });
 
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('harrys_expenses');
+    return saved ? JSON.parse(saved) : initialExpenses;
+  });
+
   const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
     return profile.sunlightMode || false;
   });
@@ -226,6 +237,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('harrys_invoices', JSON.stringify(invoices));
   }, [invoices]);
+
+  useEffect(() => {
+    localStorage.setItem('harrys_expenses', JSON.stringify(expenses));
+  }, [expenses]);
 
   const getNextQuoteNumber = useCallback((): string => {
     return calculateNextQuoteNumber(quotes, customNextQuoteNumber, invoices);
@@ -888,12 +903,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return resultInv;
   };
 
+  const addExpense = (expenseData: Omit<Expense, 'id'>): Expense => {
+    const newExpense: Expense = {
+      ...expenseData,
+      id: 'exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    };
+    setExpenses((prev) => [newExpense, ...prev]);
+
+    debugLogger.log({
+      level: 'state',
+      category: 'STATE_EXPENSE_ADDED',
+      message: `Recorded expense of R${newExpense.amount} (${newExpense.category}: ${newExpense.description})`,
+      data: { expense: newExpense },
+    });
+
+    return newExpense;
+  };
+
+  const updateExpense = (id: string, updates: Partial<Expense>) => {
+    setExpenses((prev) =>
+      prev.map((exp) => (exp.id === id ? { ...exp, ...updates } : exp))
+    );
+  };
+
+  const deleteExpense = (id: string) => {
+    setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+  };
+
   const resetToSampleData = () => {
     setProfile(initialBusinessProfile);
     setClients(initialClients);
     setInventory(initialInventory);
     setQuotes(initialQuotes);
     setInvoices(initialInvoices);
+    setExpenses(initialExpenses);
   };
 
   return (
@@ -921,6 +964,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addInvoice,
         updateInvoice,
         deleteInvoice,
+        expenses,
+        addExpense,
+        updateExpense,
+        deleteExpense,
         recordPayment,
         deleteInvoicePayment,
         addBulkClients,

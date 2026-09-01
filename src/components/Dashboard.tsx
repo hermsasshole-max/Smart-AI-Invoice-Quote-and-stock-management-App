@@ -26,12 +26,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   setActiveTab,
   openReceiptScanner,
 }) => {
-  const { quotes, invoices, clients, inventory, sunlightMode } = useApp();
+  const { quotes, invoices, expenses, clients, inventory, sunlightMode } = useApp();
 
   // Metrics
   const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
   const totalCollected = invoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
   const totalOutstanding = totalInvoiced - totalCollected;
+  const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const totalNetProfit = totalInvoiced - totalExpenses;
+  const netMarginPct = totalInvoiced > 0 ? (totalNetProfit / totalInvoiced) * 100 : 0;
 
   const totalQuotesValue = quotes.reduce((sum, q) => sum + (q.totalAmount || 0), 0);
   const pendingQuotes = quotes.filter((q) => q.status === 'sent' || q.status === 'draft');
@@ -56,6 +59,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2.5">
+            <button
+              onClick={() => setActiveTab('financials')}
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>Financial Analysis</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('quotes')}
               className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-sky-600/20 cursor-pointer active:scale-95"
@@ -150,6 +161,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Financial Health Quick Bar */}
+      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 cursor-pointer transition-all hover:border-emerald-500/50 ${
+        sunlightMode ? 'bg-emerald-50/50 border-emerald-200' : 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30'
+      }`} onClick={() => setActiveTab('financials')}>
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-emerald-400 uppercase font-mono">2026 Financial P&L Pulse</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-emerald-500/20 text-emerald-300">
+                {netMarginPct.toFixed(1)}% Net Margin
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Total Revenue <span className="font-mono font-bold text-white">{formatZAR(totalInvoiced)}</span> vs Expenses <span className="font-mono font-bold text-rose-400">{formatZAR(totalExpenses)}</span> = <span className="font-mono font-bold text-emerald-400">{formatZAR(totalNetProfit)} Net Profit</span>
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('financials')}
+          className="px-3.5 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer whitespace-nowrap shadow-sm"
+        >
+          <span>Open Month-to-Month Analysis</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Main Dual Panels */}

@@ -19,6 +19,30 @@ export type InventoryCategory =
 
 export type ConsumablesTier = 'none' | 'light' | 'standard' | 'heavy' | 'custom';
 
+export type ExpenseCategory =
+  | 'Materials & Stock'
+  | 'Vehicle Fuel & Fleet'
+  | 'Labor & Contractor Wages'
+  | 'Tools & Equipment'
+  | 'Overheads & Compliance'
+  | 'Marketing & Software'
+  | 'Other & Miscellaneous';
+
+export interface Expense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+  category: ExpenseCategory;
+  amount: number; // ZAR Total (incl. VAT where applicable)
+  vatAmount?: number;
+  supplier?: string;
+  invoiceNumber?: string; // Receipt / Supplier Invoice reference
+  paymentMethod?: 'EFT' | 'Card' | 'Cash' | 'Account' | 'Debit Order';
+  relatedClientOrJob?: string;
+  notes?: string;
+  receiptImageUrl?: string;
+}
+
 export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'deposit_paid' | 'invoiced' | 'declined';
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue';
 

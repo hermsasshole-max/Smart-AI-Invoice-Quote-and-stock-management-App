@@ -188,7 +188,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   onClose,
   onApplyItemsToQuote,
 }) => {
-  const { profile, addInventoryItem, sunlightMode, openPaywall, consumeAiCredit } = useApp();
+  const { profile, addInventoryItem, addExpense, sunlightMode, openPaywall, consumeAiCredit } = useApp();
 
   // State
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -667,6 +667,32 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     });
 
     onApplyItemsToQuote(lineItems);
+    onClose();
+  };
+
+  // Record as Business Expense for Financial Analysis
+  const handleRecordAsExpense = () => {
+    if (!scanResult) return;
+
+    const totalAmt = scanResult.totalAmount || scanResult.items.reduce((s, it) => s + (it.quantity || 1) * (it.unitCost || 0), 0);
+    const vatAmt = scanResult.vatAmount || (profile.vatEnabled ? Number((totalAmt * 0.15 / 1.15).toFixed(2)) : 0);
+    const itemDescSummary = scanResult.items.length > 0 
+      ? scanResult.items.map(it => `${it.quantity || 1}x ${it.description}`).slice(0, 3).join(', ') + (scanResult.items.length > 3 ? ` (+${scanResult.items.length - 3} more)` : '')
+      : `Supplier Purchase from ${scanResult.supplierName || 'Merchant'}`;
+
+    addExpense({
+      date: scanResult.date || new Date().toISOString().split('T')[0],
+      description: itemDescSummary,
+      category: 'Materials & Stock',
+      amount: totalAmt,
+      vatAmount: vatAmt,
+      supplier: scanResult.supplierName || 'Supplier Slip',
+      invoiceNumber: scanResult.invoiceNumber || scanResult.receiptNumber || 'REC-' + Math.floor(1000 + Math.random() * 9000),
+      paymentMethod: 'Card',
+      notes: `Captured via AI OCR scanner. ${scanResult.items.length} line items detected.`,
+      receiptImageUrl: processedImage || originalImage || undefined,
+    });
+
     onClose();
   };
 
@@ -1260,6 +1286,16 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleRecordAsExpense}
+                    className="px-3.5 py-2.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 text-xs font-bold flex items-center space-x-1.5 border border-emerald-500/40 cursor-pointer"
+                    title="Log this slip directly into Financial Analysis as a monthly expenditure record"
+                  >
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    <span>Record as Expense</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleApplyToInventory}

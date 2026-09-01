@@ -18,6 +18,7 @@ import {
   Bug,
   Sparkles,
   Crown,
+  TrendingUp,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -48,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'quotes', label: 'Fast Quotations', icon: FileText },
     { id: 'invoices', label: 'Invoicing & Payments', icon: DollarSign },
+    { id: 'financials', label: 'Financial Analysis', icon: TrendingUp },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'inventory', label: 'Inventory & Van Stock', icon: Package },
     { id: 'schema', label: 'Cloud SQL Schema', icon: Database },
