@@ -813,14 +813,39 @@ export function generatePrintableHtml(
       box-shadow: 0 8px 24px rgba(0,0,0,0.06);
     }
     @media print {
-      body { background: #ffffff; padding: 0; }
+      html, body, #root, .app-container, .invoice-container, .print-area {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      
+      /* Ensure headers, borders, and text stay crisp black/white */
+      .invoice-header, .invoice-table th, .invoice-card {
+        background-color: #f3f4f6 !important;
+        color: #111827 !important;
+        border-color: #e5e7eb !important;
+      }
+
+      /* Prevent elements from breaking across pages awkwardly */
+      .invoice-table tr, .invoice-totals {
+        page-break-inside: avoid !important;
+      }
+
+      /* Hide UI elements like navigation bars, debug buttons, and action bars */
+      .no-print, .debug-panel, nav, button, .action-buttons {
+        display: none !important;
+      }
+
+      body { background: #ffffff !important; padding: 0 !important; }
       .print-actions { display: none !important; }
       .print-sheet { border: none !important; box-shadow: none !important; border-radius: 0 !important; width: 100% !important; max-width: 100% !important; }
     }
   </style>
 </head>
-<body>
-  <div class="print-actions">
+<body class="invoice-container print-area">
+  <div class="print-actions no-print action-buttons">
     <button class="btn-print" onclick="window.print()">
         Tap to Print / Save as PDF
     </button>
@@ -828,8 +853,8 @@ export function generatePrintableHtml(
       On Android: In the print dialog, select <strong>"Save as PDF"</strong> to save to phone.
     </span>
   </div>
-  <div class="print-sheet">
-    <div style="background: #1B1E28; color: #ffffff; padding: 24px; border-bottom: 4px solid #38BDF8;">
+  <div class="print-sheet invoice-card">
+    <div class="invoice-header" style="background: #1B1E28; color: #ffffff; padding: 24px; border-bottom: 4px solid #38BDF8;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
         <div>
           <h1 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
@@ -865,9 +890,9 @@ export function generatePrintableHtml(
           </h4>
           <div style="font-size: 13px; line-height: 1.5; color: #334155;">
             <div style="font-weight: 700; color: #0F172A; font-size: 14px;">${data.clientName}</div>
-            <div>  ${data.clientPhone}</div>
-            ${data.clientEmail ? `<div>  ${data.clientEmail}</div>` : ''}
-            <div>  ${data.clientAddress}</div>
+            <div>📞 ${data.clientPhone}</div>
+            ${data.clientEmail ? `<div>✉️ ${data.clientEmail}</div>` : ''}
+            <div>📍 ${data.clientAddress}</div>
           </div>
         </div>
         <div>
@@ -889,7 +914,7 @@ export function generatePrintableHtml(
       </div>
     </div>
     <div style="padding: 24px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+      <table class="invoice-table" style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
         <thead>
           <tr style="background: #0284C7; color: #ffffff; font-family: monospace; text-transform: uppercase; font-size: 11px;">
             <th style="padding: 10px 12px; text-align: left; border-radius: 4px 0 0 4px;">Item / Description</th>
@@ -907,7 +932,7 @@ export function generatePrintableHtml(
           ${travelRow}
         </tbody>
       </table>
-      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; padding-top: 16px; border-top: 2px solid #E2E8F0;">
+      <div class="invoice-totals" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; padding-top: 16px; border-top: 2px solid #E2E8F0;">
         <div style="background: #F1F5F9; padding: 14px; border-radius: 8px; border: 1px solid #E2E8F0; font-family: monospace; font-size: 11px;">
           <div style="font-weight: 700; color: #0284C7; text-transform: uppercase; margin-bottom: 8px;">
               Banking Details (EFT Settlement)

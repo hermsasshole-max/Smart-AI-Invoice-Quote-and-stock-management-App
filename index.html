@@ -12,6 +12,34 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.json" />
     <title>Harrys Aircon, Electrical & Solar Services</title>
+    <style>
+      @media print {
+        html, body, #root, .app-container, .invoice-container, .print-area {
+          background-color: #ffffff !important;
+          background: #ffffff !important;
+          color: #111827 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        
+        /* Ensure headers, borders, and text stay crisp black/white */
+        .invoice-header, .invoice-table th, .invoice-card {
+          background-color: #f3f4f6 !important;
+          color: #111827 !important;
+          border-color: #e5e7eb !important;
+        }
+
+        /* Prevent elements from breaking across pages awkwardly */
+        .invoice-table tr, .invoice-totals {
+          page-break-inside: avoid !important;
+        }
+
+        /* Hide UI elements like navigation bars, debug buttons, and action bars */
+        .no-print, .debug-panel, nav, button, .action-buttons {
+          display: none !important;
+        }
+      }
+    </style>
   </head>
   <body class="bg-[#12141C] text-[#F8FAFC] min-h-screen selection:bg-[#0284C7] selection:text-white">
     <div id="root"></div>

@@ -38,7 +38,7 @@ const AppContent: React.FC<{
 
   return (
     <SafeAreaView
-      className={`min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 ${
+      className={`app-container min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 ${
         sunlightMode ? 'bg-[#F1F5F9] text-[#0F172A]' : 'bg-[#0E1017] text-slate-100'
       }`}
     >

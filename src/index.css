@@ -80,7 +80,7 @@
 }
 
 /* ==========================================================================
-   PRINT / PDF MEDIA STYLES - Cross-Platform Clean Output
+   PRINT / PDF MEDIA STYLES - Cross-Platform Clean Output & Black BG Fix
    ========================================================================== */
 @media print {
   @page {
@@ -88,9 +88,15 @@
     margin: 10mm 12mm 10mm 12mm;
   }
 
-  html, body {
+  html,
+  body,
+  #root,
+  .app-container,
+  .invoice-container,
+  .print-area {
+    background-color: #ffffff !important;
     background: #ffffff !important;
-    color: #0F172A !important;
+    color: #111827 !important;
     font-size: 11pt !important;
     width: 100% !important;
     height: auto !important;
@@ -102,31 +108,61 @@
     print-color-adjust: exact !important;
   }
 
-  /* Hide all app chrome, sidebars, navigation, action buttons, modals backdrops, and toasts */
-  header,
-  footer,
-  nav,
-  button,
+  /* Ensure headers, borders, and text stay crisp black/white */
+  .invoice-header,
+  .invoice-table th,
+  .invoice-card {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Prevent elements from breaking across pages awkwardly */
+  .invoice-table tr,
+  .invoice-totals,
+  table tr,
+  .print-avoid-break,
+  .banking-box,
+  .totals-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Hide UI elements like navigation bars, debug buttons, and action bars */
   .no-print,
+  .debug-panel,
+  nav,
+  header:not(.print-header),
+  footer:not(.print-footer),
+  button,
+  .action-buttons,
   .print-actions,
-  .fixed.inset-0.bg-black\/80,
   #toast-container,
   [data-no-print="true"] {
     display: none !important;
   }
 
-  /* When printing from modal or injected print root */
-  #root {
-    display: block !important;
+  /* Modal backdrops & fixed overlays neutralization during print */
+  .fixed.inset-0,
+  .modal-container,
+  [role="dialog"] {
+    position: static !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
-  /* Force document sheet to full page width with white background */
+  /* Force document visual sheet to full page width with white background */
   .print-sheet,
   #print-root,
-  [data-printable="true"] {
+  [data-printable="true"],
+  .invoice-container,
+  .print-area {
     display: block !important;
     position: static !important;
     width: 100% !important;
@@ -136,31 +172,20 @@
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
-    color: #0F172A !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
     overflow: visible !important;
   }
 
   /* Table styling for print */
+  .invoice-table,
   table {
     width: 100% !important;
     border-collapse: collapse !important;
     page-break-inside: auto !important;
   }
 
-  tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
   thead {
     display: table-header-group !important;
-  }
-
-  /* Banking box and summary protection against unwanted page cuts */
-  .print-avoid-break,
-  .banking-box,
-  .totals-section {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 }

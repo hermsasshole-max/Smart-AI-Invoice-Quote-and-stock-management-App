@@ -116,7 +116,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         )}
 
         {/* Modal Header Actions Bar */}
-        <div className="no-print print-actions flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-[#151722] border-b border-[#282E3E]">
+        <div className="no-print action-buttons print-actions flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-[#151722] border-b border-[#282E3E]">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-sky-500/10 border border-sky-500/30 rounded-lg text-sky-400">
               <FileText className="w-5 h-5" />
@@ -179,10 +179,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Modal Scrollable Content: Document Visual Sheet */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#0F1118]">
-          <div className="print-sheet max-w-3xl mx-auto bg-white text-[#0F172A] rounded-xl shadow-xl overflow-hidden border border-slate-200" data-printable="true">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#0F1118] print:p-0 print:bg-white">
+          <div className="print-sheet invoice-container invoice-card print-area max-w-3xl mx-auto bg-white text-[#0F172A] rounded-xl shadow-xl overflow-hidden border border-slate-200" data-printable="true">
             {/* Header Banner */}
-            <div className="bg-[#1B1E28] text-white p-6 border-b-4 border-sky-500">
+            <div className="invoice-header bg-[#1B1E28] text-white p-6 border-b-4 border-sky-500">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h3 className="text-xl font-black tracking-wide text-white uppercase">
@@ -239,7 +239,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
             {/* Table */}
             <div className="p-6">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="invoice-table w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-sky-600 text-white font-mono uppercase text-[10px]">
                     <th className="p-2.5 rounded-l">Item / Description</th>
@@ -341,7 +341,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               </table>
 
               {/* Totals & Banking Details */}
-              <div className="mt-6 pt-4 border-t-2 border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="invoice-totals mt-6 pt-4 border-t-2 border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <div className="p-3.5 bg-slate-100 border border-slate-200 rounded-lg font-mono text-xs text-slate-700">
                   <div className="font-bold text-sky-600 uppercase mb-1 flex items-center space-x-1">
                     <span>🏦 Banking Details (EFT)</span>
@@ -453,7 +453,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </div>
 
         {/* Modal Bottom Multi-Format Export Bar */}
-        <div className="p-4 bg-[#151722] border-t border-[#282E3E] flex flex-wrap items-center justify-between gap-3">
+        <div className="no-print action-buttons p-4 bg-[#151722] border-t border-[#282E3E] flex flex-wrap items-center justify-between gap-3">
           {/* WhatsApp & Copy */}
           <div className="flex items-center space-x-2">
             <a

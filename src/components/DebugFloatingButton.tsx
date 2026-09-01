@@ -19,7 +19,7 @@ export const DebugFloatingButton: React.FC<DebugFloatingButtonProps> = ({ onClic
   }, []);
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex items-center space-x-2">
+    <div className="no-print debug-panel fixed bottom-4 right-4 z-40 flex items-center space-x-2">
       <button
         type="button"
         onClick={onClick}
