@@ -15,16 +15,19 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  Mic,
 } from 'lucide-react';
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
   openReceiptScanner: () => void;
+  openVoiceQuote?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   setActiveTab,
   openReceiptScanner,
+  openVoiceQuote,
 }) => {
   const { quotes, invoices, expenses, clients, inventory, sunlightMode } = useApp();
 
@@ -59,6 +62,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2.5">
+            {openVoiceQuote && (
+              <button
+                type="button"
+                onClick={openVoiceQuote}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all"
+              >
+                <Mic className="w-4 h-4 text-slate-950 animate-pulse" />
+                <span>Voice-to-Quote</span>
+              </button>
+            )}
+
             <button
               onClick={() => setActiveTab('financials')}
               className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"

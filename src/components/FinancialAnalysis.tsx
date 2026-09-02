@@ -72,7 +72,7 @@ interface MonthlyBucket {
 }
 
 export const FinancialAnalysis: React.FC = () => {
-  const { invoices, expenses, addExpense, updateExpense, deleteExpense, profile, sunlightMode, quotes } = useApp();
+  const { invoices, expenses, addExpense, updateExpense, deleteExpense, clearAllExpenses, profile, sunlightMode, quotes } = useApp();
 
   // Navigation & Sub-views
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'monthly' | 'categories' | 'aging' | 'expenses' | 'insights'>('overview');
@@ -82,6 +82,7 @@ export const FinancialAnalysis: React.FC = () => {
   
   // Modal State for Adding/Editing Expenses
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseFormData, setExpenseFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -300,6 +301,32 @@ export const FinancialAnalysis: React.FC = () => {
       pctOfTotal: (data.revenue / totalRev) * 100,
     })).sort((a, b) => b.revenue - a.revenue);
   }, [invoices, selectedMonthFilter, currentViewMetrics.totalInvoiced]);
+
+  // Dynamic Supplier & Merchant Spend Aggregate
+  const supplierSpendMetrics = useMemo(() => {
+    const targetExpenses = selectedMonthFilter === 'all'
+      ? expenses
+      : expenses.filter((exp) => (exp.date || '').startsWith(selectedMonthFilter));
+
+    const map: Record<string, { amount: number; count: number; category: string }> = {};
+    targetExpenses.forEach((exp) => {
+      const sup = exp.supplier?.trim() || 'General / Unspecified Merchant';
+      if (!map[sup]) {
+        map[sup] = { amount: 0, count: 0, category: exp.category };
+      }
+      map[sup].amount += exp.amount || 0;
+      map[sup].count += 1;
+    });
+
+    const totalExp = currentViewMetrics.totalExpenses || 1;
+    return Object.entries(map).map(([name, data]) => ({
+      name,
+      amount: data.amount,
+      count: data.count,
+      category: data.category,
+      pctOfTotal: (data.amount / totalExp) * 100,
+    })).sort((a, b) => b.amount - a.amount);
+  }, [expenses, selectedMonthFilter, currentViewMetrics.totalExpenses]);
 
   // Receivables Aging Engine (0-30, 31-60, 61-90, 90+ days)
   const agingAnalysis = useMemo(() => {
@@ -547,6 +574,15 @@ export const FinancialAnalysis: React.FC = () => {
             >
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Print P&L</span>
+            </button>
+
+            <button
+              onClick={() => setIsResetConfirmOpen(true)}
+              className="px-3 py-2 rounded-xl border text-xs font-bold flex items-center space-x-1.5 cursor-pointer text-rose-400 hover:text-rose-300 border-rose-500/30 hover:bg-rose-950/30 transition-colors"
+              title="Reset all expense records to 0 for a clean ledger"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Reset Expenses</span>
             </button>
           </div>
         </div>
@@ -978,27 +1014,37 @@ export const FinancialAnalysis: React.FC = () => {
               <Building className="w-5 h-5 text-sky-400" />
               <span>Supplier & Merchant Expenditure Split</span>
             </h3>
-            <div className="space-y-3">
-              {[
-                { name: 'Fourways Airconditioning & HVAC', type: 'Aircon Units & Refrigerant', amount: 22100, pct: 32 },
-                { name: 'Voltex / ARB Electrical Wholesalers', type: 'Cabling, Isolators, DBs & Breakers', amount: 16827.5, pct: 24 },
-                { name: 'Rubicon Energy & Herholdts Solar', type: 'Inverters, Hubble Lithium & Solar Panels', amount: 52000, pct: 75 },
-                { name: 'Stafix & Nemtek Security', type: 'Gate Motors & Electric Fencing', amount: 12330, pct: 18 },
-                { name: 'Shell / Engen Fleet Diesel', type: 'Toyota Hilux Van Diesel & Maintenance', amount: 11450, pct: 16 },
-                { name: 'Kya Sand Industrial Parks', type: 'Workshop Rent & Municipal Rates', amount: 19500, pct: 28 },
-              ].map((supplier) => (
-                <div key={supplier.name} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-200">{supplier.name}</h4>
-                    <p className="text-[11px] text-slate-400">{supplier.type}</p>
+            {supplierSpendMetrics.length > 0 ? (
+              <div className="space-y-3">
+                {supplierSpendMetrics.map((supplier) => (
+                  <div key={supplier.name} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex justify-between items-center">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200">{supplier.name}</h4>
+                      <p className="text-[11px] text-slate-400">{supplier.category} · {supplier.count} {supplier.count === 1 ? 'record' : 'records'}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-mono text-xs font-bold text-white block">{formatZAR(supplier.amount)}</span>
+                      <span className="text-[10px] text-emerald-400 font-mono">{supplier.pctOfTotal.toFixed(1)}% of expenses</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-mono text-xs font-bold text-white block">{formatZAR(supplier.amount)}</span>
-                    <span className="text-[10px] text-emerald-400 font-mono">Trade Account</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center rounded-xl bg-slate-900/40 border border-dashed border-slate-800">
+                <Building className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-300">No Supplier Purchases Recorded Yet</p>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                  Log your trade purchases or scan slips from Voltex, Fourways, Rubicon, Stafix, or fuel stations to populate this breakdown.
+                </p>
+                <button
+                  onClick={handleOpenAddExpense}
+                  className="mt-3 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Log Purchase</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1122,65 +1168,88 @@ export const FinancialAnalysis: React.FC = () => {
             </button>
           </div>
 
-          {/* Expenses Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-700 bg-slate-900/50 text-slate-400 font-mono text-[11px]">
-                  <th className="py-3 px-3">Date</th>
-                  <th className="py-3 px-3">Description</th>
-                  <th className="py-3 px-3">Category</th>
-                  <th className="py-3 px-3">Supplier / Merchant</th>
-                  <th className="py-3 px-3">Method</th>
-                  <th className="py-3 px-3 text-right">VAT Amount</th>
-                  <th className="py-3 px-3 text-right font-bold text-rose-400">Total (ZAR)</th>
-                  <th className="py-3 px-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 font-mono">
-                {filteredExpenses.map((exp) => (
-                  <tr key={exp.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-3 text-slate-300">{exp.date}</td>
-                    <td className="py-3 px-3 font-sans font-medium text-white max-w-xs truncate">
-                      {exp.description}
-                      {exp.relatedClientOrJob && (
-                        <span className="block text-[10px] text-slate-400 font-sans">
-                          Job: {exp.relatedClientOrJob}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 font-sans">
-                      <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                        {exp.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-sans text-slate-200">{exp.supplier || '—'}</td>
-                    <td className="py-3 px-3 text-slate-400">{exp.paymentMethod || 'Card'}</td>
-                    <td className="py-3 px-3 text-right text-slate-400">{formatZAR(exp.vatAmount || 0)}</td>
-                    <td className="py-3 px-3 text-right font-bold text-rose-400">{formatZAR(exp.amount)}</td>
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleOpenEditExpense(exp)}
-                          className="p-1 text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
-                          title="Edit Expense"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteExpenseConfirm(exp.id)}
-                          className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
-                          title="Delete Expense"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+          {/* Expenses Table or Clean Empty State */}
+          {filteredExpenses.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-700 bg-slate-900/50 text-slate-400 font-mono text-[11px]">
+                    <th className="py-3 px-3">Date</th>
+                    <th className="py-3 px-3">Description</th>
+                    <th className="py-3 px-3">Category</th>
+                    <th className="py-3 px-3">Supplier / Merchant</th>
+                    <th className="py-3 px-3">Method</th>
+                    <th className="py-3 px-3 text-right">VAT Amount</th>
+                    <th className="py-3 px-3 text-right font-bold text-rose-400">Total (ZAR)</th>
+                    <th className="py-3 px-3 text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800 font-mono">
+                  {filteredExpenses.map((exp) => (
+                    <tr key={exp.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-3 text-slate-300">{exp.date}</td>
+                      <td className="py-3 px-3 font-sans font-medium text-white max-w-xs truncate">
+                        {exp.description}
+                        {exp.relatedClientOrJob && (
+                          <span className="block text-[10px] text-slate-400 font-sans">
+                            Job: {exp.relatedClientOrJob}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-sans">
+                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                          {exp.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-sans text-slate-200">{exp.supplier || '—'}</td>
+                      <td className="py-3 px-3 text-slate-400">{exp.paymentMethod || 'Card'}</td>
+                      <td className="py-3 px-3 text-right text-slate-400">{formatZAR(exp.vatAmount || 0)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-rose-400">{formatZAR(exp.amount)}</td>
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <button
+                            onClick={() => handleOpenEditExpense(exp)}
+                            className="p-1 text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+                            title="Edit Expense"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExpenseConfirm(exp.id)}
+                            className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-12 text-center rounded-xl bg-slate-900/40 border border-dashed border-slate-800">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-white">No Expense Records Found</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                {expenseSearchQuery || selectedExpenseCategory !== 'all' || selectedMonthFilter !== 'all'
+                  ? 'No expenses match the current search filters. Clear or adjust your filter selection above.'
+                  : 'Your financial expense ledger is ready for daily entries. Log your daily diesel receipts, wholesaler material slips, and equipment purchases.'}
+              </p>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button
+                  onClick={handleOpenAddExpense}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Log Daily Expense</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1195,23 +1264,35 @@ export const FinancialAnalysis: React.FC = () => {
             </h3>
             <div className="space-y-3.5 text-xs text-slate-300">
               <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30">
-                <span className="font-bold text-amber-300 block mb-1">Materials Cost Ratio: 44.5%</span>
+                <span className="font-bold text-amber-300 block mb-1">
+                  Materials Cost Ratio: {currentViewMetrics.totalInvoiced > 0 ? ((currentViewMetrics.materials / currentViewMetrics.totalInvoiced) * 100).toFixed(1) : '0.0'}%
+                </span>
                 <p className="text-slate-300">
-                  Direct materials purchase at Voltex and Fourways represent your largest single expense bucket. Standardizing your markup to 35% on high-ticket equipment ensures you protect at least a 25% gross margin.
+                  {currentViewMetrics.materials > 0
+                    ? `Direct materials purchases total ${formatZAR(currentViewMetrics.materials)}. Standardizing your markup to 30–35% on high-ticket equipment ensures you protect a healthy gross margin.`
+                    : 'No direct material slips recorded for this period yet. As you enter supplier slips from Voltex, Fourways, or Rubicon, this ratio will calculate your exact hardware markup protection.'}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-sky-950/30 border border-sky-500/30">
-                <span className="font-bold text-sky-300 block mb-1">Solar & Inverter Installations Deliver Highest Ticket Size</span>
+                <span className="font-bold text-sky-300 block mb-1">
+                  {tradeCategoryMetrics.length > 0 && tradeCategoryMetrics[0].revenue > 0
+                    ? `${tradeCategoryMetrics[0].category} Delivers Top Revenue (${tradeCategoryMetrics[0].pctOfTotal.toFixed(1)}%)`
+                    : 'High-Ticket Trade Service Focus'}
+                </span>
                 <p className="text-slate-300">
-                  Solar & Backup power installations average R112,734 per project, generating over R14,700 in gross labor & markup margin per installation.
+                  {tradeCategoryMetrics.length > 0 && tradeCategoryMetrics[0].revenue > 0
+                    ? `${tradeCategoryMetrics[0].category} generated ${formatZAR(tradeCategoryMetrics[0].revenue)} across ${tradeCategoryMetrics[0].count} completed jobs. Upselling surge protection and maintenance plans on these jobs boosts net margin.`
+                    : 'Solar & Aircon installations typically average higher ticket sizes and healthy markup margins when bundled with maintenance agreements.'}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30">
-                <span className="font-bold text-purple-300 block mb-1">SARS Input VAT Deductions</span>
+                <span className="font-bold text-purple-300 block mb-1">SARS Input VAT Deductions: {formatZAR(currentViewMetrics.inputVat)}</span>
                 <p className="text-slate-300">
-                  By logging slip numbers from Fourways, Voltex, and Stafix, you claim back {formatZAR(currentViewMetrics.inputVat)} in Input VAT against your {formatZAR(currentViewMetrics.outputVat)} output liability.
+                  {currentViewMetrics.inputVat > 0
+                    ? `By capturing slips from registered trade accounts, you claim back ${formatZAR(currentViewMetrics.inputVat)} in Input VAT against your ${formatZAR(currentViewMetrics.outputVat)} output liability (Net SARS Payable: ${formatZAR(currentViewMetrics.sarsVatPayable)}).`
+                    : `Your output VAT liability is currently ${formatZAR(currentViewMetrics.outputVat)}. As you record tax invoices and slips, input VAT will automatically deduct from this liability.`}
                 </p>
               </div>
             </div>
@@ -1225,25 +1306,63 @@ export const FinancialAnalysis: React.FC = () => {
             </h3>
             <div className="space-y-3.5 text-xs text-slate-300">
               <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
-                <span className="font-bold text-emerald-300 block mb-1">50% Upfront Deposit Policy is Effective</span>
+                <span className="font-bold text-emerald-300 block mb-1">50% Upfront Deposit Policy</span>
                 <p className="text-slate-300">
-                  Enforcing 50% deposit on major quotes before ordering inverter batteries or commercial HVAC equipment prevents working capital lock-up at wholesalers.
+                  Enforcing 50% deposits on quotes before dispatching technicians or ordering inverter batteries prevents working capital lock-up at wholesalers.
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="font-bold text-slate-200 block mb-1">Fleet Diesel & Route Optimization</span>
+                <span className="font-bold text-slate-200 block mb-1">
+                  Fleet Diesel & Route Optimization ({currentViewMetrics.fuel > 0 ? formatZAR(currentViewMetrics.fuel) : 'R0.00'})
+                </span>
                 <p className="text-slate-400">
-                  Van fleet fuel represents ~10% of monthly overheads. Bundling Sandton, Bryanston, and Kempton Park call-outs reduces daily travel kilometers and technician transit downtime.
+                  {currentViewMetrics.fuel > 0
+                    ? `Fleet fuel represents ${(currentViewMetrics.totalExpenses > 0 ? ((currentViewMetrics.fuel / currentViewMetrics.totalExpenses) * 100).toFixed(1) : '0')}% of recorded overheads. Bundling nearby service call-outs minimizes transit fuel burn.`
+                    : 'Log fuel slips daily to track vehicle running costs per service route across Sandton, Bryanston, and greater Johannesburg.'}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
                 <span className="font-bold text-slate-200 block mb-1">Quotation Conversion Pipeline</span>
                 <p className="text-slate-400">
-                  You have active draft and sent quotations valued at {formatZAR(quotes.reduce((s, q) => s + (q.totalAmount || 0), 0))}. Following up on pending quotes via WhatsApp generates immediate pipeline cash flow.
+                  You have active quotations valued at {formatZAR(quotes.reduce((s, q) => s + (q.totalAmount || 0), 0))}. Following up on pending quotes generates immediate pipeline cash flow.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESET EXPENSES CONFIRMATION */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-[#1B1E28] border border-rose-500/30 text-white shadow-2xl p-6 relative">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-center text-white">Reset All Financial Expenses?</h3>
+            <p className="text-xs text-slate-300 text-center mt-2 leading-relaxed">
+              This will clear all logged expense records from storage so you can start logging daily expenses with a clean slate (R0.00). Invoices and quotes will remain intact.
+            </p>
+            <div className="flex justify-center gap-3 mt-6 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllExpenses();
+                  setIsResetConfirmOpen(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer transition-colors shadow-lg shadow-rose-600/30"
+              >
+                Yes, Reset Expenses to R0.00
+              </button>
             </div>
           </div>
         </div>

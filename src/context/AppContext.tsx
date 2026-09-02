@@ -62,6 +62,7 @@ interface AppContextType {
   addExpense: (expense: Omit<Expense, 'id'>) => Expense;
   updateExpense: (id: string, updates: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  clearAllExpenses: () => void;
   recordPayment: (
     invoiceId: string,
     amount: number,
@@ -202,6 +203,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [expenses, setExpenses] = useState<Expense[]>(() => {
+    // Check if demo financial expenses were explicitly cleared
+    const hasResetDemo = localStorage.getItem('harrys_demo_expenses_cleared_v1');
+    if (!hasResetDemo) {
+      localStorage.removeItem('harrys_expenses');
+      localStorage.setItem('harrys_demo_expenses_cleared_v1', 'true');
+      return [];
+    }
     const saved = localStorage.getItem('harrys_expenses');
     return saved ? JSON.parse(saved) : initialExpenses;
   });
@@ -930,6 +938,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
   };
 
+  const clearAllExpenses = () => {
+    setExpenses([]);
+    localStorage.removeItem('harrys_expenses');
+    localStorage.setItem('harrys_demo_expenses_cleared_v1', 'true');
+  };
+
   const resetToSampleData = () => {
     setProfile(initialBusinessProfile);
     setClients(initialClients);
@@ -968,6 +982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addExpense,
         updateExpense,
         deleteExpense,
+        clearAllExpenses,
         recordPayment,
         deleteInvoicePayment,
         addBulkClients,

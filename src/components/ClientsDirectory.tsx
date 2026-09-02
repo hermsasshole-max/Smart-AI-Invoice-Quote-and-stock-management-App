@@ -16,9 +16,12 @@ import {
   Smartphone,
   Globe,
   UploadCloud,
+  Eye,
+  Navigation,
 } from 'lucide-react';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { ContactImportModal } from './ContactImportModal';
+import { Client360Modal } from './Client360Modal';
 
 export const ClientsDirectory: React.FC = () => {
   const { clients, addClient, addBulkClients, updateClient, deleteClient, sunlightMode } = useApp();
@@ -27,6 +30,7 @@ export const ClientsDirectory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [selected360Client, setSelected360Client] = useState<Client | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -209,9 +213,18 @@ export const ClientsDirectory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bottom WhatsApp CTA */}
-              <div className="pt-4 mt-3 border-t border-[#282E3E]/60 flex items-center justify-between">
-                <span className="text-[11px] font-mono text-slate-400">Direct Chat:</span>
+              {/* Bottom Actions: 360 View & WhatsApp */}
+              <div className="pt-4 mt-3 border-t border-[#282E3E]/60 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelected360Client(client)}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-bold flex items-center space-x-1 border border-slate-700 transition-colors cursor-pointer"
+                  title="View 360° Client Profile, Invoices & Jobs"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>360° Profile</span>
+                </button>
+
                 <a
                   href={waUrl}
                   target="_blank"
@@ -340,6 +353,13 @@ export const ClientsDirectory: React.FC = () => {
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportContacts}
         existingClients={clients}
+      />
+
+      {/* 360° Client Profile Modal */}
+      <Client360Modal
+        client={selected360Client}
+        isOpen={!!selected360Client}
+        onClose={() => setSelected360Client(null)}
       />
     </div>
   );

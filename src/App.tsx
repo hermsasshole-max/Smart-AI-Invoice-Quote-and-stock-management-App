@@ -15,6 +15,8 @@ import { PaywallModal } from './components/PaywallModal';
 import { DebugModal } from './components/DebugModal';
 import { DebugFloatingButton } from './components/DebugFloatingButton';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { VoiceQuoteModal } from './components/VoiceQuoteModal';
 
 const AppContent: React.FC<{
   isDebugOpen: boolean;
@@ -22,6 +24,7 @@ const AppContent: React.FC<{
 }> = ({ isDebugOpen, setIsDebugOpen }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isVoiceQuoteOpen, setIsVoiceQuoteOpen] = useState(false);
   const { sunlightMode, isPaywallOpen, closePaywall, paywallReason } = useApp();
   const { isLandscape } = useSafeArea();
 
@@ -39,7 +42,7 @@ const AppContent: React.FC<{
 
   return (
     <SafeAreaView
-      className={`app-container min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 ${
+      className={`app-container min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 pb-20 md:pb-0 ${
         sunlightMode ? 'bg-[#F1F5F9] text-[#0F172A]' : 'bg-[#0E1017] text-slate-100'
       }`}
     >
@@ -57,6 +60,7 @@ const AppContent: React.FC<{
           <Dashboard
             setActiveTab={setActiveTab}
             openReceiptScanner={() => setIsScannerOpen(true)}
+            openVoiceQuote={() => setIsVoiceQuoteOpen(true)}
           />
         )}
         {activeTab === 'quotes' && <QuotationEngine />}
@@ -69,7 +73,7 @@ const AppContent: React.FC<{
       </main>
 
       <footer
-        className={`py-4 border-t text-center text-xs font-mono transition-colors ${
+        className={`py-4 border-t text-center text-xs font-mono transition-colors hidden md:block ${
           sunlightMode
             ? 'bg-white border-[#CBD5E1] text-slate-600'
             : 'bg-[#151722] border-[#282E3E] text-slate-500'
@@ -89,6 +93,23 @@ const AppContent: React.FC<{
           </div>
         </div>
       </footer>
+
+      {/* Persistent Mobile-First High-Touch Bottom Nav */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        openVoiceQuote={() => setIsVoiceQuoteOpen(true)}
+        openReceiptScanner={() => setIsScannerOpen(true)}
+      />
+
+      {/* Voice-to-Quote & Autonomous Job Engine Modal */}
+      <VoiceQuoteModal
+        isOpen={isVoiceQuoteOpen}
+        onClose={() => setIsVoiceQuoteOpen(false)}
+        onQuoteCreated={(quote) => {
+          setActiveTab('quotes');
+        }}
+      />
 
       {/* Global Receipt Scanner Modal */}
       <ReceiptScannerModal
