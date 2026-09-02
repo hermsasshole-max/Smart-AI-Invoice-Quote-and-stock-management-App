@@ -1,4 +1,17 @@
 import { Client } from '../types';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  User,
+} from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+// Initialize Firebase App for authentication
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
 
 export interface GoogleContactParsed {
   resourceName?: string;
@@ -12,7 +25,19 @@ export interface GoogleContactParsed {
   selected?: boolean;
 }
 
-const SCOPES = 'https://www.googleapis.com/auth/contacts.readonly';
+export const SCOPES = 'https://www.googleapis.com/auth/contacts.readonly';
+
+// In-memory token cache (never stored in localStorage)
+let cachedAccessToken: string | null = null;
+let currentUser: User | null = null;
+
+export function getCachedAccessToken(): string | null {
+  return cachedAccessToken;
+}
+
+export function getCurrentGoogleUser(): User | null {
+  return currentUser || auth.currentUser;
+}
 
 declare global {
   interface Window {
@@ -21,7 +46,7 @@ declare global {
 }
 
 /**
- * Load Google Identity Services library
+ * Load Google Identity Services library as fallback
  */
 export function loadGoogleGsiScript(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -47,47 +72,100 @@ export function loadGoogleGsiScript(): Promise<void> {
 }
 
 /**
- * Request OAuth access token using Google Identity Services token client
+ * Primary Google Authentication method using Firebase Auth popup (standard for AI Studio apps)
+ * with graceful fallback to Google Identity Services token client using the configured OAuth client ID.
  */
 export async function requestGoogleContactsToken(clientId?: string): Promise<string> {
-  await loadGoogleGsiScript();
+  // 1. Try Firebase Auth popup first (preferred & fully configured with brand & domain)
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope(SCOPES);
+    provider.setCustomParameters({
+      prompt: 'consent',
+    });
 
-  if (!window.google?.accounts?.oauth2) {
-    throw new Error('Google Identity Services SDK is not initialized.');
+    const result = await signInWithPopup(auth, provider);
+    currentUser = result.user;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
+      return credential.accessToken;
+    }
+  } catch (firebaseErr: any) {
+    console.warn('Firebase Auth popup encountered an issue, trying GIS token client:', firebaseErr);
+
+    // If user cancelled, don't retry GIS automatically to avoid double popups
+    if (
+      firebaseErr?.code === 'auth/popup-closed-by-user' ||
+      firebaseErr?.code === 'auth/cancelled-popup-request'
+    ) {
+      throw new Error('Sign-in cancelled by user.');
+    }
+
+    // 2. Fallback to Google Identity Services Token Client
+    const oauthClientId =
+      clientId ||
+      (firebaseConfig as any).oAuthClientId ||
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID);
+
+    if (!oauthClientId) {
+      throw new Error(
+        firebaseErr?.message ||
+          'No valid Google OAuth Client ID found. Please confirm OAuth setup in the integration settings.'
+      );
+    }
+
+    await loadGoogleGsiScript();
+
+    if (!window.google?.accounts?.oauth2) {
+      throw new Error(firebaseErr?.message || 'Google Identity Services SDK is not initialized.');
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: oauthClientId,
+          scope: SCOPES,
+          callback: (response: any) => {
+            if (response.error) {
+              reject(new Error(`Google authorization failed: ${response.error_description || response.error}`));
+              return;
+            }
+            if (!response.access_token) {
+              reject(new Error('No access token returned from Google authentication'));
+              return;
+            }
+            cachedAccessToken = response.access_token;
+            resolve(response.access_token);
+          },
+          error_callback: (err: any) => {
+            reject(
+              new Error(
+                err?.message ||
+                  'Google Auth Popup closed or blocked. If inside an iframe, please open the app in a new tab or allow popups.'
+              )
+            );
+          },
+        });
+
+        client.requestAccessToken({ prompt: 'consent' });
+      } catch (err: any) {
+        reject(new Error(`Failed to initialize Google Auth Client: ${err.message || err}`));
+      }
+    });
   }
 
-  // Use provided Client ID or fallback to standard OAuth client id
-  const oauthClientId =
-    clientId ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
-    '829808735879-c56k8f47q79b90k3lke0t0p128i87j4u.apps.googleusercontent.com';
+  throw new Error('Could not retrieve Google Contacts access token.');
+}
 
-  return new Promise((resolve, reject) => {
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: oauthClientId,
-        scope: SCOPES,
-        callback: (response: any) => {
-          if (response.error) {
-            reject(new Error(`Google authorization failed: ${response.error_description || response.error}`));
-            return;
-          }
-          if (!response.access_token) {
-            reject(new Error('No access token returned from Google authentication'));
-            return;
-          }
-          resolve(response.access_token);
-        },
-        error_callback: (err: any) => {
-          reject(new Error(err.message || 'Google Auth Popup closed or blocked.'));
-        },
-      });
-
-      client.requestAccessToken({ prompt: 'consent' });
-    } catch (err: any) {
-      reject(new Error(`Failed to initialize Google Auth Client: ${err.message || err}`));
-    }
-  });
+/**
+ * Sign out from Google Auth and clear in-memory token
+ */
+export async function googleSignOut(): Promise<void> {
+  cachedAccessToken = null;
+  currentUser = null;
+  await signOut(auth).catch(() => {});
 }
 
 /**
