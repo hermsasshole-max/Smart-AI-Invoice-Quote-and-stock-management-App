@@ -107,7 +107,7 @@ export const SettingsManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto w-full px-0 sm:px-2">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -130,16 +130,16 @@ export const SettingsManager: React.FC = () => {
               alert('Sample data restored.');
             }
           }}
-          className="px-3.5 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
+          className="px-3.5 py-2 min-h-[40px] rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Reset Sample Data</span>
         </button>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} className="space-y-6 pb-8">
         {/* Company Registration Card */}
-        <div className={`p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
+        <div className={`p-4 sm:p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
           <h3 className="font-black text-base flex items-center space-x-2 text-sky-400 pb-4 border-b border-[#282E3E]">
             <Building className="w-5 h-5" />
             <span>Company Legal & Contact Details</span>
@@ -219,7 +219,7 @@ export const SettingsManager: React.FC = () => {
         </div>
 
         {/* Banking Details Card */}
-        <div className={`p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
+        <div className={`p-4 sm:p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
           <h3 className="font-black text-base flex items-center space-x-2 text-amber-400 pb-4 border-b border-[#282E3E]">
             <CreditCard className="w-5 h-5" />
             <span>South African Banking Details (Printed on Invoices & Quotes)</span>
@@ -269,7 +269,7 @@ export const SettingsManager: React.FC = () => {
         </div>
 
         {/* Default Rates & Compliance */}
-        <div className={`p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
+        <div className={`p-4 sm:p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
           <h3 className="font-black text-base flex items-center space-x-2 text-emerald-400 pb-4 border-b border-[#282E3E]">
             <Percent className="w-5 h-5" />
             <span>Default Rates, Markup Tiers & Compliance</span>
@@ -357,7 +357,7 @@ export const SettingsManager: React.FC = () => {
         </div>
 
         {/* Subscription & Entitlements Management Card */}
-        <div className={`p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
+        <div className={`p-4 sm:p-6 rounded-2xl border ${sunlightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#1B1E28] border-[#282E3E] text-white'}`}>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-[#282E3E] gap-2">
             <h3 className="font-black text-base flex items-center space-x-2 text-amber-400">
               <Crown className="w-5 h-5 text-amber-400" />
@@ -541,18 +541,35 @@ export const SettingsManager: React.FC = () => {
           )}
         </div>
 
-        {/* Save Button */}
-        <div className="flex items-center justify-end space-x-3">
-          {savedSuccess && (
-            <span className="text-xs text-emerald-400 font-bold flex items-center space-x-1">
-              <Check className="w-4 h-4" />
-              <span>Settings Saved Successfully!</span>
+        {/* Sticky Viewport-Safe Action Bar for Profile Save */}
+        <div
+          id="profile-save-action-bar"
+          className={`sticky bottom-[calc(64px+env(safe-area-inset-bottom,0px))] md:bottom-2 z-20 -mx-1 sm:mx-0 p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-2xl transition-all flex flex-col sm:flex-row items-center justify-between gap-3 ${
+            sunlightMode
+              ? 'bg-white/95 border-slate-300 text-slate-900 shadow-slate-300/50'
+              : 'bg-[#12141D]/95 border-[#282E3E] text-white shadow-black/80'
+          }`}
+          style={{
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-start">
+            <span className="text-xs font-mono text-slate-400">
+              Profile details update across all documents
             </span>
-          )}
+            {savedSuccess && (
+              <span className="text-xs text-emerald-400 font-bold flex items-center space-x-1.5 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40 animate-pulse">
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Saved Successfully!</span>
+              </span>
+            )}
+          </div>
 
           <button
             type="submit"
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-lg shadow-sky-500/20 cursor-pointer active:scale-95"
+            id="save-profile-btn"
+            className="w-full sm:w-auto px-6 py-3 min-h-[46px] rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-sky-500/25 cursor-pointer active:scale-95 transition-transform shrink-0"
           >
             <Check className="w-4 h-4" />
             <span>Save All Profile Changes</span>

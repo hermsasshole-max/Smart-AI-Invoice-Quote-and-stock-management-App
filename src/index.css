@@ -48,6 +48,38 @@
   padding-right: max(8px, env(safe-area-inset-right, 0px));
 }
 
+/* Mobile Viewport & Structural Scroll Container */
+.main-view-scroll-container {
+  flex: 1 1 0%;
+  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .main-view-scroll-container {
+    padding-bottom: 2.5rem;
+    overflow-y: visible;
+  }
+}
+
+/* Sticky Viewport-Safe Bottom Actions */
+.sticky-bottom-action {
+  position: sticky;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (min-width: 768px) {
+  .sticky-bottom-action {
+    bottom: 0.5rem;
+  }
+}
+
 /* Landscape Mode Responsive Adjustments for Mobile and Tablets */
 @media screen and (orientation: landscape) and (max-height: 640px) {
   /* Prevent modals from clipping in landscape mode on phones */

@@ -149,12 +149,19 @@ export const SafeAreaView: React.FC<{
 }> = ({ children, className = '', edges = ['top', 'bottom', 'left', 'right'] }) => {
   const { insets } = useSafeArea();
 
-  const style: React.CSSProperties = {
-    paddingTop: edges.includes('top') ? `max(${insets.top}px, env(safe-area-inset-top, 0px))` : 0,
-    paddingBottom: edges.includes('bottom') ? `max(${insets.bottom}px, env(safe-area-inset-bottom, 0px))` : 0,
-    paddingLeft: edges.includes('left') ? `max(${insets.left}px, env(safe-area-inset-left, 0px))` : 0,
-    paddingRight: edges.includes('right') ? `max(${insets.right}px, env(safe-area-inset-right, 0px))` : 0,
-  };
+  const style: React.CSSProperties = {};
+  if (edges.includes('top')) {
+    style.paddingTop = `max(${insets.top}px, env(safe-area-inset-top, 0px))`;
+  }
+  if (edges.includes('bottom')) {
+    style.paddingBottom = `max(${insets.bottom}px, env(safe-area-inset-bottom, 0px))`;
+  }
+  if (edges.includes('left')) {
+    style.paddingLeft = `max(${insets.left}px, env(safe-area-inset-left, 0px))`;
+  }
+  if (edges.includes('right')) {
+    style.paddingRight = `max(${insets.right}px, env(safe-area-inset-right, 0px))`;
+  }
 
   return (
     <div className={`w-full flex-1 flex flex-col ${className}`} style={style}>

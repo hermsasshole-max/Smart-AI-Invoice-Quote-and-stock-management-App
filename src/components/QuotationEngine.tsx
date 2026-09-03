@@ -1203,12 +1203,22 @@ export const QuotationEngine: React.FC = () => {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-[#282E3E]">
+          {/* Actions - Sticky & Viewport-Safe */}
+          <div
+            className={`sticky bottom-[calc(64px+env(safe-area-inset-bottom,0px))] md:bottom-2 z-20 -mx-2 sm:mx-0 p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-2xl flex flex-wrap items-center justify-end gap-2 sm:gap-3 backdrop-blur-md transition-all ${
+              sunlightMode
+                ? 'bg-white/95 border-slate-300 text-slate-900 shadow-slate-300/50'
+                : 'bg-[#12141D]/95 border-[#282E3E] text-white shadow-black/80'
+            }`}
+            style={{
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+            }}
+          >
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold cursor-pointer"
+              className="px-4 py-2.5 min-h-[42px] rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold cursor-pointer"
             >
               Cancel
             </button>
@@ -1216,7 +1226,7 @@ export const QuotationEngine: React.FC = () => {
             <button
               type="button"
               onClick={() => handleSaveQuote('draft')}
-              className="px-4 py-2 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 text-xs font-bold cursor-pointer"
+              className="px-4 py-2.5 min-h-[42px] rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 text-xs font-bold cursor-pointer"
             >
               Save as Draft
             </button>
@@ -1224,7 +1234,7 @@ export const QuotationEngine: React.FC = () => {
             <button
               type="button"
               onClick={() => handleSaveQuote('sent')}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-sky-500/20 cursor-pointer active:scale-95"
+              className="px-5 py-2.5 min-h-[44px] rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-sky-500/20 cursor-pointer active:scale-95"
             >
               <Send className="w-4 h-4" />
               <span>Finalize & Issue Quotation</span>

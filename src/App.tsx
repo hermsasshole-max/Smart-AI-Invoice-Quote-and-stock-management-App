@@ -26,7 +26,8 @@ const AppContent: React.FC = () => {
 
   return (
     <SafeAreaView
-      className={`app-container min-h-screen min-h-[100dvh] w-full flex flex-col transition-colors duration-200 pb-20 md:pb-0 ${
+      edges={['top', 'left', 'right']}
+      className={`app-container min-h-[100dvh] h-[100dvh] md:h-auto md:min-h-[100dvh] w-full flex flex-col overflow-hidden md:overflow-visible transition-colors duration-200 ${
         sunlightMode ? 'bg-[#F1F5F9] text-[#0F172A]' : 'bg-[#0E1017] text-slate-100'
       }`}
     >
@@ -36,9 +37,15 @@ const AppContent: React.FC = () => {
         openReceiptScanner={() => setIsScannerOpen(true)}
       />
 
-      <main className={`flex-1 w-full max-w-7xl mx-auto py-4 sm:py-6 transition-all ${
-        isLandscape ? 'px-4 sm:px-6 lg:px-8' : 'px-3 sm:px-6 lg:px-8'
-      }`}>
+      <main
+        id="main-view-container"
+        className={`main-view-scroll-container flex-1 w-full max-w-7xl mx-auto py-4 sm:py-6 transition-all ${
+          isLandscape ? 'px-4 sm:px-6 lg:px-8' : 'px-3 sm:px-6 lg:px-8'
+        }`}
+        style={{
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {activeTab === 'dashboard' && (
           <Dashboard
             setActiveTab={setActiveTab}
