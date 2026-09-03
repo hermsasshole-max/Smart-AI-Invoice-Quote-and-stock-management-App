@@ -13,33 +13,16 @@ import { SettingsManager } from './components/SettingsManager';
 import { SqlSchemaViewer } from './components/SqlSchemaViewer';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { PaywallModal } from './components/PaywallModal';
-import { DebugModal } from './components/DebugModal';
-import { DebugFloatingButton } from './components/DebugFloatingButton';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { VoiceQuoteModal } from './components/VoiceQuoteModal';
 
-const AppContent: React.FC<{
-  isDebugOpen: boolean;
-  setIsDebugOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}> = ({ isDebugOpen, setIsDebugOpen }) => {
+const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isVoiceQuoteOpen, setIsVoiceQuoteOpen] = useState(false);
   const { sunlightMode, isPaywallOpen, closePaywall, paywallReason } = useApp();
   const { isLandscape } = useSafeArea();
-
-  // Keyboard shortcut: Ctrl+Shift+D or Cmd+Shift+D to toggle Debug Modal
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
-        e.preventDefault();
-        setIsDebugOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setIsDebugOpen]);
 
   return (
     <SafeAreaView
@@ -51,7 +34,6 @@ const AppContent: React.FC<{
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         openReceiptScanner={() => setIsScannerOpen(true)}
-        openDebugModal={() => setIsDebugOpen(true)}
       />
 
       <main className={`flex-1 w-full max-w-7xl mx-auto py-4 sm:py-6 transition-all ${
@@ -87,16 +69,9 @@ const AppContent: React.FC<{
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-          <span>Harry's Air Conditioning & Electrical Services (Pty) Ltd</span>
+          <span>CorTech AI Business Manager • Field Service Suite</span>
           <div className="flex items-center space-x-3">
             <span>SANS 10142-1 Compliance • ZAR Financial Engine</span>
-            <button
-              type="button"
-              onClick={() => setIsDebugOpen(true)}
-              className="text-slate-400 hover:text-amber-400 underline cursor-pointer text-[11px]"
-            >
-              [Debug Console]
-            </button>
           </div>
         </div>
       </footer>
@@ -130,27 +105,16 @@ const AppContent: React.FC<{
         onClose={closePaywall}
         triggerReason={paywallReason}
       />
-
-      {/* Global Visual Debug Modal / Overlay */}
-      <DebugModal
-        isOpen={isDebugOpen}
-        onClose={() => setIsDebugOpen(false)}
-      />
-
-      {/* Floating On-Screen Debug Action Button */}
-      <DebugFloatingButton onClick={() => setIsDebugOpen(true)} />
     </SafeAreaView>
   );
 };
 
 export const App: React.FC = () => {
-  const [isDebugOpen, setIsDebugOpen] = useState(false);
-
   return (
-    <ErrorBoundary onOpenDebugModal={() => setIsDebugOpen(true)}>
+    <ErrorBoundary>
       <AppProvider>
         <SafeAreaProvider>
-          <AppContent isDebugOpen={isDebugOpen} setIsDebugOpen={setIsDebugOpen} />
+          <AppContent />
         </SafeAreaProvider>
       </AppProvider>
     </ErrorBoundary>

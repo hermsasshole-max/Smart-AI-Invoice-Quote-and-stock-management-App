@@ -1,8 +1,8 @@
 {
   "id": "/?source=pwa",
-  "name": "Harrys Aircon, Electrical & Solar",
-  "short_name": "Harrys",
-  "description": "Field service management, invoice OCR scanner, and quotation engine.",
+  "name": "CorTech AI Business Manager",
+  "short_name": "CorTech AI",
+  "description": "AI-powered business management, invoice OCR scanner, and quotation engine for field contractors.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

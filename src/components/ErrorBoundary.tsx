@@ -1,10 +1,9 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { debugLogger } from '../utils/debugLogger';
-import { AlertOctagon, RefreshCw, Copy, Check, Terminal, Database } from 'lucide-react';
+import { AlertOctagon, RefreshCw, Copy, Check, Database } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
-  onOpenDebugModal?: () => void;
 }
 
 interface State {
@@ -146,17 +145,6 @@ export class ErrorBoundary extends Component<Props, State> {
                     </>
                   )}
                 </button>
-
-                {this.props.onOpenDebugModal && (
-                  <button
-                    type="button"
-                    onClick={this.props.onOpenDebugModal}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold flex items-center space-x-1.5 border border-amber-500/40 cursor-pointer"
-                  >
-                    <Terminal className="w-4 h-4" />
-                    <span>Open Debug Panel</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>

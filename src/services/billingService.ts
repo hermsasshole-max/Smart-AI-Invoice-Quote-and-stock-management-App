@@ -385,7 +385,7 @@ class BillingService {
     return {
       success: true,
       tier: 'BUSINESS',
-      message: 'Developer Code (NismoR34) Accepted! Unlimited Free Access to all features & AI unlocked permanently.',
+      message: 'Developer Code Accepted! Unlimited Free Access to all features & AI unlocked permanently.',
     };
   }
 

@@ -461,10 +461,10 @@ export const SettingsManager: React.FC = () => {
               <div className="w-full sm:w-auto flex items-center space-x-2">
                 <input
                   id="settings-developer-token-input"
-                  type="text"
+                  type="password"
                   value={devCode}
                   onChange={(e) => setDevCode(e.target.value)}
-                  placeholder="Code (e.g. NismoR34)"
+                  placeholder="Enter developer password"
                   className="px-3 py-1.5 rounded-lg bg-[#12141C] border border-[#334155] text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-amber-400 flex-1 sm:w-44"
                 />
                 <button
@@ -485,7 +485,7 @@ export const SettingsManager: React.FC = () => {
                         await refreshEntitlements();
                         setDevCodeFeedback({
                           type: 'success',
-                          text: 'Developer Code (NismoR34) Verified! Unlimited Lifetime Business Tier Active.',
+                          text: 'Developer Password Verified! Unlimited Lifetime Business Tier Active.',
                         });
                         setDevCode('');
                       } else {

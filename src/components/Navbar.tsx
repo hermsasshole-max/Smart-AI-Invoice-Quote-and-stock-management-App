@@ -12,7 +12,6 @@ import {
   Database,
   LayoutDashboard,
   Download,
-  Bug,
   Sparkles,
   Crown,
   TrendingUp,
@@ -26,7 +25,6 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   openReceiptScanner: () => void;
-  openDebugModal?: () => void;
 }
 
 interface NavSection {
@@ -42,7 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   openReceiptScanner,
-  openDebugModal,
 }) => {
   const {
     profile,
@@ -187,8 +184,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div className="hidden sm:block">
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-black text-sm sm:text-base tracking-tight bg-gradient-to-r from-amber-400 via-sky-300 to-white bg-clip-text text-transparent truncate max-w-[170px] lg:max-w-none">
-                    {profile.companyName || "Harry's Aircon & Electrical"}
+                  <span className="font-black text-sm sm:text-base tracking-tight bg-gradient-to-r from-amber-400 via-sky-300 to-white bg-clip-text text-transparent truncate max-w-[210px] lg:max-w-none">
+                    CorTech AI Business Manager
                   </span>
                   <span className="hidden lg:inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/30">
                     SANS 10142
@@ -199,7 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     sunlightMode ? 'text-slate-600' : 'text-slate-400'
                   } line-clamp-1`}
                 >
-                  {profile.tagline || 'Electrical • Aircon • Solar'}
+                  {profile.companyName ? `${profile.companyName} • Field Ops` : 'Electrical • Aircon • Solar • Security'}
                 </p>
               </div>
             </div>
@@ -526,22 +523,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Scan className="w-4 h-4 text-slate-950" />
               <span className="hidden md:inline">Scan Slip</span>
             </button>
-
-            {/* Debug Mode Button */}
-            {openDebugModal && (
-              <button
-                type="button"
-                onClick={openDebugModal}
-                className={`p-1.5 sm:p-2 rounded-lg border transition-all cursor-pointer ${
-                  sunlightMode
-                    ? 'bg-slate-200 border-slate-300 text-slate-800 hover:bg-slate-300'
-                    : 'bg-[#12141C] border-[#334155] text-slate-300 hover:text-amber-400 hover:bg-[#282E3E]'
-                }`}
-                title="Open Application & API Debugger (Ctrl+Shift+D)"
-              >
-                <Bug className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-            )}
 
             {/* Sunlight High Contrast Mode */}
             <button

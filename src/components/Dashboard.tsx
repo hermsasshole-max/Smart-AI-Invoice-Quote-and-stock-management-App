@@ -54,7 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span>South African Field Service Operations</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Harry's Field Command Center
+              CorTech AI Command Center
             </h1>
             <p className={`text-xs sm:text-sm mt-1 ${sunlightMode ? 'text-slate-600' : 'text-slate-400'}`}>
               Instant quoting, OCR supplier receipt extraction, automated WhatsApp invoicing & SANS 10142 compliance.

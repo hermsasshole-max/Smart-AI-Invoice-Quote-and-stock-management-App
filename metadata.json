@@ -1,6 +1,6 @@
 {
-  "name": "Harrys Aircon Electrical & Solar",
-  "description": "Field service management, smart supplier invoice OCR scanner, fast on-site quotation engine, and inventory tracking for South African electrical, HVAC, and solar contractors.",
+  "name": "CorTech AI Business Manager",
+  "description": "Field service management, smart supplier invoice OCR scanner, fast on-site quotation engine, and inventory tracking for electrical, HVAC, and solar contractors.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

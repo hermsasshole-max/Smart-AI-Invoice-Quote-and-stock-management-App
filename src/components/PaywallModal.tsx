@@ -70,7 +70,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
 
         setPromoFeedback({
           type: 'success',
-          text: 'Developer Code Accepted (NismoR34)! Lifetime Unlimited Business Tier & AI Unlocked.',
+          text: 'Developer Code Accepted! Lifetime Unlimited Business Tier & AI Unlocked.',
         });
 
         setTimeout(() => {
@@ -510,10 +510,10 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
             >
               <input
                 id="developer-token-input"
-                type="text"
+                type="password"
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Password (e.g. NismoR34)"
+                placeholder="Enter developer password"
                 className="flex-1 md:w-56 px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
               />
               <button

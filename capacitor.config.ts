@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.smartai.invoicequote',
-  appName: 'Smart AI Invoice & Quote',
+  appId: 'com.cortech.businessmanager',
+  appName: 'CorTech AI Business Manager',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
