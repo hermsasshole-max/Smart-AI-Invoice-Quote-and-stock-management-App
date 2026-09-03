@@ -1203,18 +1203,8 @@ export const QuotationEngine: React.FC = () => {
             </div>
           </div>
 
-          {/* Actions - Sticky & Viewport-Safe */}
-          <div
-            className={`sticky bottom-[calc(64px+env(safe-area-inset-bottom,0px))] md:bottom-2 z-20 -mx-2 sm:mx-0 p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-2xl flex flex-wrap items-center justify-end gap-2 sm:gap-3 backdrop-blur-md transition-all ${
-              sunlightMode
-                ? 'bg-white/95 border-slate-300 text-slate-900 shadow-slate-300/50'
-                : 'bg-[#12141D]/95 border-[#282E3E] text-white shadow-black/80'
-            }`}
-            style={{
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-            }}
-          >
+          {/* Actions */}
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 pt-6 border-t border-[#282E3E]">
             <button
               type="button"
               onClick={resetForm}

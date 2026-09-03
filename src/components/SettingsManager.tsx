@@ -541,18 +541,14 @@ export const SettingsManager: React.FC = () => {
           )}
         </div>
 
-        {/* Sticky Viewport-Safe Action Bar for Profile Save */}
+        {/* Profile Save Action Bar */}
         <div
           id="profile-save-action-bar"
-          className={`sticky bottom-[calc(64px+env(safe-area-inset-bottom,0px))] md:bottom-2 z-20 -mx-1 sm:mx-0 p-3 sm:p-4 rounded-xl sm:rounded-2xl border shadow-2xl transition-all flex flex-col sm:flex-row items-center justify-between gap-3 ${
+          className={`p-4 rounded-xl sm:rounded-2xl border shadow-xl transition-all flex flex-col sm:flex-row items-center justify-between gap-3 ${
             sunlightMode
-              ? 'bg-white/95 border-slate-300 text-slate-900 shadow-slate-300/50'
-              : 'bg-[#12141D]/95 border-[#282E3E] text-white shadow-black/80'
+              ? 'bg-white border-slate-300 text-slate-900 shadow-slate-300/50'
+              : 'bg-[#181B26] border-[#282E3E] text-white shadow-black/80'
           }`}
-          style={{
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-          }}
         >
           <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-start">
             <span className="text-xs font-mono text-slate-400">
