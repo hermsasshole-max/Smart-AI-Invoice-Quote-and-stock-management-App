@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { InventoryItem } from '../types';
 import { formatZAR, calculateSellingPrice } from '../utils/calculator';
@@ -15,7 +15,25 @@ import {
   X,
   Check,
   Scan,
+  Filter,
+  ArrowUpDown,
+  Tag,
+  Zap,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
+
+const COMPONENT_TAGS = [
+  { label: 'Breakers & DB', query: 'breaker' },
+  { label: 'Cables & Wire', query: 'cable' },
+  { label: 'Aircon Units', query: 'aircon' },
+  { label: 'Copper & Gas', query: 'copper' },
+  { label: 'Inverters', query: 'inverter' },
+  { label: 'Batteries', query: 'battery' },
+  { label: 'Gate Motors', query: 'motor' },
+  { label: 'Switches & Sockets', query: 'socket' },
+  { label: 'Fasteners & Brackets', query: 'bolt' },
+];
 
 export const InventoryManager: React.FC = () => {
   const {
@@ -31,6 +49,10 @@ export const InventoryManager: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [supplierFilter, setSupplierFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'stock_asc' | 'stock_desc' | 'cost_desc' | 'selling_desc'>('name');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -49,17 +71,100 @@ export const InventoryManager: React.FC = () => {
   const [supplier, setSupplier] = useState('Bolt & Nut Centre');
   const [notes, setNotes] = useState('');
 
-  const filteredItems = inventory.filter((item) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.supplier?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCat =
-      filterCategory === 'All' ||
-      item.category === filterCategory ||
-      (filterCategory === 'Hardware & Site Materials' && (item.category === 'Hardware & Site Materials' || item.category === 'Hardware & Fasteners' || item.category === 'Hardware'));
-    return matchesSearch && matchesCat;
-  });
+  // Extract unique suppliers
+  const availableSuppliers = useMemo(() => {
+    const set = new Set<string>();
+    inventory.forEach((item) => {
+      if (item.supplier?.trim()) set.add(item.supplier.trim());
+    });
+    return Array.from(set).sort();
+  }, [inventory]);
+
+  // Dynamic category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      All: inventory.length,
+      'Hardware & Site Materials': 0,
+      Electrical: 0,
+      'Air Conditioning': 0,
+      'Solar & Backup': 0,
+      'Security & CCTV': 0,
+      'Automation & Gate Motors': 0,
+      Consumables: 0,
+      'Low Stock': 0,
+    };
+
+    inventory.forEach((item) => {
+      if (item.stockQty <= item.minStockLevel) {
+        counts['Low Stock']++;
+      }
+      if (item.category === 'Hardware & Site Materials' || item.category === 'Hardware & Fasteners' || item.category === 'Hardware') {
+        counts['Hardware & Site Materials']++;
+      } else if (counts[item.category] !== undefined) {
+        counts[item.category]++;
+      }
+    });
+
+    return counts;
+  }, [inventory]);
+
+  // Filtered & Sorted items
+  const filteredItems = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+
+    const result = inventory.filter((item) => {
+      // Text search
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.sku.toLowerCase().includes(q) ||
+        item.supplier?.toLowerCase().includes(q) ||
+        item.location?.toLowerCase().includes(q) ||
+        item.notes?.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q);
+
+      // Category matching
+      let matchesCat = true;
+      if (filterCategory === 'Low Stock') {
+        matchesCat = item.stockQty <= item.minStockLevel;
+      } else if (filterCategory === 'Hardware & Site Materials') {
+        matchesCat =
+          item.category === 'Hardware & Site Materials' ||
+          item.category === 'Hardware & Fasteners' ||
+          item.category === 'Hardware';
+      } else if (filterCategory !== 'All') {
+        matchesCat = item.category === filterCategory;
+      }
+
+      // Stock status matching
+      let matchesStock = true;
+      if (stockStatusFilter === 'in_stock') {
+        matchesStock = item.stockQty > 0;
+      } else if (stockStatusFilter === 'low_stock') {
+        matchesStock = item.stockQty <= item.minStockLevel;
+      } else if (stockStatusFilter === 'out_of_stock') {
+        matchesStock = item.stockQty === 0;
+      }
+
+      // Supplier matching
+      const matchesSupplier =
+        supplierFilter === 'all' || item.supplier?.trim() === supplierFilter;
+
+      return matchesSearch && matchesCat && matchesStock && matchesSupplier;
+    });
+
+    // Sorting
+    result.sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'stock_asc') return a.stockQty - b.stockQty;
+      if (sortBy === 'stock_desc') return b.stockQty - a.stockQty;
+      if (sortBy === 'cost_desc') return b.costPrice - a.costPrice;
+      if (sortBy === 'selling_desc') return b.sellingPrice - a.sellingPrice;
+      return 0;
+    });
+
+    return result;
+  }, [inventory, searchTerm, filterCategory, stockStatusFilter, supplierFilter, sortBy]);
 
   const openAdd = () => {
     const check = entitlementManager.canAddInventoryItem(inventory.length);
@@ -229,33 +334,192 @@ export const InventoryManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by part name, SKU, or supplier..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1B1E28] border border-[#282E3E] text-white text-xs sm:text-sm focus:outline-none focus:border-sky-500"
-          />
+      {/* Category Pills Carousel / Bar */}
+      <div className="space-y-3">
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'All', label: 'All Components', count: categoryCounts.All },
+            { id: 'Electrical', label: '⚡ Electrical', count: categoryCounts.Electrical },
+            { id: 'Air Conditioning', label: '❄️ Air Conditioning', count: categoryCounts['Air Conditioning'] },
+            { id: 'Solar & Backup', label: '☀️ Solar & Backup', count: categoryCounts['Solar & Backup'] },
+            { id: 'Security & CCTV', label: '📹 Security & CCTV', count: categoryCounts['Security & CCTV'] },
+            { id: 'Automation & Gate Motors', label: '⚙️ Gate Automation', count: categoryCounts['Automation & Gate Motors'] },
+            { id: 'Hardware & Site Materials', label: '🔩 Hardware & Fasteners', count: categoryCounts['Hardware & Site Materials'] },
+            { id: 'Consumables', label: '📦 Consumables', count: categoryCounts.Consumables },
+            { id: 'Low Stock', label: '⚠️ Low Stock Alerts', count: categoryCounts['Low Stock'], isAlert: true },
+          ].map((cat) => {
+            const isActive = filterCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setFilterCategory(cat.id)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                  cat.isAlert && cat.count > 0 && !isActive
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                    : isActive
+                    ? cat.isAlert
+                      ? 'bg-red-600 border-red-500 text-white shadow-md'
+                      : 'bg-amber-500 border-amber-400 text-slate-950 shadow-md shadow-amber-500/20'
+                    : sunlightMode
+                    ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                    : 'bg-[#181B26] border-[#282E3E] text-slate-300 hover:text-white hover:bg-[#202534]'
+                }`}
+              >
+                <span>{cat.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    isActive
+                      ? cat.isAlert
+                        ? 'bg-white text-red-600'
+                        : 'bg-slate-950 text-amber-400'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {cat.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-3 py-2.5 rounded-xl bg-[#1B1E28] border border-[#282E3E] text-white text-xs sm:text-sm font-semibold focus:outline-none focus:border-sky-500"
+        {/* Filter & Search Bar */}
+        <div
+          className={`p-3 sm:p-4 rounded-2xl border space-y-3 ${
+            sunlightMode ? 'bg-white border-slate-300' : 'bg-[#181B26] border-[#282E3E]'
+          }`}
         >
-          <option value="All">All Categories</option>
-          <option value="Hardware & Site Materials">Hardware & Site Materials / Fasteners</option>
-          <option value="Electrical">Electrical</option>
-          <option value="Air Conditioning">Air Conditioning</option>
-          <option value="Solar & Backup">Solar & Backup</option>
-          <option value="Security & CCTV">Security & CCTV</option>
-          <option value="Automation & Gate Motors">Automation & Gate Motors</option>
-          <option value="Consumables">Consumables</option>
-        </select>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+            {/* Search Input */}
+            <div className="relative md:col-span-6">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by part name, SKU, component type, supplier, bin..."
+                className={`w-full pl-10 pr-9 py-2 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-amber-500 border ${
+                  sunlightMode
+                    ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                    : 'bg-[#12141C] border-[#282E3E] text-white placeholder:text-slate-500'
+                }`}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Stock Status Filter */}
+            <div className="md:col-span-2">
+              <select
+                value={stockStatusFilter}
+                onChange={(e) => setStockStatusFilter(e.target.value as any)}
+                className={`w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500 border ${
+                  sunlightMode
+                    ? 'bg-slate-50 border-slate-300 text-slate-900'
+                    : 'bg-[#12141C] border-[#282E3E] text-white'
+                }`}
+              >
+                <option value="all">All Levels</option>
+                <option value="in_stock">In Stock (&gt;0)</option>
+                <option value="low_stock">Low Stock (≤Min)</option>
+                <option value="out_of_stock">Out of Stock (0)</option>
+              </select>
+            </div>
+
+            {/* Supplier Filter */}
+            <div className="md:col-span-2">
+              <select
+                value={supplierFilter}
+                onChange={(e) => setSupplierFilter(e.target.value)}
+                className={`w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500 border ${
+                  sunlightMode
+                    ? 'bg-slate-50 border-slate-300 text-slate-900'
+                    : 'bg-[#12141C] border-[#282E3E] text-white'
+                }`}
+              >
+                <option value="all">All Suppliers</option>
+                {availableSuppliers.map((sup) => (
+                  <option key={sup} value={sup}>
+                    {sup}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort Options */}
+            <div className="md:col-span-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className={`w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:border-amber-500 border ${
+                  sunlightMode
+                    ? 'bg-slate-50 border-slate-300 text-slate-900'
+                    : 'bg-[#12141C] border-[#282E3E] text-white'
+                }`}
+              >
+                <option value="name">Sort: Name (A-Z)</option>
+                <option value="stock_asc">Sort: Stock (Low to High)</option>
+                <option value="stock_desc">Sort: Stock (High to Low)</option>
+                <option value="cost_desc">Sort: Cost Price</option>
+                <option value="selling_desc">Sort: Selling Rate</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Component Tag Search Chips */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#282E3E]/60">
+            <span className="text-[11px] font-mono font-bold uppercase text-slate-400 mr-1 flex items-center gap-1">
+              <Tag className="w-3 h-3 text-amber-400" />
+              Quick Components:
+            </span>
+            {COMPONENT_TAGS.map((tag) => {
+              const isSelected = searchTerm.toLowerCase() === tag.query;
+              return (
+                <button
+                  key={tag.label}
+                  type="button"
+                  onClick={() => {
+                    if (isSelected) {
+                      setSearchTerm('');
+                    } else {
+                      setSearchTerm(tag.query);
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  {tag.label}
+                </button>
+              );
+            })}
+            {(searchTerm || filterCategory !== 'All' || stockStatusFilter !== 'all' || supplierFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterCategory('All');
+                  setStockStatusFilter('all');
+                  setSupplierFilter('all');
+                }}
+                className="ml-auto text-[11px] text-amber-400 hover:underline flex items-center space-x-1 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                <span>Reset Filters ({filteredItems.length} found)</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Inventory Table */}

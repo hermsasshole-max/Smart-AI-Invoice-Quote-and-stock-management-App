@@ -28,6 +28,8 @@ export type ExpenseCategory =
   | 'Marketing & Software'
   | 'Other & Miscellaneous';
 
+export type ExpenseLinkType = 'standalone' | 'quote' | 'invoice';
+
 export interface Expense {
   id: string;
   date: string; // YYYY-MM-DD
@@ -41,6 +43,11 @@ export interface Expense {
   relatedClientOrJob?: string;
   notes?: string;
   receiptImageUrl?: string;
+  linkType?: ExpenseLinkType;
+  linkedQuoteId?: string;
+  linkedQuoteNumber?: string;
+  linkedInvoiceId?: string;
+  linkedInvoiceNumber?: string;
 }
 
 export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'deposit_paid' | 'invoiced' | 'declined';

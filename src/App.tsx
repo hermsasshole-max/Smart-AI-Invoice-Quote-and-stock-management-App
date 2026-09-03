@@ -8,6 +8,7 @@ import { InvoicingPipeline } from './components/InvoicingPipeline';
 import { FinancialAnalysis } from './components/FinancialAnalysis';
 import { ClientsDirectory } from './components/ClientsDirectory';
 import { InventoryManager } from './components/InventoryManager';
+import { ExpenseManager } from './components/ExpenseManager';
 import { SettingsManager } from './components/SettingsManager';
 import { SqlSchemaViewer } from './components/SqlSchemaViewer';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
@@ -65,6 +66,12 @@ const AppContent: React.FC<{
         )}
         {activeTab === 'quotes' && <QuotationEngine />}
         {activeTab === 'invoices' && <InvoicingPipeline />}
+        {activeTab === 'expenses' && (
+          <ExpenseManager
+            setActiveTab={setActiveTab}
+            openReceiptScanner={() => setIsScannerOpen(true)}
+          />
+        )}
         {activeTab === 'financials' && <FinancialAnalysis />}
         {activeTab === 'clients' && <ClientsDirectory />}
         {activeTab === 'inventory' && <InventoryManager />}
