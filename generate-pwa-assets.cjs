@@ -1,0 +1,391 @@
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+
+// Create directory if not exists
+const ensureDir = (dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};
+
+ensureDir(path.join(__dirname, 'public', 'icons'));
+ensureDir(path.join(__dirname, 'public', 'images'));
+
+// Define the SVG for the CorTech AI Icon
+// isMaskable: if true, full-bleed background without rounded corners, emblem fits safely in inner 80% circle
+function getIconSvg(isMaskable = false) {
+  const outerRadius = isMaskable ? 0 : 116; // Rounded squircle for standard, full-bleed for maskable
+  const scale = isMaskable ? 0.82 : 0.94; // Safe area padding for maskable adaptive icon
+  const transform = `translate(${256 * (1 - scale)}, ${256 * (1 - scale)}) scale(${scale})`;
+
+  return `
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0F19" />
+      <stop offset="50%" stop-color="#111726" />
+      <stop offset="100%" stop-color="#090D15" />
+    </linearGradient>
+
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#818CF8" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0.2" />
+    </linearGradient>
+
+    <radialGradient id="ambientGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.38" />
+      <stop offset="45%" stop-color="#6366F1" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#0B0F19" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="coreGlow" cx="54%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.9" />
+      <stop offset="30%" stop-color="#0284C7" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Emblem Gradients -->
+    <!-- Primary Outer C Ribbon: Electric Cyan to Vivid Sky Blue -->
+    <linearGradient id="primaryRibbon" x1="15%" y1="10%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="30%" stop-color="#00F2FE" />
+      <stop offset="70%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+
+    <!-- Secondary Inner Ribbon: High-Tech Indigo / Violet to Cyan -->
+    <linearGradient id="secondaryRibbon" x1="10%" y1="85%" x2="90%" y2="15%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="40%" stop-color="#6366F1" />
+      <stop offset="75%" stop-color="#818CF8" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+
+    <!-- AI Spark Gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="50%" stop-color="#BAE6FD" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+
+    <!-- Horizontal Tech Bar -->
+    <linearGradient id="techBarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="60%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#FFFFFF" />
+    </linearGradient>
+
+    <!-- Filters for 3D depth and neon bloom -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur1" />
+      <feGaussianBlur stdDeviation="24" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="subtleShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+
+    <filter id="intenseBloom" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Clip Path for Squircle -->
+    <clipPath id="squircleClip">
+      <rect x="0" y="0" width="512" height="512" rx="${outerRadius}" ry="${outerRadius}" />
+    </clipPath>
+  </defs>
+
+  <!-- Background Base with Squircle Clip -->
+  <g clip-path="url(#squircleClip)">
+    <!-- Base Fill -->
+    <rect x="0" y="0" width="512" height="512" fill="url(#bgGrad)" />
+
+    <!-- Ambient Glow Centered -->
+    <circle cx="256" cy="256" r="230" fill="url(#ambientGlow)" />
+    <circle cx="265" cy="256" r="140" fill="url(#coreGlow)" />
+
+    <!-- Subtle Tech Circuit Grid Lines in Background -->
+    <g stroke="#38BDF8" stroke-opacity="0.08" stroke-width="1.5" stroke-dasharray="4 8">
+      <line x1="120" y1="256" x2="392" y2="256" />
+      <line x1="256" y1="120" x2="256" y2="392" />
+      <circle cx="256" cy="256" r="180" fill="none" stroke-width="1" />
+      <circle cx="256" cy="256" r="120" fill="none" stroke-width="1" stroke-opacity="0.05" />
+    </g>
+
+    <!-- Subtle Outer Border/Bezel for Squircle -->
+    ${!isMaskable ? `
+    <rect x="2" y="2" width="508" height="508" rx="${outerRadius - 2}" ry="${outerRadius - 2}" 
+          fill="none" stroke="url(#borderGrad)" stroke-width="3" stroke-opacity="0.7" />
+    ` : ''}
+
+    <!-- MAIN CORTECH AI EMBLEM -->
+    <g transform="${transform}">
+      <!-- LAYER 1: Deep Drop Shadow & Soft Bloom -->
+      <g filter="url(#subtleShadow)">
+        
+        <!-- OUTER DYNAMIC "C" ENVELOPE -->
+        <!-- Starts top-right, sweeps around through left spine, terminates bottom-right -->
+        <path d="
+          M 345,162 
+          C 315,130 270,114 218,114 
+          C 142,114 96,170 96,256 
+          C 96,342 142,398 218,398 
+          C 270,398 315,382 345,350 
+          L 316,316 
+          C 292,342 258,354 220,354 
+          C 168,354 140,314 140,256 
+          C 140,198 168,158 220,158 
+          C 258,158 292,170 316,196 
+          Z"
+          fill="url(#primaryRibbon)" 
+        />
+
+        <!-- INNER HIGH-TECH ACCENT CRESCENT & T-CROSSBAR -->
+        <!-- Interlocking dynamic ribbon forming the "C" inner blade and "T" tech integration -->
+        <path d="
+          M 295,190 
+          C 276,174 250,166 222,166 
+          C 178,166 148,198 148,256 
+          C 148,314 178,346 222,346 
+          C 250,346 276,338 295,322 
+          L 278,298 
+          C 264,310 244,316 222,316 
+          C 192,316 178,294 178,256 
+          C 178,218 192,196 222,196 
+          C 244,196 264,202 278,214 
+          Z" 
+          fill="url(#secondaryRibbon)" 
+          opacity="0.9"
+        />
+
+        <!-- HORIZONTAL TECH/ENERGY ARMATURE (Connecting C to the AI Core - forming stylized C+T) -->
+        <path d="
+          M 178,250 
+          L 282,250 
+          L 294,256 
+          L 282,262 
+          L 178,262 
+          Z" 
+          fill="url(#techBarGrad)" 
+        />
+
+        <!-- AI CORE SPARK / 4-POINT INTELLIGENCE STARBURST -->
+        <g transform="translate(305, 256)" filter="url(#intenseBloom)">
+          <!-- Glowing outer aura -->
+          <circle cx="0" cy="0" r="28" fill="#38BDF8" opacity="0.35" filter="url(#neonGlow)" />
+          
+          <!-- Outer 4-pointed Star -->
+          <path d="
+            M 0,-44 
+            Q 0,-8 28,0 
+            Q 0,8 0,44 
+            Q 0,8 -28,0 
+            Q 0,-8 0,-44 
+            Z" 
+            fill="url(#sparkGrad)" 
+          />
+
+          <!-- Inner Brilliant Star Core -->
+          <path d="
+            M 0,-24 
+            Q 0,-5 15,0 
+            Q 0,5 0,24 
+            Q 0,5 -15,0 
+            Q 0,-5 0,-24 
+            Z" 
+            fill="#FFFFFF" 
+          />
+
+          <!-- Center Nuclear Energy Node -->
+          <circle cx="0" cy="0" r="5.5" fill="#38BDF8" />
+          <circle cx="0" cy="0" r="2.5" fill="#FFFFFF" />
+        </g>
+
+        <!-- CIRCUIT SATELLITE NODES & DATA PATHS -->
+        <!-- Top terminal data node -->
+        <circle cx="345" cy="162" r="5" fill="#38BDF8" />
+        <circle cx="345" cy="162" r="2.5" fill="#FFFFFF" />
+
+        <!-- Bottom terminal data node -->
+        <circle cx="345" cy="350" r="5" fill="#38BDF8" />
+        <circle cx="345" cy="350" r="2.5" fill="#FFFFFF" />
+
+        <!-- Spine indicator nodes (representing SANS / Electrical / Tech precision) -->
+        <circle cx="120" cy="215" r="3.5" fill="#818CF8" opacity="0.8" />
+        <circle cx="112" cy="256" r="4.5" fill="#38BDF8" />
+        <circle cx="112" cy="256" r="2" fill="#FFFFFF" />
+        <circle cx="120" cy="297" r="3.5" fill="#818CF8" opacity="0.8" />
+
+        <!-- Subtle connecting circuit arcs -->
+        <path d="M 120,215 L 140,215" stroke="#818CF8" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+        <path d="M 112,256 L 140,256" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" opacity="0.9" />
+        <path d="M 120,297 L 140,297" stroke="#818CF8" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+
+        <!-- Diagonal Satellite Sparkle for Visual Polish -->
+        <g transform="translate(352, 195) scale(0.42)">
+          <path d="M 0,-18 Q 0,-3 12,0 Q 0,3 0,18 Q 0,3 -12,0 Q 0,-3 0,-18 Z" fill="#38BDF8" opacity="0.9" />
+        </g>
+        <g transform="translate(348, 318) scale(0.35)">
+          <path d="M 0,-18 Q 0,-3 12,0 Q 0,3 0,18 Q 0,3 -12,0 Q 0,-3 0,-18 Z" fill="#818CF8" opacity="0.8" />
+        </g>
+
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+}
+
+// Generate shortcuts
+function getShortcutInvoiceSvg() {
+  return `
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0F19" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bg)" />
+  <rect x="1.5" y="1.5" width="189" height="189" rx="40.5" fill="none" stroke="#10B981" stroke-width="2" stroke-opacity="0.4" />
+  <g transform="translate(48, 44)" stroke="url(#iconGrad)" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 8h60a8 8 0 0 1 8 8v72a8 8 0 0 1-8 8H12a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8z" />
+    <line x1="20" y1="32" x2="64" y2="32" />
+    <line x1="20" y1="52" x2="52" y2="52" />
+    <line x1="20" y1="72" x2="40" y2="72" />
+    <path d="M48 64l12 12 24-24" stroke="#34D399" stroke-width="6" />
+  </g>
+</svg>
+  `;
+}
+
+function getShortcutQuoteSvg() {
+  return `
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0F19" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bg)" />
+  <rect x="1.5" y="1.5" width="189" height="189" rx="40.5" fill="none" stroke="#38BDF8" stroke-width="2" stroke-opacity="0.4" />
+  <g transform="translate(48, 44)" stroke="url(#iconGrad)" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 8h48l24 24v56a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8z" />
+    <polyline points="64 8 64 32 88 32" />
+    <line x1="24" y1="52" x2="56" y2="52" />
+    <line x1="24" y1="68" x2="48" y2="68" />
+  </g>
+</svg>
+  `;
+}
+
+async function run() {
+  console.log('Generating trendy, updated CorTech AI icons...');
+
+  const standardSvg = Buffer.from(getIconSvg(false));
+  const maskableSvg = Buffer.from(getIconSvg(true));
+
+  // 1. Generate 512x512 standard
+  await sharp(standardSvg)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-512.png'));
+  console.log('✓ public/icons/icon-512.png');
+
+  // Also duplicate to public/images/icon-512.png
+  await sharp(standardSvg)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'images', 'icon-512.png'));
+  console.log('✓ public/images/icon-512.png');
+
+  // 2. Generate 512x512 maskable (crucial for Google Play Store / PWABuilder adaptive icons)
+  await sharp(maskableSvg)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-maskable-512.png'));
+  console.log('✓ public/icons/icon-maskable-512.png');
+
+  // 3. Generate 192x192
+  await sharp(standardSvg)
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-192.png'));
+  console.log('✓ public/icons/icon-192.png');
+
+  await sharp(standardSvg)
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'images', 'icon-192.png'));
+  console.log('✓ public/images/icon-192.png');
+
+  // 4. Generate 180x180 Apple Touch Icon
+  await sharp(standardSvg)
+    .resize(180, 180)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'apple-touch-icon.png'));
+  console.log('✓ public/icons/apple-touch-icon.png');
+
+  // 5. Generate 144x144
+  await sharp(standardSvg)
+    .resize(144, 144)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-144.png'));
+  console.log('✓ public/icons/icon-144.png');
+
+  // 6. Generate 96x96
+  await sharp(standardSvg)
+    .resize(96, 96)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-96.png'));
+  console.log('✓ public/icons/icon-96.png');
+
+  // 7. Generate 48x48
+  await sharp(standardSvg)
+    .resize(48, 48)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'icon-48.png'));
+  console.log('✓ public/icons/icon-48.png');
+
+  // 8. Generate Shortcut Icons
+  await sharp(Buffer.from(getShortcutInvoiceSvg()))
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'shortcut-invoice.png'));
+  console.log('✓ public/icons/shortcut-invoice.png');
+
+  await sharp(Buffer.from(getShortcutQuoteSvg()))
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(__dirname, 'public', 'icons', 'shortcut-quote.png'));
+  console.log('✓ public/icons/shortcut-quote.png');
+
+  // Save the master SVG directly as well for vector use & favicons
+  fs.writeFileSync(path.join(__dirname, 'public', 'icons', 'icon.svg'), getIconSvg(false));
+  console.log('✓ public/icons/icon.svg');
+
+  console.log('All CorTech AI icons successfully generated!');
+}
+
+run().catch(console.error);

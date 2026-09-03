@@ -179,9 +179,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => handleSelectTab('dashboard')}
               title="Return to Dashboard"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 via-sky-500 to-indigo-600 flex items-center justify-center shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
+              <img
+                src="/icons/icon-192.png"
+                alt="CorTech AI Logo"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform shrink-0"
+                referrerPolicy="no-referrer"
+              />
               <div className="hidden sm:block">
                 <div className="flex items-center space-x-1.5">
                   <span className="font-black text-sm sm:text-base tracking-tight bg-gradient-to-r from-amber-400 via-sky-300 to-white bg-clip-text text-transparent truncate max-w-[210px] lg:max-w-none">
