@@ -278,6 +278,7 @@ export const FinancialAnalysis: React.FC = () => {
     const categoryMap: Record<string, { revenue: number; count: number }> = {
       'Solar & Backup': { revenue: 0, count: 0 },
       'Air Conditioning': { revenue: 0, count: 0 },
+      'Refridgeration, Motors and Fans': { revenue: 0, count: 0 },
       'Electrical': { revenue: 0, count: 0 },
       'Security & CCTV': { revenue: 0, count: 0 },
       'Automation & Gate Motors': { revenue: 0, count: 0 },

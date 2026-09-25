@@ -5,7 +5,7 @@ export const SqlSchemaViewer: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   const sqlSchemaCode = `-- ==========================================
--- Harry's Aircon & Electrical Cloud SQL Schema
+-- CorTech Field Service Operations Cloud SQL Schema
 -- Target Database: PostgreSQL 15 / 16 (Google Cloud SQL)
 -- Standard: SANS 10142-1 Compliance & Audit Trail
 -- ==========================================
@@ -191,7 +191,7 @@ CREATE INDEX IF NOT EXISTS idx_receipt_scans_scan_date ON receipt_scans(scan_dat
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Enterprise database architecture for Harry's Field Operations, SANS 10142 compliance, and OCR slips.
+            Enterprise database architecture for field operations, SANS 10142 compliance, and OCR slips.
           </p>
         </div>
 

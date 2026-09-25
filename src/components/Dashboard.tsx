@@ -229,30 +229,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="space-y-2.5">
-              {quotes.slice(0, 4).map((q) => (
-                <div
-                  key={q.id}
-                  onClick={() => setActiveTab('quotes')}
-                  className="p-3.5 rounded-xl bg-[#12141C] hover:bg-[#151824] border border-[#282E3E] flex items-center justify-between transition-all cursor-pointer"
-                >
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-white text-sm">{q.clientName}</span>
-                      <span className="font-mono text-xs text-sky-400">({q.quoteNumber})</span>
-                    </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {q.serviceType} • {q.items?.length || 0} items • {q.date}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-amber-400 text-sm">{formatZAR(q.totalAmount)}</div>
-                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30">
-                      {q.status}
-                    </span>
-                  </div>
+              {quotes.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-700/50 rounded-xl p-6">
+                  No quotations created yet. Click <span className="text-sky-400 font-semibold cursor-pointer" onClick={() => setActiveTab('quotes')}>New On-Site Quote</span> to begin.
                 </div>
-              ))}
+              ) : (
+                quotes.slice(0, 4).map((q) => (
+                  <div
+                    key={q.id}
+                    onClick={() => setActiveTab('quotes')}
+                    className="p-3.5 rounded-xl bg-[#12141C] hover:bg-[#151824] border border-[#282E3E] flex items-center justify-between transition-all cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-white text-sm">{q.clientName}</span>
+                        <span className="font-mono text-xs text-sky-400">({q.quoteNumber})</span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {q.serviceType} • {q.items?.length || 0} items • {q.date}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-amber-400 text-sm">{formatZAR(q.totalAmount)}</div>
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                        {q.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -273,36 +279,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="space-y-2.5">
-              {invoices.slice(0, 4).map((inv) => (
-                <div
-                  key={inv.id}
-                  onClick={() => setActiveTab('invoices')}
-                  className="p-3.5 rounded-xl bg-[#12141C] hover:bg-[#151824] border border-[#282E3E] flex items-center justify-between transition-all cursor-pointer"
-                >
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-white text-sm">{inv.clientName}</span>
-                      <span className="font-mono text-xs text-emerald-400">({inv.invoiceNumber})</span>
-                    </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {inv.serviceType} • Due: {inv.dueDate}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-white text-sm">{formatZAR(inv.totalAmount)}</div>
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        inv.status === 'paid'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                      }`}
-                    >
-                      {inv.status}
-                    </span>
-                  </div>
+              {invoices.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-700/50 rounded-xl p-6">
+                  No invoices issued yet. Accepted quotations can be converted into tax invoices with one tap.
                 </div>
-              ))}
+              ) : (
+                invoices.slice(0, 4).map((inv) => (
+                  <div
+                    key={inv.id}
+                    onClick={() => setActiveTab('invoices')}
+                    className="p-3.5 rounded-xl bg-[#12141C] hover:bg-[#151824] border border-[#282E3E] flex items-center justify-between transition-all cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-white text-sm">{inv.clientName}</span>
+                        <span className="font-mono text-xs text-emerald-400">({inv.invoiceNumber})</span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {inv.serviceType} • Due: {inv.dueDate}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-white text-sm">{formatZAR(inv.totalAmount)}</div>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          inv.status === 'paid'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {inv.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

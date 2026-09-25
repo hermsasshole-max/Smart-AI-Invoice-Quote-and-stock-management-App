@@ -250,10 +250,10 @@ export function buildJsPDFDocument(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(shouldCondenseSinglePage ? 7 : 8);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 18, finalY + (shouldCondenseSinglePage ? 10 : 12));
-  doc.text(`Account Name: ${profile.accountName || 'Harrys Aircon and Electrical'}`, 18, finalY + (shouldCondenseSinglePage ? 14 : 17));
-  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 18, finalY + (shouldCondenseSinglePage ? 18 : 22));
-  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Current'})`, 18, finalY + (shouldCondenseSinglePage ? 22 : 27));
+  doc.text(`Bank: ${profile.bankName || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 10 : 12));
+  doc.text(`Account Name: ${profile.accountName || profile.companyName || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 14 : 17));
+  doc.text(`Account Number: ${profile.accountNumber || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 18 : 22));
+  doc.text(`Branch Code: ${profile.branchCode || '—'}${profile.accountType ? ` (${profile.accountType})` : ''}`, 18, finalY + (shouldCondenseSinglePage ? 22 : 27));
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(2, 132, 199);
   doc.text(`Reference: ${docNumber}`, 18, finalY + (shouldCondenseSinglePage ? 26 : 32));
@@ -861,12 +861,12 @@ export function generatePrintableHtml(
             ${profile.companyName}
           </h1>
           <p style="margin: 0 0 12px 0; font-size: 12px; color: #38BDF8; font-weight: 500;">
-            ${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}
+            ${profile.tagline || ''}
           </p>
           <div style="font-size: 11px; color: #CBD5E1; line-height: 1.5; font-family: monospace;">
-            <div>Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}</div>
-            <div>Tel: ${profile.phone} | Email: ${profile.email}</div>
-            <div>Address: ${profile.address} | Web: ${profile.website || 'https://harryselectrical.co.za'}</div>
+            <div>${[profile.regNumber ? `Reg: ${profile.regNumber}` : '', profile.vatNumber ? `VAT: ${profile.vatNumber}` : ''].filter(Boolean).join(' | ')}</div>
+            <div>${[profile.phone ? `Tel: ${profile.phone}` : '', profile.email ? `Email: ${profile.email}` : ''].filter(Boolean).join(' | ')}</div>
+            <div>${[profile.address ? `Address: ${profile.address}` : '', profile.website ? `Web: ${profile.website}` : ''].filter(Boolean).join(' | ')}</div>
           </div>
         </div>
         <div style="text-align: right; font-family: monospace;">
@@ -938,10 +938,10 @@ export function generatePrintableHtml(
               Banking Details (EFT Settlement)
           </div>
           <div style="line-height: 1.6; color: #334155;">
-            <div>Bank: <strong>${profile.bankName || 'Tyme Bank Business'}</strong></div>
-            <div>Account Name: <strong>${profile.accountName || 'Harrys Aircon and Electrical'}</strong></div>
-            <div>Account Number: <strong>${profile.accountNumber || '53002734919'}</strong></div>
-            <div>Branch Code: <strong>${profile.branchCode || '678910'}</strong> (${profile.accountType || 'Current'})</div>
+            <div>Bank: <strong>${profile.bankName || '—'}</strong></div>
+            <div>Account Name: <strong>${profile.accountName || profile.companyName || '—'}</strong></div>
+            <div>Account Number: <strong>${profile.accountNumber || '—'}</strong></div>
+            <div>Branch Code: <strong>${profile.branchCode || '—'}</strong> (${profile.accountType || 'Current'})</div>
             <div>Reference: <strong style="color: #0284C7;">${docNumber}</strong></div>
           </div>
         </div>
@@ -990,7 +990,7 @@ export function generatePrintableHtml(
       </div>
       <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 11px; color: #64748B; font-style: italic; line-height: 1.5;">
         <div><strong>Terms:</strong> ${(data as Quotation).terms || '80% Deposit on acceptance, balance on completion. All materials remain property of contractor until paid in full.'}</div>
-        <div style="margin-top: 4px;">Certified SANS 10142 compliance & workmanship warranty from Harry\'s Aircon Electrical & Solar Services.</div>
+        ${profile.sansComplianceNotice ? `<div style="margin-top: 4px;">${profile.sansComplianceNotice}</div>` : ''}
       </div>
     </div>
   </div>

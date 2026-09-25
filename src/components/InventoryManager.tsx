@@ -87,6 +87,7 @@ export const InventoryManager: React.FC = () => {
       'Hardware & Site Materials': 0,
       Electrical: 0,
       'Air Conditioning': 0,
+      'Refridgeration, Motors and Fans': 0,
       'Solar & Backup': 0,
       'Security & CCTV': 0,
       'Automation & Gate Motors': 0,
@@ -100,6 +101,15 @@ export const InventoryManager: React.FC = () => {
       }
       if (item.category === 'Hardware & Site Materials' || item.category === 'Hardware & Fasteners' || item.category === 'Hardware') {
         counts['Hardware & Site Materials']++;
+      } else if (
+        item.category === 'Refridgeration, Motors and Fans' ||
+        item.category === 'Refrigeration, Motors and Fans' ||
+        item.category === 'Refridgeration' ||
+        item.category === 'Refrigeration' ||
+        item.category === 'Motors & Fans' ||
+        item.category === 'Motors and Fans'
+      ) {
+        counts['Refridgeration, Motors and Fans']++;
       } else if (counts[item.category] !== undefined) {
         counts[item.category]++;
       }
@@ -132,6 +142,14 @@ export const InventoryManager: React.FC = () => {
           item.category === 'Hardware & Site Materials' ||
           item.category === 'Hardware & Fasteners' ||
           item.category === 'Hardware';
+      } else if (filterCategory === 'Refridgeration, Motors and Fans') {
+        matchesCat =
+          item.category === 'Refridgeration, Motors and Fans' ||
+          item.category === 'Refrigeration, Motors and Fans' ||
+          item.category === 'Refridgeration' ||
+          item.category === 'Refrigeration' ||
+          item.category === 'Motors & Fans' ||
+          item.category === 'Motors and Fans';
       } else if (filterCategory !== 'All') {
         matchesCat = item.category === filterCategory;
       }
@@ -341,6 +359,7 @@ export const InventoryManager: React.FC = () => {
             { id: 'All', label: 'All Components', count: categoryCounts.All },
             { id: 'Electrical', label: '⚡ Electrical', count: categoryCounts.Electrical },
             { id: 'Air Conditioning', label: '❄️ Air Conditioning', count: categoryCounts['Air Conditioning'] },
+            { id: 'Refridgeration, Motors and Fans', label: '🧊 Refridgeration, Motors & Fans', count: categoryCounts['Refridgeration, Motors and Fans'] },
             { id: 'Solar & Backup', label: '☀️ Solar & Backup', count: categoryCounts['Solar & Backup'] },
             { id: 'Security & CCTV', label: '📹 Security & CCTV', count: categoryCounts['Security & CCTV'] },
             { id: 'Automation & Gate Motors', label: '⚙️ Gate Automation', count: categoryCounts['Automation & Gate Motors'] },
@@ -666,6 +685,7 @@ export const InventoryManager: React.FC = () => {
                     <option value="Hardware & Fasteners">Hardware & Fasteners</option>
                     <option value="Electrical">Electrical</option>
                     <option value="Air Conditioning">Air Conditioning</option>
+                    <option value="Refridgeration, Motors and Fans">Refridgeration, Motors and Fans</option>
                     <option value="Solar & Backup">Solar & Backup</option>
                     <option value="Security & CCTV">Security & CCTV</option>
                     <option value="Automation & Gate Motors">Automation & Gate Motors</option>

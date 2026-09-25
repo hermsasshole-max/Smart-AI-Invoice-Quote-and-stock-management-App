@@ -245,13 +245,17 @@ export function generateWhatsAppQuoteSummary(
 
   msg += `--------------------------------\n\n`;
   msg += `🏦 *Banking Details (EFT Settlement):*\n`;
-  msg += `• Bank: *${profile.bankName || 'Tyme Bank Business'}*\n`;
-  msg += `• Account Name: *${profile.accountName || 'Harrys Aircon and Electrical'}*\n`;
-  msg += `• Account Number: *${profile.accountNumber || '53002734919'}*\n`;
-  msg += `• Branch Code: *${profile.branchCode || '678910'}*\n`;
+  msg += `• Bank: *${profile.bankName || '—'}*\n`;
+  msg += `• Account Name: *${profile.accountName || profile.companyName || '—'}*\n`;
+  msg += `• Account Number: *${profile.accountNumber || '—'}*\n`;
+  msg += `• Branch Code: *${profile.branchCode || '—'}*\n`;
   msg += `• Reference: *${docNumber}*\n\n`;
-  msg += `📞 Contact: ${profile.phone} | ${profile.email}\n`;
-  msg += `_${profile.sansComplianceNotice}_`;
+  if (profile.phone || profile.email) {
+    msg += `📞 Contact: ${[profile.phone, profile.email].filter(Boolean).join(' | ')}\n`;
+  }
+  if (profile.sansComplianceNotice) {
+    msg += `_${profile.sansComplianceNotice}_`;
+  }
 
   return msg;
 }

@@ -8,14 +8,6 @@ import {
   ScannedReceiptData,
   ServiceCategory,
 } from '../types';
-import {
-  initialBusinessProfile,
-  initialClients,
-  initialInventory,
-  initialQuotes,
-  initialInvoices,
-  initialExpenses,
-} from '../data/seedData';
 
 export interface DbClient extends Client {
   createdAt?: string;
@@ -94,7 +86,7 @@ export class FieldAssistantDatabase extends Dexie {
   complianceDocs!: Table<DbComplianceDoc, string>;
 
   constructor() {
-    super('HarrysFieldAssistantDB');
+    super('CorTechFieldAssistantDB');
     this.version(1).stores({
       clients: 'id, name, phone, email, address',
       quotes: 'id, quoteNumber, clientId, clientName, status, date',
@@ -111,60 +103,37 @@ export class FieldAssistantDatabase extends Dexie {
 export const db = new FieldAssistantDatabase();
 
 /**
- * Initialize and seed IndexedDB if tables are empty
+ * Initialize offline database. With demo data removed, this ensures tables are ready without injecting sample records.
  */
 export async function initializeOfflineDatabase(): Promise<void> {
   try {
-    const clientCount = await db.clients.count();
-    if (clientCount === 0) {
-      console.log('[Dexie DB] Seeding initial offline data...');
-      
-      // Seed Clients
-      const dbClients: DbClient[] = initialClients.map((c) => ({
-        ...c,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      await db.clients.bulkAdd(dbClients);
-
-      // Seed Inventory
-      const dbInventory: DbInventoryItem[] = initialInventory.map((item) => ({
-        ...item,
-        currentStock: item.stockQty,
-        minStockAlert: item.minStockLevel,
-        lastSuppliedDate: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      await db.inventory.bulkAdd(dbInventory);
-
-      // Seed Quotes
-      const dbQuotes: DbQuotation[] = initialQuotes.map((q) => ({
-        ...q,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      await db.quotes.bulkAdd(dbQuotes);
-
-      // Seed Invoices
-      const dbInvoices: DbInvoice[] = initialInvoices.map((inv) => ({
-        ...inv,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      await db.invoices.bulkAdd(dbInvoices);
-
-      // Seed Expenses
-      const dbExpenses: DbExpense[] = initialExpenses.map((exp) => ({
-        ...exp,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      await db.expenses.bulkAdd(dbExpenses);
-
-      console.log('[Dexie DB] Database successfully populated with initial offline tables.');
-    }
+    // Delete legacy demo IndexedDB if present
+    Dexie.delete('HarrysFieldAssistantDB').catch(() => {});
+    // Database schema is ready on Dexie open
+    await db.open();
   } catch (err) {
-    console.warn('[Dexie DB] Failed to initialize offline database:', err);
+    console.warn('[Dexie DB] Failed to open offline database:', err);
+  }
+}
+
+/**
+ * Completely wipe all offline Dexie tables to guarantee clean state
+ */
+export async function clearOfflineDatabase(): Promise<void> {
+  try {
+    Dexie.delete('HarrysFieldAssistantDB').catch(() => {});
+    await Promise.all([
+      db.clients.clear(),
+      db.quotes.clear(),
+      db.invoices.clear(),
+      db.inventory.clear(),
+      db.expenses.clear(),
+      db.receiptScans.clear(),
+      db.voiceNotes.clear(),
+      db.complianceDocs.clear(),
+    ]);
+    console.log('[Dexie DB] All offline tables successfully cleared.');
+  } catch (err) {
+    console.warn('[Dexie DB] Failed to clear offline tables:', err);
   }
 }

@@ -347,10 +347,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     <span>🏦 Banking Details (EFT)</span>
                   </div>
                   <div className="space-y-0.5 text-[11px]">
-                    <div>Bank: <strong>{profile.bankName || 'Tyme Bank Business'}</strong></div>
-                    <div>Account Name: <strong>{profile.accountName || 'Harrys Aircon and Electrical'}</strong></div>
-                    <div>Account Number: <strong>{profile.accountNumber || '53002734919'}</strong></div>
-                    <div>Branch Code: <strong>{profile.branchCode || '678910'}</strong></div>
+                    <div>Bank: <strong>{profile.bankName || '—'}</strong></div>
+                    <div>Account Name: <strong>{profile.accountName || profile.companyName || '—'}</strong></div>
+                    <div>Account Number: <strong>{profile.accountNumber || '—'}</strong></div>
+                    <div>Branch Code: <strong>{profile.branchCode || '—'}</strong></div>
                     <div>Reference: <strong className="text-sky-600">{docNumber}</strong></div>
                   </div>
                 </div>
@@ -447,7 +447,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             {/* Footer SANS Notice */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500 font-mono flex flex-col sm:flex-row justify-between items-center gap-2">
               <div>{profile.sansComplianceNotice}</div>
-              <div>Harry's Aircon Electrical & Solar Services</div>
+              <div>{profile.companyName || ''}</div>
             </div>
           </div>
         </div>

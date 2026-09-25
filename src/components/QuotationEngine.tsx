@@ -553,6 +553,7 @@ export const QuotationEngine: React.FC = () => {
               >
                 <option value="Electrical">Electrical Installations & Repairs</option>
                 <option value="Air Conditioning">Air Conditioning (HVAC)</option>
+                <option value="Refridgeration, Motors and Fans">Refridgeration, Motors and Fans</option>
                 <option value="Solar & Backup">Solar & Backup Power (Inverters/Batteries)</option>
                 <option value="Security & CCTV">Security & CCTV Surveillance</option>
                 <option value="Automation & Gate Motors">Gate Automation & Intercoms</option>

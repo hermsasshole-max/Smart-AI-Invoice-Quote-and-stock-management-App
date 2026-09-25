@@ -16,6 +16,7 @@ import {
   initialInvoices,
   initialExpenses,
 } from '../data/seedData';
+import { clearOfflineDatabase } from '../services/db';
 import { debugLogger } from '../utils/debugLogger';
 import { billingService, CachedEntitlements, SubscriptionTier } from '../services/billingService';
 import { entitlementManager } from '../services/EntitlementManager';
@@ -177,6 +178,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDeferredPrompt(null);
   };
 
+  // One-time purge to remove all legacy demo data from localStorage and IndexedDB
+  const PURGE_KEY = 'cortech_demo_data_purged_v4';
+  if (typeof window !== 'undefined' && localStorage.getItem(PURGE_KEY) !== 'true') {
+    localStorage.removeItem('harrys_profile');
+    localStorage.removeItem('harrys_clients');
+    localStorage.removeItem('harrys_inventory');
+    localStorage.removeItem('harrys_quotes');
+    localStorage.removeItem('harrys_invoices');
+    localStorage.removeItem('harrys_expenses');
+    localStorage.removeItem('harrys_next_quote_number');
+    localStorage.removeItem('harrys_next_invoice_number');
+    localStorage.removeItem('harrys_demo_expenses_cleared_v1');
+    localStorage.setItem(PURGE_KEY, 'true');
+    clearOfflineDatabase();
+  }
+
   const [profile, setProfile] = useState<BusinessProfile>(() => {
     const saved = localStorage.getItem('harrys_profile');
     return saved ? JSON.parse(saved) : initialBusinessProfile;
@@ -203,13 +220,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [expenses, setExpenses] = useState<Expense[]>(() => {
-    // Check if demo financial expenses were explicitly cleared
-    const hasResetDemo = localStorage.getItem('harrys_demo_expenses_cleared_v1');
-    if (!hasResetDemo) {
-      localStorage.removeItem('harrys_expenses');
-      localStorage.setItem('harrys_demo_expenses_cleared_v1', 'true');
-      return [];
-    }
     const saved = localStorage.getItem('harrys_expenses');
     return saved ? JSON.parse(saved) : initialExpenses;
   });
@@ -946,11 +956,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetToSampleData = () => {
     setProfile(initialBusinessProfile);
-    setClients(initialClients);
-    setInventory(initialInventory);
-    setQuotes(initialQuotes);
-    setInvoices(initialInvoices);
-    setExpenses(initialExpenses);
+    setClients([]);
+    setInventory([]);
+    setQuotes([]);
+    setInvoices([]);
+    setExpenses([]);
+    localStorage.removeItem('harrys_profile');
+    localStorage.removeItem('harrys_clients');
+    localStorage.removeItem('harrys_inventory');
+    localStorage.removeItem('harrys_quotes');
+    localStorage.removeItem('harrys_invoices');
+    localStorage.removeItem('harrys_expenses');
+    localStorage.removeItem('harrys_next_quote_number');
+    localStorage.removeItem('harrys_next_invoice_number');
+    clearOfflineDatabase();
   };
 
   return (

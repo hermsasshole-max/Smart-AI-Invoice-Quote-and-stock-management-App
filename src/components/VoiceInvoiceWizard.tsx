@@ -129,8 +129,17 @@ export const VoiceInvoiceWizard: React.FC<VoiceInvoiceWizardProps> = ({
       cat = 'Automation & Gate Motors';
     } else if (lower.includes('camera') || lower.includes('cctv') || lower.includes('alarm')) {
       cat = 'Security & CCTV';
-    } else if (lower.includes('refrigerat') || lower.includes('cold room') || lower.includes('chiller')) {
-      cat = 'Air Conditioning';
+    } else if (
+      lower.includes('refrigerat') ||
+      lower.includes('refridgerat') ||
+      lower.includes('cold room') ||
+      lower.includes('chiller') ||
+      lower.includes('fan motor') ||
+      lower.includes('condenser fan') ||
+      lower.includes('evaporator fan') ||
+      lower.includes('evaporator')
+    ) {
+      cat = 'Refridgeration, Motors and Fans';
     }
 
     setParsedCategory(cat);

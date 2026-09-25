@@ -1,6 +1,7 @@
 export type ServiceCategory =
   | 'Electrical'
   | 'Air Conditioning'
+  | 'Refridgeration, Motors and Fans'
   | 'Solar & Backup'
   | 'Security & CCTV'
   | 'Automation & Gate Motors'
@@ -10,6 +11,8 @@ export type InventoryCategory =
   | ServiceCategory
   | 'Hardware & Site Materials'
   | 'Hardware & Fasteners'
+  | 'Refridgeration, Motors and Fans'
+  | 'Refrigeration, Motors and Fans'
   | 'Consumables'
   | 'Cabling'
   | 'Switchgear'

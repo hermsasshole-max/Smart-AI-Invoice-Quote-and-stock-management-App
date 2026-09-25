@@ -118,22 +118,22 @@ export const SettingsManager: React.FC = () => {
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Configure company registration, TymeBank EFT details, default hourly labour rates, and SANS 10142 compliance notes.
+            Configure company registration, banking EFT details, default hourly labour rates, and compliance notes.
           </p>
         </div>
 
         <button
           type="button"
           onClick={() => {
-            if (confirm('Reset all demo data back to default initial seed state?')) {
+            if (confirm('Clear all data and reset to a clean empty state?')) {
               resetToSampleData();
-              alert('Sample data restored.');
+              alert('All data has been cleared.');
             }
           }}
           className="px-3.5 py-2 min-h-[40px] rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-300 text-xs font-bold flex items-center space-x-1.5 border border-[#334155] cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Sample Data</span>
+          <span>Clear All Data</span>
         </button>
       </div>
 

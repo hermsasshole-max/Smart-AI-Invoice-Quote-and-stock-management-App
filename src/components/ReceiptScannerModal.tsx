@@ -37,6 +37,7 @@ interface ReceiptScannerModalProps {
 const CATEGORIES: ServiceCategory[] = [
   'Electrical',
   'Air Conditioning',
+  'Refridgeration, Motors and Fans',
   'Solar & Backup',
   'Security & CCTV',
   'Automation & Gate Motors',
