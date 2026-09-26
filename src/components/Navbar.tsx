@@ -111,8 +111,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     {
       id: 'schema',
-      label: 'Cloud SQL Schema',
-      sublabel: 'Relational PostgreSQL specs & entity models',
+      label: 'Database & Storage',
+      sublabel: 'Local IndexedDB stores, device backup & export',
       icon: Database,
       group: 'management',
     },

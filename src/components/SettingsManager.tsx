@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Settings,
@@ -19,6 +19,12 @@ import {
   Unlock,
   X,
   Hash,
+  Database,
+  Download,
+  Upload,
+  HardDrive,
+  FileJson,
+  AlertTriangle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { billingService } from '../services/billingService';
@@ -37,6 +43,11 @@ export const SettingsManager: React.FC = () => {
     getNextInvoiceNumber,
     setNextQuoteNumber,
     setNextInvoiceNumber,
+    exportLocalBackup,
+    importLocalBackup,
+    dbStats,
+    refreshDbStats,
+    isDbReady,
   } = useApp();
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -45,6 +56,12 @@ export const SettingsManager: React.FC = () => {
   const [devCode, setDevCode] = useState('');
   const [devCodeProcessing, setDevCodeProcessing] = useState(false);
   const [devCodeFeedback, setDevCodeFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Backup & Local Storage State
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [importingBackup, setImportingBackup] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [companyName, setCompanyName] = useState(profile.companyName);
@@ -539,6 +556,198 @@ export const SettingsManager: React.FC = () => {
               {iapMessage}
             </div>
           )}
+        </div>
+
+        {/* Local Device Storage & Offline Database Card */}
+        <div
+          id="settings-database-card"
+          className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border shadow-xl transition-all ${
+            sunlightMode
+              ? 'bg-white border-slate-300 text-slate-900 shadow-slate-300/50'
+              : 'bg-[#181B26] border-[#282E3E] text-white shadow-black/80'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-[#282E3E]">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-base sm:text-lg font-bold text-white">Local Offline Database & Device Backup</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono font-bold">
+                    IndexedDB (Dexie)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  High-capacity offline storage directly on this Android device. All sensitive records are stored locally with zero external cloud database reliance.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={refreshDbStats}
+              title="Refresh database metrics"
+              className="p-2 rounded-lg bg-[#12141C] border border-[#282E3E] text-slate-400 hover:text-white cursor-pointer active:scale-95 transition-transform"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Database Object Store Table Counts */}
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Clients</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.clients}</span>
+              <span className="text-[10px] text-slate-400">Directory</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Stock Items</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.stock}</span>
+              <span className="text-[10px] text-slate-400">Inventory</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Quotations</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.quotations}</span>
+              <span className="text-[10px] text-slate-400">Quotes</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Invoices</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.invoices}</span>
+              <span className="text-[10px] text-slate-400">Tax Invoices</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Finance</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.financial_records}</span>
+              <span className="text-[10px] text-slate-400">Ledger</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-[#12141C] border border-[#282E3E] flex flex-col">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Expenses</span>
+              <span className="text-lg font-black text-white mt-1 font-mono">{dbStats.expenses}</span>
+              <span className="text-[10px] text-slate-400">Slips & Costs</span>
+            </div>
+          </div>
+
+          {/* Backup & Portability Controls */}
+          <div className="mt-5 p-4 rounded-xl bg-[#12141C] border border-[#282E3E]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center space-x-1.5">
+                  <HardDrive className="w-4 h-4 text-sky-400" />
+                  <span>Device Backup & Portability</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
+                  Export an encrypted/formatted JSON archive of all tables directly to your phone's storage. Restore or migrate your complete business records anytime without internet.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                {/* Export Button */}
+                <button
+                  id="settings-export-backup-btn"
+                  type="button"
+                  disabled={exportingBackup}
+                  onClick={async () => {
+                    setExportingBackup(true);
+                    setBackupMessage(null);
+                    try {
+                      const res = await exportLocalBackup();
+                      setBackupMessage({
+                        type: 'success',
+                        text: `Export successful! Saved "${res.filename}" (${(res.size / 1024).toFixed(1)} KB) to downloads.`,
+                      });
+                    } catch (err: any) {
+                      setBackupMessage({
+                        type: 'error',
+                        text: 'Export failed: ' + (err.message || 'Error creating backup'),
+                      });
+                    } finally {
+                      setExportingBackup(false);
+                      setTimeout(() => setBackupMessage(null), 6000);
+                    }
+                  }}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-sky-500/20 cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {exportingBackup ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span>Export Local Backup</span>
+                </button>
+
+                {/* Import Button */}
+                <button
+                  id="settings-import-backup-btn"
+                  type="button"
+                  disabled={importingBackup}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-[#282E3E] hover:bg-[#334155] text-slate-200 font-bold text-xs flex items-center justify-center space-x-1.5 border border-[#334155] cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {importingBackup ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>Import / Restore Backup</span>
+                </button>
+
+                {/* Hidden File Input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setImportingBackup(true);
+                    setBackupMessage(null);
+                    try {
+                      const text = await file.text();
+                      const res = await importLocalBackup(text);
+                      confetti({
+                        particleCount: 80,
+                        spread: 60,
+                        origin: { y: 0.6 },
+                      });
+                      setBackupMessage({
+                        type: 'success',
+                        text: res.message || 'Database successfully restored from backup!',
+                      });
+                    } catch (err: any) {
+                      setBackupMessage({
+                        type: 'error',
+                        text: 'Restore failed: ' + (err.message || 'Invalid backup JSON file'),
+                      });
+                    } finally {
+                      setImportingBackup(false);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                      setTimeout(() => setBackupMessage(null), 7000);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {backupMessage && (
+              <div
+                className={`mt-3 p-3 rounded-lg text-xs font-semibold flex items-center space-x-2 border ${
+                  backupMessage.type === 'success'
+                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
+                    : 'bg-rose-950/80 border-rose-500/60 text-rose-300'
+                }`}
+              >
+                {backupMessage.type === 'success' ? (
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{backupMessage.text}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Profile Save Action Bar */}

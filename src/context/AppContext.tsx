@@ -7,6 +7,7 @@ import {
   Invoice,
   InvoiceStatus,
   Expense,
+  FinancialRecord,
 } from '../types';
 import {
   initialBusinessProfile,
@@ -16,7 +17,14 @@ import {
   initialInvoices,
   initialExpenses,
 } from '../data/seedData';
-import { clearOfflineDatabase } from '../services/db';
+import {
+  db,
+  initializeOfflineDatabase,
+  clearOfflineDatabase,
+  exportLocalBackup as dbExportBackup,
+  importLocalBackup as dbImportBackup,
+  getLocalDatabaseStats,
+} from '../services/db';
 import { debugLogger } from '../utils/debugLogger';
 import { billingService, CachedEntitlements, SubscriptionTier } from '../services/billingService';
 import { entitlementManager } from '../services/EntitlementManager';
@@ -26,6 +34,16 @@ import {
   parseDocNumber,
   formatDocNumber,
 } from '../utils/numbering';
+
+interface DatabaseStats {
+  clients: number;
+  stock: number;
+  quotations: number;
+  invoices: number;
+  financial_records: number;
+  expenses: number;
+  estimatedBytes?: number;
+}
 
 interface AppContextType {
   profile: BusinessProfile;
@@ -64,6 +82,9 @@ interface AppContextType {
   updateExpense: (id: string, updates: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   clearAllExpenses: () => void;
+  financialRecords: FinancialRecord[];
+  addFinancialRecord: (record: Omit<FinancialRecord, 'id'>) => FinancialRecord;
+  deleteFinancialRecord: (id: string) => void;
   recordPayment: (
     invoiceId: string,
     amount: number,
@@ -92,7 +113,7 @@ interface AppContextType {
   updateInvoiceNumber: (invoiceId: string, newInvoiceNumber: string) => void;
   sunlightMode: boolean;
   toggleSunlightMode: () => void;
-  resetToSampleData: () => void;
+  resetToSampleData: () => Promise<void>;
   isInstallable: boolean;
   promptInstall: () => Promise<void>;
   // Monetization & Entitlements
@@ -104,6 +125,12 @@ interface AppContextType {
   closePaywall: () => void;
   refreshEntitlements: () => Promise<void>;
   consumeAiCredit: () => void;
+  // Local Offline IndexedDB & Backup Controls
+  isDbReady: boolean;
+  dbStats: DatabaseStats;
+  refreshDbStats: () => Promise<void>;
+  exportLocalBackup: () => Promise<{ filename: string; size: number }>;
+  importLocalBackup: (jsonString: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -111,11 +138,107 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
+  const [isDbReady, setIsDbReady] = useState(false);
 
   // Billing & Paywall State
   const [entitlements, setEntitlements] = useState<CachedEntitlements>(() => billingService.getCachedEntitlements());
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<string | undefined>(undefined);
+
+  // Core Reactive Business State (Directly backed by IndexedDB)
+  const [profile, setProfile] = useState<BusinessProfile>(initialBusinessProfile);
+  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
+  const [quotes, setQuotes] = useState<Quotation[]>(initialQuotes);
+  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>([]);
+
+  const [dbStats, setDbStats] = useState<DatabaseStats>({
+    clients: 0,
+    stock: 0,
+    quotations: 0,
+    invoices: 0,
+    financial_records: 0,
+    expenses: 0,
+  });
+
+  const [sunlightMode, setSunlightMode] = useState<boolean>(false);
+  const [customNextQuoteNumber, setCustomNextQuoteNumber] = useState<string>('');
+  const [customNextInvoiceNumber, setCustomNextInvoiceNumber] = useState<string>('');
+
+  const refreshDbStats = useCallback(async () => {
+    try {
+      const stats = await getLocalDatabaseStats();
+      setDbStats(stats);
+    } catch (e) {
+      console.warn('[Dexie DB] Failed to fetch stats:', e);
+    }
+  }, []);
+
+  // Initial Offline IndexedDB Load
+  useEffect(() => {
+    let isMounted = true;
+    async function initIndexedDB() {
+      try {
+        await initializeOfflineDatabase();
+        const [storedClients, storedStock, storedQuotes, storedInvoices, storedExpenses, storedFinRecords, profileRecord] =
+          await Promise.all([
+            db.clients.toArray(),
+            db.stock.toArray(),
+            db.quotations.toArray(),
+            db.invoices.toArray(),
+            db.expenses.toArray(),
+            db.financial_records.toArray(),
+            db.business_profile.get('main'),
+          ]);
+
+        if (isMounted) {
+          if (storedClients.length > 0) setClients(storedClients);
+          if (storedStock.length > 0) {
+            setInventory(
+              storedStock.map((s) => ({
+                ...s,
+                name: s.name || s.description || '',
+                costPrice: s.costPrice ?? s.unitCost ?? 0,
+                defaultMarkup: s.defaultMarkup ?? s.markupPct ?? 30,
+                stockQty: s.stockQty ?? s.quantityOnHand ?? 0,
+                minStockLevel: s.minStockLevel ?? s.minAlertLevel ?? 5,
+              }))
+            );
+          }
+          if (storedQuotes.length > 0) setQuotes(storedQuotes);
+          if (storedInvoices.length > 0) setInvoices(storedInvoices);
+          if (storedExpenses.length > 0) setExpenses(storedExpenses);
+          if (storedFinRecords.length > 0) setFinancialRecords(storedFinRecords);
+
+          if (profileRecord?.profile) {
+            setProfile(profileRecord.profile);
+            if (profileRecord.profile.sunlightMode !== undefined) {
+              setSunlightMode(profileRecord.profile.sunlightMode);
+            }
+            if (profileRecord.profile.nextQuoteNumber) {
+              setCustomNextQuoteNumber(profileRecord.profile.nextQuoteNumber);
+            }
+            if (profileRecord.profile.nextInvoiceNumber) {
+              setCustomNextInvoiceNumber(profileRecord.profile.nextInvoiceNumber);
+            }
+          }
+
+          setIsDbReady(true);
+          refreshDbStats();
+        }
+      } catch (err) {
+        console.error('[IndexedDB] Failed during bootstrap load:', err);
+        if (isMounted) setIsDbReady(true);
+      }
+    }
+
+    initIndexedDB();
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshDbStats]);
 
   const refreshEntitlements = useCallback(async () => {
     const updated = await billingService.syncWithServer();
@@ -123,14 +246,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    // Initial online sync
     refreshEntitlements();
-
-    // Subscribe to EntitlementManager client updates
     const unsubscribe = entitlementManager.subscribe(() => {
       setEntitlements(billingService.getCachedEntitlements());
     });
-
     return () => unsubscribe();
   }, [refreshEntitlements]);
 
@@ -151,15 +270,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
       setIsInstallable(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
@@ -167,98 +283,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const promptInstall = async () => {
     if (!deferredPrompt) return;
-    // Show the install prompt
     deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setIsInstallable(false);
     }
-    // We've used the prompt, and can't use it again, throw it away
     setDeferredPrompt(null);
   };
-
-  // One-time purge to remove all legacy demo data from localStorage and IndexedDB
-  const PURGE_KEY = 'cortech_demo_data_purged_v4';
-  if (typeof window !== 'undefined' && localStorage.getItem(PURGE_KEY) !== 'true') {
-    localStorage.removeItem('harrys_profile');
-    localStorage.removeItem('harrys_clients');
-    localStorage.removeItem('harrys_inventory');
-    localStorage.removeItem('harrys_quotes');
-    localStorage.removeItem('harrys_invoices');
-    localStorage.removeItem('harrys_expenses');
-    localStorage.removeItem('harrys_next_quote_number');
-    localStorage.removeItem('harrys_next_invoice_number');
-    localStorage.removeItem('harrys_demo_expenses_cleared_v1');
-    localStorage.setItem(PURGE_KEY, 'true');
-    clearOfflineDatabase();
-  }
-
-  const [profile, setProfile] = useState<BusinessProfile>(() => {
-    const saved = localStorage.getItem('harrys_profile');
-    return saved ? JSON.parse(saved) : initialBusinessProfile;
-  });
-
-  const [clients, setClients] = useState<Client[]>(() => {
-    const saved = localStorage.getItem('harrys_clients');
-    return saved ? JSON.parse(saved) : initialClients;
-  });
-
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
-    const saved = localStorage.getItem('harrys_inventory');
-    return saved ? JSON.parse(saved) : initialInventory;
-  });
-
-  const [quotes, setQuotes] = useState<Quotation[]>(() => {
-    const saved = localStorage.getItem('harrys_quotes');
-    return saved ? JSON.parse(saved) : initialQuotes;
-  });
-
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const saved = localStorage.getItem('harrys_invoices');
-    return saved ? JSON.parse(saved) : initialInvoices;
-  });
-
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('harrys_expenses');
-    return saved ? JSON.parse(saved) : initialExpenses;
-  });
-
-  const [sunlightMode, setSunlightMode] = useState<boolean>(() => {
-    return profile.sunlightMode || false;
-  });
-
-  const [customNextQuoteNumber, setCustomNextQuoteNumber] = useState<string>(() => {
-    return localStorage.getItem('harrys_next_quote_number') || profile.nextQuoteNumber || '';
-  });
-
-  const [customNextInvoiceNumber, setCustomNextInvoiceNumber] = useState<string>(() => {
-    return localStorage.getItem('harrys_next_invoice_number') || profile.nextInvoiceNumber || '';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('harrys_profile', JSON.stringify(profile));
-  }, [profile]);
-
-  useEffect(() => {
-    localStorage.setItem('harrys_clients', JSON.stringify(clients));
-  }, [clients]);
-
-  useEffect(() => {
-    localStorage.setItem('harrys_inventory', JSON.stringify(inventory));
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem('harrys_quotes', JSON.stringify(quotes));
-  }, [quotes]);
-
-  useEffect(() => {
-    localStorage.setItem('harrys_invoices', JSON.stringify(invoices));
-  }, [invoices]);
-
-  useEffect(() => {
-    localStorage.setItem('harrys_expenses', JSON.stringify(expenses));
-  }, [expenses]);
 
   const getNextQuoteNumber = useCallback((): string => {
     return calculateNextQuoteNumber(quotes, customNextQuoteNumber, invoices);
@@ -271,21 +302,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setNextQuoteNumber = useCallback((num: string) => {
     const clean = num.trim();
     setCustomNextQuoteNumber(clean);
-    if (clean) {
-      localStorage.setItem('harrys_next_quote_number', clean);
-    } else {
-      localStorage.removeItem('harrys_next_quote_number');
-    }
   }, []);
 
   const setNextInvoiceNumber = useCallback((num: string) => {
     const clean = num.trim();
     setCustomNextInvoiceNumber(clean);
-    if (clean) {
-      localStorage.setItem('harrys_next_invoice_number', clean);
-    } else {
-      localStorage.removeItem('harrys_next_invoice_number');
-    }
   }, []);
 
   const syncSequenceFromDocument = useCallback(
@@ -298,37 +319,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (docType === 'invoice') {
         const nextInv = formatDocNumber(parsed.prefix || `INV-${currentYear}-`, nextNum, parsed.padLength || 4);
         setCustomNextInvoiceNumber(nextInv);
-        localStorage.setItem('harrys_next_invoice_number', nextInv);
 
-        // Advance next quote number so quotations seamlessly follow edited number sequence
         const quotePrefix = profile.quotePrefix || `Q-${currentYear}-`;
         const nextQ = formatDocNumber(quotePrefix, nextNum, parsed.padLength || 4);
         setCustomNextQuoteNumber(nextQ);
-        localStorage.setItem('harrys_next_quote_number', nextQ);
-
-        debugLogger.log({
-          level: 'state',
-          category: 'DOCUMENT_SEQUENCE_ADVANCED',
-          message: `Invoice sequence advanced from "${docNumber}" -> Next Invoice: "${nextInv}", Next Quote: "${nextQ}"`,
-          data: { lastDocNumber: docNumber, nextInvoice: nextInv, nextQuote: nextQ },
-        });
       } else {
         const nextQ = formatDocNumber(parsed.prefix || `Q-${currentYear}-`, nextNum, parsed.padLength || 4);
         setCustomNextQuoteNumber(nextQ);
-        localStorage.setItem('harrys_next_quote_number', nextQ);
 
-        // Advance next invoice number so invoices seamlessly follow edited quote sequence
         const invPrefix = profile.invoicePrefix || `INV-${currentYear}-`;
         const nextInv = formatDocNumber(invPrefix, nextNum, parsed.padLength || 4);
         setCustomNextInvoiceNumber(nextInv);
-        localStorage.setItem('harrys_next_invoice_number', nextInv);
-
-        debugLogger.log({
-          level: 'state',
-          category: 'DOCUMENT_SEQUENCE_ADVANCED',
-          message: `Quote sequence advanced from "${docNumber}" -> Next Quote: "${nextQ}", Next Invoice: "${nextInv}"`,
-          data: { lastDocNumber: docNumber, nextQuote: nextQ, nextInvoice: nextInv },
-        });
       }
     },
     [profile.quotePrefix, profile.invoicePrefix]
@@ -338,14 +339,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (quoteId: string, newQuoteNumber: string) => {
       const trimmed = newQuoteNumber.trim();
       if (!trimmed) return;
-      setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, quoteNumber: trimmed } : q)));
+      setQuotes((prev) =>
+        prev.map((q) => {
+          if (q.id === quoteId) {
+            const updated = { ...q, quoteNumber: trimmed, updatedAt: new Date().toISOString() };
+            db.quotations.put(updated).catch((e) => console.warn('[IndexedDB] update quote number err:', e));
+            return updated;
+          }
+          return q;
+        })
+      );
       syncSequenceFromDocument(trimmed, 'quote');
-      debugLogger.log({
-        level: 'state',
-        category: 'QUOTE_NUMBER_CHANGED',
-        message: `Quote ${quoteId} number updated to ${trimmed}`,
-        data: { quoteId, newQuoteNumber: trimmed },
-      });
     },
     [syncSequenceFromDocument]
   );
@@ -354,14 +358,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (invoiceId: string, newInvoiceNumber: string) => {
       const trimmed = newInvoiceNumber.trim();
       if (!trimmed) return;
-      setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, invoiceNumber: trimmed } : inv)));
+      setInvoices((prev) =>
+        prev.map((inv) => {
+          if (inv.id === invoiceId) {
+            const updated = { ...inv, invoiceNumber: trimmed, updatedAt: new Date().toISOString() };
+            db.invoices.put(updated).catch((e) => console.warn('[IndexedDB] update invoice number err:', e));
+            return updated;
+          }
+          return inv;
+        })
+      );
       syncSequenceFromDocument(trimmed, 'invoice');
-      debugLogger.log({
-        level: 'state',
-        category: 'INVOICE_NUMBER_CHANGED',
-        message: `Invoice ${invoiceId} number updated to ${trimmed}`,
-        data: { invoiceId, newInvoiceNumber: trimmed },
-      });
     },
     [syncSequenceFromDocument]
   );
@@ -369,12 +376,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProfile = (updates: Partial<BusinessProfile>) => {
     setProfile((prev) => {
       const next = { ...prev, ...updates };
-      debugLogger.log({
-        level: 'state',
-        category: 'STATE_PROFILE_UPDATE',
-        message: `Business Profile updated: ${Object.keys(updates).join(', ')}`,
-        data: updates,
-      });
+      db.business_profile
+        .put({
+          id: 'main',
+          profile: next,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch((e) => console.warn('[IndexedDB] update profile err:', e));
       return next;
     });
   };
@@ -383,28 +391,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSunlightMode((prev) => {
       const next = !prev;
       updateProfile({ sunlightMode: next });
-      debugLogger.log({
-        level: 'state',
-        category: 'STATE_THEME_TOGGLE',
-        message: `Sunlight mode toggled to: ${next ? 'HIGH-CONTRAST (Outdoor)' : 'STANDARD (Dark)'}`,
-      });
       return next;
     });
   };
 
+  // CLIENTS CRUD -> Wired directly to local IndexedDB
   const addBulkClients = (newClientsData: Omit<Client, 'id'>[]): number => {
     if (!newClientsData.length) return 0;
-    
-    // De-duplicate by phone number and name
-    const existingPhones = new Set(clients.map(c => c.phone.replace(/[^0-9]/g, '')));
-    const existingNames = new Set(clients.map(c => c.name.trim().toLowerCase()));
 
+    const existingPhones = new Set(clients.map((c) => c.phone.replace(/[^0-9]/g, '')));
+    const existingNames = new Set(clients.map((c) => c.name.trim().toLowerCase()));
+
+    const now = new Date().toISOString();
     const clientsToAdd: Client[] = [];
     newClientsData.forEach((item, idx) => {
       const cleanPhone = (item.phone || '').replace(/[^0-9]/g, '');
       const cleanName = (item.name || '').trim().toLowerCase();
 
-      // Avoid duplicates if phone or exact name exists
       if (cleanPhone && existingPhones.has(cleanPhone)) return;
       if (cleanName && existingNames.has(cleanName)) return;
 
@@ -415,91 +418,118 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...item,
         id: 'c_' + (Date.now() + idx) + '_' + Math.random().toString(36).substring(2, 6),
         totalBilled: 0,
+        createdAt: now,
+        updatedAt: now,
       });
     });
 
     if (clientsToAdd.length > 0) {
       setClients((prev) => [...clientsToAdd, ...prev]);
-      debugLogger.log({
-        level: 'state',
-        category: 'STATE_CLIENT_ADD_BULK',
-        message: `Imported ${clientsToAdd.length} new client(s) into directory`,
-        data: { count: clientsToAdd.length },
-      });
+      db.clients.bulkPut(clientsToAdd).catch((e) => console.warn('[IndexedDB] bulk clients err:', e));
+      refreshDbStats();
     }
 
     return clientsToAdd.length;
   };
 
   const addClient = (clientData: Omit<Client, 'id'>): Client => {
+    const now = new Date().toISOString();
     const newClient: Client = {
       ...clientData,
       id: 'c_' + Date.now(),
       totalBilled: 0,
+      createdAt: now,
+      updatedAt: now,
     };
     setClients((prev) => [newClient, ...prev]);
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_CLIENT_ADD',
-      message: `New client added: "${newClient.name}" (${newClient.phone || 'No phone'})`,
-      data: newClient,
-    });
+    db.clients.put(newClient).catch((e) => console.warn('[IndexedDB] add client err:', e));
+    refreshDbStats();
     return newClient;
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
-    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_CLIENT_UPDATE',
-      message: `Client ${id} updated`,
-      data: updates,
-    });
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates, updatedAt: new Date().toISOString() };
+          db.clients.put(updated).catch((e) => console.warn('[IndexedDB] update client err:', e));
+          return updated;
+        }
+        return c;
+      })
+    );
   };
 
   const deleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_CLIENT_DELETE',
-      message: `Client ${id} deleted`,
-    });
+    db.clients.delete(id).catch((e) => console.warn('[IndexedDB] delete client err:', e));
+    refreshDbStats();
   };
 
+  // STOCK / INVENTORY CRUD -> Wired directly to local IndexedDB
   const addInventoryItem = (itemData: Omit<InventoryItem, 'id'>): InventoryItem => {
+    const now = new Date().toISOString();
     const newItem: InventoryItem = {
       ...itemData,
       id: 'inv_' + Date.now(),
+      description: itemData.description || itemData.name,
+      unitCost: itemData.unitCost ?? itemData.costPrice,
+      markupPct: itemData.markupPct ?? itemData.defaultMarkup,
+      quantityOnHand: itemData.quantityOnHand ?? itemData.stockQty,
+      minAlertLevel: itemData.minAlertLevel ?? itemData.minStockLevel,
+      createdAt: now,
+      updatedAt: now,
     };
     setInventory((prev) => [newItem, ...prev]);
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_INVENTORY_ADD',
-      message: `New stock item added: "${newItem.name}" (Qty: ${newItem.stockQty} ${newItem.unit})`,
-      data: newItem,
-    });
+    db.stock.put(newItem).catch((e) => console.warn('[IndexedDB] add stock err:', e));
+    refreshDbStats();
     return newItem;
   };
 
   const addBulkInventory = (itemsData: Omit<InventoryItem, 'id'>[]) => {
+    const now = new Date().toISOString();
     const newItems = itemsData.map((data, index) => ({
       ...data,
       id: 'inv_bulk_' + Date.now() + '_' + index,
+      description: data.description || data.name,
+      unitCost: data.unitCost ?? data.costPrice,
+      markupPct: data.markupPct ?? data.defaultMarkup,
+      quantityOnHand: data.quantityOnHand ?? data.stockQty,
+      minAlertLevel: data.minAlertLevel ?? data.minStockLevel,
+      createdAt: now,
+      updatedAt: now,
     }));
     setInventory((prev) => [...newItems, ...prev]);
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_INVENTORY_BULK_ADD',
-      message: `Bulk imported ${newItems.length} inventory items into local catalog`,
-    });
+    db.stock.bulkPut(newItems).catch((e) => console.warn('[IndexedDB] bulk stock err:', e));
+    refreshDbStats();
   };
 
   const updateInventoryItem = (id: string, updates: Partial<InventoryItem>) => {
-    setInventory((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+    setInventory((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const updated: InventoryItem = {
+            ...item,
+            ...updates,
+            description: updates.description ?? updates.name ?? item.description ?? item.name,
+            unitCost: updates.unitCost ?? updates.costPrice ?? item.unitCost ?? item.costPrice,
+            markupPct: updates.markupPct ?? updates.defaultMarkup ?? item.markupPct ?? item.defaultMarkup,
+            quantityOnHand: updates.quantityOnHand ?? updates.stockQty ?? item.quantityOnHand ?? item.stockQty,
+            minAlertLevel: updates.minAlertLevel ?? updates.minStockLevel ?? item.minAlertLevel ?? item.minStockLevel,
+            updatedAt: new Date().toISOString(),
+          };
+          db.stock.put(updated).catch((e) => console.warn('[IndexedDB] update stock err:', e));
+          return updated;
+        }
+        return item;
+      })
+    );
   };
 
   const deleteInventoryItem = (id: string) => {
     setInventory((prev) => prev.filter((item) => item.id !== id));
+    db.stock.delete(id).catch((e) => console.warn('[IndexedDB] delete stock err:', e));
+    refreshDbStats();
   };
 
   const deductStock = (itemsToDeduct: { id?: string; sku?: string; quantity: number }[]) => {
@@ -510,80 +540,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
         if (match && match.quantity > 0) {
           const newQty = Math.max(0, invItem.stockQty - match.quantity);
-          return { ...invItem, stockQty: newQty };
+          const updated: InventoryItem = {
+            ...invItem,
+            stockQty: newQty,
+            quantityOnHand: newQty,
+            updatedAt: new Date().toISOString(),
+          };
+          db.stock.put(updated).catch((e) => console.warn('[IndexedDB] deduct stock err:', e));
+          return updated;
         }
         return invItem;
       })
     );
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_STOCK_DEDUCTION',
-      message: `Deducted stock for ${itemsToDeduct.length} line items`,
-      data: itemsToDeduct,
-    });
   };
 
+  // QUOTATIONS CRUD -> Wired directly to local IndexedDB
   const addQuote = (quoteData: Omit<Quotation, 'id'>): Quotation => {
     const finalQuoteNumber = (quoteData.quoteNumber || '').trim() || getNextQuoteNumber();
+    const now = new Date().toISOString();
     const newQuote: Quotation = {
       ...quoteData,
       quoteNumber: finalQuoteNumber,
       id: 'q_' + Date.now(),
     };
     setQuotes((prev) => [newQuote, ...prev]);
+    db.quotations.put({ ...newQuote, createdAt: now, updatedAt: now }).catch((e) => console.warn('[IndexedDB] add quote err:', e));
     syncSequenceFromDocument(finalQuoteNumber, 'quote');
     entitlementManager.recordDocumentCreated();
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_QUOTE_CREATED',
-      message: `Quotation created: ${newQuote.quoteNumber} (R${newQuote.totalAmount.toLocaleString()}) for "${newQuote.clientName}"`,
-      data: {
-        quoteNumber: newQuote.quoteNumber,
-        clientName: newQuote.clientName,
-        total: newQuote.totalAmount,
-        itemsCount: newQuote.items?.length,
-      },
-    });
+    refreshDbStats();
     return newQuote;
   };
 
   const updateQuote = (id: string, updates: Partial<Quotation>) => {
-    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id === id) {
+          const updated = { ...q, ...updates, updatedAt: new Date().toISOString() };
+          db.quotations.put(updated).catch((e) => console.warn('[IndexedDB] update quote err:', e));
+          return updated;
+        }
+        return q;
+      })
+    );
     if (updates.quoteNumber && updates.quoteNumber.trim()) {
       syncSequenceFromDocument(updates.quoteNumber.trim(), 'quote');
     }
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_QUOTE_UPDATED',
-      message: `Quotation ${id} updated`,
-      data: updates,
-    });
   };
 
   const deleteQuote = (id: string) => {
     setQuotes((prev) => prev.filter((q) => q.id !== id));
+    db.quotations.delete(id).catch((e) => console.warn('[IndexedDB] delete quote err:', e));
+    refreshDbStats();
   };
 
+  // INVOICES CRUD -> Wired directly to local IndexedDB
   const addInvoice = (invoiceData: Omit<Invoice, 'id'>, deductStockItems: boolean = false): Invoice => {
     const finalInvoiceNumber = (invoiceData.invoiceNumber || '').trim() || getNextInvoiceNumber();
+    const now = new Date().toISOString();
+    const paid = invoiceData.amountPaid || 0;
+    const balance = Number(Math.max(0, invoiceData.totalAmount - paid).toFixed(2));
     const newInvoice: Invoice = {
       ...invoiceData,
       invoiceNumber: finalInvoiceNumber,
       id: 'inv_' + Date.now(),
+      balanceDue: balance,
     };
     setInvoices((prev) => [newInvoice, ...prev]);
+    db.invoices.put({ ...newInvoice, createdAt: now, updatedAt: now }).catch((e) => console.warn('[IndexedDB] add invoice err:', e));
     syncSequenceFromDocument(finalInvoiceNumber, 'invoice');
     entitlementManager.recordDocumentCreated();
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_INVOICE_CREATED',
-      message: `Invoice created: ${newInvoice.invoiceNumber} (R${newInvoice.totalAmount.toLocaleString()}) for "${newInvoice.clientName}"`,
-      data: {
-        invoiceNumber: newInvoice.invoiceNumber,
-        total: newInvoice.totalAmount,
-        status: newInvoice.status,
-      },
-    });
+    refreshDbStats();
 
     if (deductStockItems && invoiceData.items && invoiceData.items.length > 0) {
       const deductionList = invoiceData.items.map((item) => ({
@@ -598,7 +624,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
-    setInvoices((prev) => prev.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv)));
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.id === id) {
+          const newTotal = updates.totalAmount ?? inv.totalAmount;
+          const newPaid = updates.amountPaid ?? inv.amountPaid;
+          const balance = Number(Math.max(0, newTotal - newPaid).toFixed(2));
+          const updated: Invoice = {
+            ...inv,
+            ...updates,
+            balanceDue: balance,
+            updatedAt: new Date().toISOString(),
+          };
+          db.invoices.put(updated).catch((e) => console.warn('[IndexedDB] update invoice err:', e));
+          return updated;
+        }
+        return inv;
+      })
+    );
     if (updates.invoiceNumber && updates.invoiceNumber.trim()) {
       syncSequenceFromDocument(updates.invoiceNumber.trim(), 'invoice');
     }
@@ -606,6 +649,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteInvoice = (id: string) => {
     setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+    db.invoices.delete(id).catch((e) => console.warn('[IndexedDB] delete invoice err:', e));
+    refreshDbStats();
   };
 
   const convertQuoteToInvoice = (quoteId: string): Invoice | null => {
@@ -669,14 +714,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       depositPaymentMethod: quote.depositPaymentMethod,
       depositReference: quote.depositReference,
       amountPaid: depositPaid,
+      balanceDue: Number(Math.max(0, quote.totalAmount - depositPaid).toFixed(2)),
       status: initialStatus,
       terms: quote.terms,
       payments,
     };
 
     setInvoices((prev) => [newInvoice, ...prev]);
+    db.invoices.put(newInvoice).catch((e) => console.warn('[IndexedDB] invoice conversion err:', e));
     syncSequenceFromDocument(invoiceNumber, 'invoice');
     updateQuote(quoteId, { status: 'invoiced' });
+    refreshDbStats();
     return newInvoice;
   };
 
@@ -709,6 +757,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setQuotes((prev) => prev.map((q) => (q.id === quoteId ? updatedQuote : q)));
+    db.quotations.put(updatedQuote).catch((e) => console.warn('[IndexedDB] deposit quote err:', e));
 
     let newInvoice: Invoice | null = null;
     if (depositData.autoConvertToInvoice) {
@@ -756,6 +805,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         depositPaymentMethod: depositData.method || 'EFT',
         depositReference: depositData.reference || `DEP-${quote.quoteNumber}`,
         amountPaid: depositData.amount,
+        balanceDue: Number(Math.max(0, quote.totalAmount - depositData.amount).toFixed(2)),
         status: initialStatus,
         terms: quote.terms,
         payments: [
@@ -770,8 +820,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setInvoices((prev) => [newInvoice!, ...prev]);
+      db.invoices.put(newInvoice!).catch((e) => console.warn('[IndexedDB] auto convert invoice err:', e));
       syncSequenceFromDocument(invoiceNumber, 'invoice');
       setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'invoiced' } : q)));
+      refreshDbStats();
     }
 
     return { quote: updatedQuote, invoice: newInvoice };
@@ -785,33 +837,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     date?: string,
     notes?: string
   ) => {
+    const paymentDate = date || new Date().toISOString().split('T')[0];
+    const newPaymentId = 'pay_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const newPayment = {
+      id: newPaymentId,
+      date: paymentDate,
+      amount,
+      method,
+      reference: reference || `REF-${Date.now().toString().slice(-4)}`,
+      notes: notes || undefined,
+    };
+
     setInvoices((prev) =>
       prev.map((inv) => {
         if (inv.id !== invoiceId) return inv;
         const newPaid = Number(((inv.amountPaid || 0) + amount).toFixed(2));
+        const balance = Number(Math.max(0, inv.totalAmount - newPaid).toFixed(2));
         const newStatus: InvoiceStatus = newPaid >= inv.totalAmount && inv.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'issued';
-        const newPayment = {
-          id: 'pay_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-          date: date || new Date().toISOString().split('T')[0],
-          amount,
-          method,
-          reference: reference || `REF-${Date.now().toString().slice(-4)}`,
-          notes: notes || undefined,
-        };
-
-        debugLogger.log({
-          level: 'state',
-          category: 'STATE_INVOICE_PARTIAL_PAYMENT',
-          message: `Recorded payment of R${amount} on ${inv.invoiceNumber} (Total paid: R${newPaid}/${inv.totalAmount}, Status: ${newStatus})`,
-          data: { invoiceId, payment: newPayment, newPaid, newStatus },
-        });
-
-        return {
+        const updatedInvoice: Invoice = {
           ...inv,
           amountPaid: newPaid,
+          balanceDue: balance,
           status: newStatus,
           payments: [...(inv.payments || []), newPayment],
         };
+
+        db.invoices.put(updatedInvoice).catch((e) => console.warn('[IndexedDB] record payment err:', e));
+
+        // Create synchronized local financial record (Income)
+        const finRecord: FinancialRecord = {
+          id: 'fin_inc_' + newPaymentId,
+          date: paymentDate,
+          type: 'Income',
+          category: inv.serviceType || 'Client Payment',
+          amount,
+          linkedInvoiceRef: inv.invoiceNumber,
+          description: `Payment received for ${inv.invoiceNumber} (${inv.clientName})`,
+          paymentMethod: method,
+          notes: notes || reference,
+          createdAt: new Date().toISOString(),
+        };
+        setFinancialRecords((fPrev) => [finRecord, ...fPrev]);
+        db.financial_records.put(finRecord).catch((e) => console.warn('[IndexedDB] record income err:', e));
+        refreshDbStats();
+
+        return updatedInvoice;
       })
     );
   };
@@ -822,21 +892,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (inv.id !== invoiceId) return inv;
         const updatedPayments = (inv.payments || []).filter((p) => p.id !== paymentId);
         const newPaid = Number(updatedPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2));
+        const balance = Number(Math.max(0, inv.totalAmount - newPaid).toFixed(2));
         const newStatus: InvoiceStatus = newPaid >= inv.totalAmount && inv.totalAmount > 0 ? 'paid' : newPaid > 0 ? 'partially_paid' : 'issued';
 
-        debugLogger.log({
-          level: 'state',
-          category: 'STATE_INVOICE_PAYMENT_DELETED',
-          message: `Deleted payment ${paymentId} from ${inv.invoiceNumber}. New total paid: R${newPaid}`,
-          data: { invoiceId, paymentId, newPaid, newStatus },
-        });
-
-        return {
+        const updatedInvoice: Invoice = {
           ...inv,
           amountPaid: newPaid,
+          balanceDue: balance,
           status: newStatus,
           payments: updatedPayments,
         };
+
+        db.invoices.put(updatedInvoice).catch((e) => console.warn('[IndexedDB] delete payment err:', e));
+
+        // Remove linked financial record
+        const finId = 'fin_inc_' + paymentId;
+        setFinancialRecords((fPrev) => fPrev.filter((f) => f.id !== finId));
+        db.financial_records.delete(finId).catch((e) => console.warn('[IndexedDB] delete fin income err:', e));
+        refreshDbStats();
+
+        return updatedInvoice;
       })
     );
   };
@@ -894,82 +969,183 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           remainingPayments = [];
         }
 
+        const balance = Number(Math.max(0, inv.totalAmount - targetAmountPaid).toFixed(2));
         resultInv = {
           ...inv,
           amountPaid: targetAmountPaid,
+          balanceDue: balance,
           status: targetStatus,
           payments: remainingPayments,
           isDepositPaid: options?.keepDepositOnly ? inv.isDepositPaid : false,
           depositAmountPaid: options?.keepDepositOnly ? inv.depositAmountPaid : 0,
         };
 
-        debugLogger.log({
-          level: 'state',
-          category: 'STATE_INVOICE_PAYMENT_REVERTED',
-          message: `Invoice ${inv.invoiceNumber} payment reverted from R${inv.amountPaid} to R${targetAmountPaid} (Status: ${targetStatus})`,
-          data: {
-            invoiceNumber: inv.invoiceNumber,
-            oldAmountPaid: inv.amountPaid,
-            newAmountPaid: targetAmountPaid,
-            newStatus: targetStatus,
-          },
-        });
-
+        db.invoices.put(resultInv).catch((e) => console.warn('[IndexedDB] revert payment err:', e));
         return resultInv;
       })
     );
     return resultInv;
   };
 
+  // EXPENSES CRUD -> Wired directly to local IndexedDB
   const addExpense = (expenseData: Omit<Expense, 'id'>): Expense => {
+    const now = new Date().toISOString();
     const newExpense: Expense = {
       ...expenseData,
       id: 'exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     };
     setExpenses((prev) => [newExpense, ...prev]);
+    db.expenses.put({ ...newExpense, createdAt: now, updatedAt: now }).catch((e) => console.warn('[IndexedDB] add expense err:', e));
 
-    debugLogger.log({
-      level: 'state',
-      category: 'STATE_EXPENSE_ADDED',
-      message: `Recorded expense of R${newExpense.amount} (${newExpense.category}: ${newExpense.description})`,
-      data: { expense: newExpense },
-    });
+    // Create synchronized local financial record (Expense)
+    const finRecord: FinancialRecord = {
+      id: 'fin_exp_' + newExpense.id,
+      date: newExpense.date,
+      type: 'Expense',
+      category: newExpense.category,
+      amount: newExpense.amount,
+      linkedInvoiceRef: newExpense.linkedInvoiceNumber || newExpense.invoiceNumber,
+      description: newExpense.description || `${newExpense.category} (${newExpense.supplier || 'Expense'})`,
+      paymentMethod: newExpense.paymentMethod,
+      notes: newExpense.notes,
+      createdAt: now,
+    };
+    setFinancialRecords((fPrev) => [finRecord, ...fPrev]);
+    db.financial_records.put(finRecord).catch((e) => console.warn('[IndexedDB] record expense fin err:', e));
+    refreshDbStats();
 
     return newExpense;
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
     setExpenses((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, ...updates } : exp))
+      prev.map((exp) => {
+        if (exp.id === id) {
+          const updated = { ...exp, ...updates, updatedAt: new Date().toISOString() };
+          db.expenses.put(updated).catch((e) => console.warn('[IndexedDB] update expense err:', e));
+
+          // Also update linked financial record if amount/date/category changed
+          const finId = 'fin_exp_' + id;
+          db.financial_records.get(finId).then((existing) => {
+            if (existing) {
+              const finUpdated: FinancialRecord = {
+                ...existing,
+                date: updates.date || existing.date,
+                category: updates.category || existing.category,
+                amount: updates.amount ?? existing.amount,
+                description: updates.description || existing.description,
+                notes: updates.notes ?? existing.notes,
+                updatedAt: new Date().toISOString(),
+              };
+              db.financial_records.put(finUpdated).catch(() => {});
+              setFinancialRecords((fPrev) => fPrev.map((f) => (f.id === finId ? finUpdated : f)));
+            }
+          }).catch(() => {});
+
+          return updated;
+        }
+        return exp;
+      })
     );
   };
 
   const deleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+    db.expenses.delete(id).catch((e) => console.warn('[IndexedDB] delete expense err:', e));
+    const finId = 'fin_exp_' + id;
+    setFinancialRecords((fPrev) => fPrev.filter((f) => f.id !== finId));
+    db.financial_records.delete(finId).catch((e) => console.warn('[IndexedDB] delete expense fin err:', e));
+    refreshDbStats();
   };
 
   const clearAllExpenses = () => {
     setExpenses([]);
-    localStorage.removeItem('harrys_expenses');
-    localStorage.setItem('harrys_demo_expenses_cleared_v1', 'true');
+    db.expenses.clear().catch((e) => console.warn('[IndexedDB] clear expenses err:', e));
+    // Clear expense financial records
+    db.financial_records.where('type').equals('Expense').delete().catch(() => {});
+    setFinancialRecords((prev) => prev.filter((f) => f.type !== 'Expense'));
+    refreshDbStats();
   };
 
-  const resetToSampleData = () => {
+  // FINANCIAL RECORDS CRUD
+  const addFinancialRecord = (recordData: Omit<FinancialRecord, 'id'>): FinancialRecord => {
+    const now = new Date().toISOString();
+    const newRecord: FinancialRecord = {
+      ...recordData,
+      id: 'fin_rec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      createdAt: now,
+      updatedAt: now,
+    };
+    setFinancialRecords((prev) => [newRecord, ...prev]);
+    db.financial_records.put(newRecord).catch((e) => console.warn('[IndexedDB] add fin record err:', e));
+    refreshDbStats();
+    return newRecord;
+  };
+
+  const deleteFinancialRecord = (id: string) => {
+    setFinancialRecords((prev) => prev.filter((r) => r.id !== id));
+    db.financial_records.delete(id).catch((e) => console.warn('[IndexedDB] delete fin record err:', e));
+    refreshDbStats();
+  };
+
+  // BACKUP & RESTORE -> Directly to/from device storage
+  const exportLocalBackup = async (): Promise<{ filename: string; size: number }> => {
+    return await dbExportBackup();
+  };
+
+  const importLocalBackup = async (
+    jsonString: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const result = await dbImportBackup(jsonString);
+
+    // Refresh reactive state from restored IndexedDB tables
+    const [storedClients, storedStock, storedQuotes, storedInvoices, storedExpenses, storedFinRecords, profileRecord] =
+      await Promise.all([
+        db.clients.toArray(),
+        db.stock.toArray(),
+        db.quotations.toArray(),
+        db.invoices.toArray(),
+        db.expenses.toArray(),
+        db.financial_records.toArray(),
+        db.business_profile.get('main'),
+      ]);
+
+    setClients(storedClients);
+    setInventory(
+      storedStock.map((s) => ({
+        ...s,
+        name: s.name || s.description || '',
+        costPrice: s.costPrice ?? s.unitCost ?? 0,
+        defaultMarkup: s.defaultMarkup ?? s.markupPct ?? 30,
+        stockQty: s.stockQty ?? s.quantityOnHand ?? 0,
+        minStockLevel: s.minStockLevel ?? s.minAlertLevel ?? 5,
+      }))
+    );
+    setQuotes(storedQuotes);
+    setInvoices(storedInvoices);
+    setExpenses(storedExpenses);
+    setFinancialRecords(storedFinRecords);
+    if (profileRecord?.profile) {
+      setProfile(profileRecord.profile);
+    }
+    await refreshDbStats();
+
+    return {
+      success: true,
+      message: result.message,
+    };
+  };
+
+  const resetToSampleData = async () => {
     setProfile(initialBusinessProfile);
     setClients([]);
     setInventory([]);
     setQuotes([]);
     setInvoices([]);
     setExpenses([]);
-    localStorage.removeItem('harrys_profile');
-    localStorage.removeItem('harrys_clients');
-    localStorage.removeItem('harrys_inventory');
-    localStorage.removeItem('harrys_quotes');
-    localStorage.removeItem('harrys_invoices');
-    localStorage.removeItem('harrys_expenses');
-    localStorage.removeItem('harrys_next_quote_number');
-    localStorage.removeItem('harrys_next_invoice_number');
-    clearOfflineDatabase();
+    setFinancialRecords([]);
+    await clearOfflineDatabase();
+    await refreshDbStats();
   };
 
   return (
@@ -1002,6 +1178,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateExpense,
         deleteExpense,
         clearAllExpenses,
+        financialRecords,
+        addFinancialRecord,
+        deleteFinancialRecord,
         recordPayment,
         deleteInvoicePayment,
         addBulkClients,
@@ -1027,6 +1206,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closePaywall,
         refreshEntitlements,
         consumeAiCredit,
+        // Local Offline IndexedDB & Backup Controls
+        isDbReady,
+        dbStats,
+        refreshDbStats,
+        exportLocalBackup,
+        importLocalBackup,
       }}
     >
       {children}

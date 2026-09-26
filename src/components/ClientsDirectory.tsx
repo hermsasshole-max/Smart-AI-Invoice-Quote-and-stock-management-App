@@ -36,6 +36,7 @@ export const ClientsDirectory: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [taxVatNumber, setTaxVatNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
 
@@ -53,6 +54,7 @@ export const ClientsDirectory: React.FC = () => {
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.phone.includes(searchTerm) ||
+      (c.taxVatNumber && c.taxVatNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
       c.address.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -62,6 +64,7 @@ export const ClientsDirectory: React.FC = () => {
     setPhone('');
     setEmail('');
     setAddress('');
+    setTaxVatNumber('');
     setNotes('');
     setIsModalOpen(true);
   };
@@ -72,6 +75,7 @@ export const ClientsDirectory: React.FC = () => {
     setPhone(c.phone);
     setEmail(c.email || '');
     setAddress(c.address);
+    setTaxVatNumber(c.taxVatNumber || c.vatNumber || '');
     setNotes(c.notes || '');
     setIsModalOpen(true);
   };
@@ -88,6 +92,8 @@ export const ClientsDirectory: React.FC = () => {
         phone,
         email,
         address,
+        taxVatNumber,
+        vatNumber: taxVatNumber,
         notes,
       });
     } else {
@@ -96,6 +102,8 @@ export const ClientsDirectory: React.FC = () => {
         phone,
         email,
         address,
+        taxVatNumber,
+        vatNumber: taxVatNumber,
         notes,
       });
     }
@@ -301,6 +309,17 @@ export const ClientsDirectory: React.FC = () => {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="e.g. 15 Protea Road, Bellville, Cape Town"
                   className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-mono uppercase font-bold">Tax / VAT Number (Optional)</label>
+                <input
+                  type="text"
+                  value={taxVatNumber}
+                  onChange={(e) => setTaxVatNumber(e.target.value)}
+                  placeholder="e.g. 4123456789"
+                  className="w-full px-3 py-2 rounded-xl bg-[#12141C] border border-[#334155] text-white focus:outline-none focus:border-sky-500 font-mono"
                 />
               </div>
 

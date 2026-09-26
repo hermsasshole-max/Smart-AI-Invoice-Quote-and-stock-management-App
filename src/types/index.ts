@@ -113,6 +113,8 @@ export interface Quotation {
   status: QuoteStatus;
   notes?: string;
   terms?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface InvoicePayment {
@@ -166,10 +168,13 @@ export interface Invoice {
   depositPaymentMethod?: 'EFT' | 'Cash' | 'Card' | 'Instant EFT';
   depositReference?: string;
   amountPaid: number;
+  balanceDue?: number;
   status: InvoiceStatus;
   notes?: string;
   terms?: string;
   payments?: InvoicePayment[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ScannedLineItem {
@@ -222,32 +227,84 @@ export interface ScannedReceiptData {
 
 export interface Client {
   id: string;
-  name: string;
+  name: string; // Business or contact name
   company?: string;
   phone: string;
   email?: string;
   address: string;
+  taxVatNumber?: string; // Tax/VAT number
+  vatNumber?: string;
+  notes?: string;
   suburb?: string;
   city?: string;
-  notes?: string;
   tags?: string[];
   totalBilled?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface InventoryItem {
   id: string;
-  sku: string;
-  name: string;
+  sku: string; // Item code / SKU
+  name: string; // Description / Item Name
+  description?: string; // Item Description
   category: InventoryCategory;
-  costPrice: number;
-  defaultMarkup: number;
-  sellingPrice: number;
+  costPrice: number; // Unit Cost
+  unitCost?: number; // Alias for unit cost
+  defaultMarkup: number; // Markup %
+  markupPct?: number; // Alias for markup %
+  sellingPrice: number; // Selling Price
   unit: string; // e.g. 'ea', 'box', 'pack', 'roll', 'm', 'length', 'set'
-  stockQty: number;
-  minStockLevel: number;
+  stockQty: number; // Quantity on hand
+  quantityOnHand?: number; // Alias for quantity on hand
+  minStockLevel: number; // Minimum alert level
+  minAlertLevel?: number; // Alias for minimum alert level
   supplier?: string;
   location?: string;
   notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type StockItem = InventoryItem;
+
+export interface FinancialRecord {
+  id: string; // Transaction ID
+  date: string; // YYYY-MM-DD
+  type: 'Income' | 'Expense';
+  category: string;
+  amount: number;
+  linkedInvoiceRef?: string;
+  description?: string;
+  paymentMethod?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LocalBackupPayload {
+  app: string;
+  version: string;
+  schemaVersion: number;
+  exportedAt: string;
+  checksum?: string;
+  recordCounts: {
+    clients: number;
+    stock: number;
+    quotations: number;
+    invoices: number;
+    financial_records: number;
+    expenses: number;
+  };
+  data: {
+    profile?: BusinessProfile;
+    clients: Client[];
+    stock: InventoryItem[];
+    quotations: Quotation[];
+    invoices: Invoice[];
+    financial_records: FinancialRecord[];
+    expenses: Expense[];
+  };
 }
 
 export interface BusinessProfile {
