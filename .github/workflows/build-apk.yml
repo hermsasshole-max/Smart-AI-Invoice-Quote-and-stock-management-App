@@ -36,15 +36,17 @@ jobs:
           mkdir -p "$ANDROID_HOME/licenses" || true
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license" || true
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license" || true
+          echo "8563bc7520e50257c963665245a49c9eb113e639" >> "$ANDROID_HOME/licenses/android-sdk-license" || true
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license" || true
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> "$ANDROID_HOME/licenses/android-sdk-preview-license" || true
           
-          # Accept licenses via sdkmanager if present
+          # Accept licenses and install platform 36 and build tools 36
           if command -v sdkmanager &> /dev/null; then
             yes | sdkmanager --licenses || true
-            sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+            sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
           elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools" || true
           fi
 
       - name: 🐘 Set up Gradle
@@ -73,10 +75,10 @@ jobs:
             rm -rf android
             npx cap add android
           fi
-          # Ensure SDK 35 is pinned in variables.gradle for guaranteed compatibility
+          # Ensure SDK 36 is pinned in variables.gradle for Capacitor 8 & AndroidX 1.11 compatibility
           if [ -f "android/variables.gradle" ]; then
-            sed -i "s/compileSdkVersion = .*/compileSdkVersion = 35/g" android/variables.gradle
-            sed -i "s/targetSdkVersion = .*/targetSdkVersion = 35/g" android/variables.gradle
+            sed -i "s/compileSdkVersion = .*/compileSdkVersion = 36/g" android/variables.gradle
+            sed -i "s/targetSdkVersion = .*/targetSdkVersion = 36/g" android/variables.gradle
           fi
           echo "Syncing web assets and plugins to Android project..."
           npx cap sync android
