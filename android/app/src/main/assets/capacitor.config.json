@@ -1,0 +1,27 @@
+{
+	"appId": "com.cortech.businessmanager",
+	"appName": "CorTech AI Business Manager",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https",
+		"cleartext": true,
+		"allowNavigation": [
+			"smart-ai-invoice-quote-and-stock-y242.onrender.com",
+			"*.onrender.com",
+			"*.google.com"
+		]
+	},
+	"android": {
+		"allowMixedContent": true,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": true
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"backgroundColor": "#0B0D13",
+			"showSpinner": false,
+			"androidSplashResourceName": "splash"
+		}
+	}
+}
