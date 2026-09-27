@@ -508,7 +508,15 @@ export const FinancialAnalysis: React.FC = () => {
 
   // Print P&L Statement
   const handlePrintStatement = () => {
-    window.print();
+    try {
+      document.body.classList.add('printing-statement');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-statement');
+      }, 1500);
+    } catch (e) {
+      console.warn('Window print failed:', e);
+    }
   };
 
   return (

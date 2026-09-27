@@ -18,6 +18,7 @@ import {
   openPdfInNewTab,
 } from '../utils/multiFormatExport';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { ShareModal } from './ShareModal';
 import { VoiceInvoiceWizard } from './VoiceInvoiceWizard';
 import { ReceiptScannerModal } from './ReceiptScannerModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
@@ -124,6 +125,7 @@ export const QuotationEngine: React.FC = () => {
 
   // Modals
   const [previewQuote, setPreviewQuote] = useState<Quotation | null>(null);
+  const [shareQuote, setShareQuote] = useState<Quotation | null>(null);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [openExportMenuId, setOpenExportMenuId] = useState<string | null>(null);
@@ -1368,6 +1370,15 @@ export const QuotationEngine: React.FC = () => {
                         <MessageSquare className="w-4 h-4" />
                       </a>
 
+                      {/* Share Button */}
+                      <button
+                        onClick={() => setShareQuote(quote)}
+                        className="p-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20 cursor-pointer"
+                        title="Share Quotation (WhatsApp, Email, PDF)"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+
                       {/* Document Preview Modal Trigger */}
                       <button
                         onClick={() => setPreviewQuote(quote)}
@@ -1405,7 +1416,18 @@ export const QuotationEngine: React.FC = () => {
                         </button>
 
                         {openExportMenuId === quote.id && (
-                          <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                          <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                            <button
+                              onClick={() => {
+                                setShareQuote(quote);
+                                setOpenExportMenuId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-purple-300 font-semibold border-b border-[#334155]"
+                            >
+                              <Share2 className="w-4 h-4 text-purple-400" />
+                              <span>Share (WhatsApp / Email / PDF)</span>
+                            </button>
+
                             <button
                               onClick={() => {
                                 printHtmlDocument('quote', quote, profile);
@@ -1419,7 +1441,7 @@ export const QuotationEngine: React.FC = () => {
 
                             <button
                               onClick={() => {
-                                exportToPDF('quote', quote, profile);
+                                exportToPDF('quote', quote, profile, true);
                                 setOpenExportMenuId(null);
                               }}
                               className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200"
@@ -1430,7 +1452,7 @@ export const QuotationEngine: React.FC = () => {
 
                             <button
                               onClick={() => {
-                                exportToExcel('quote', quote, profile);
+                                exportToExcel('quote', quote, profile, true);
                                 setOpenExportMenuId(null);
                               }}
                               className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200"
@@ -1441,7 +1463,7 @@ export const QuotationEngine: React.FC = () => {
 
                             <button
                               onClick={() => {
-                                exportToWord('quote', quote, profile);
+                                exportToWord('quote', quote, profile, true);
                                 setOpenExportMenuId(null);
                               }}
                               className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200"
@@ -1785,6 +1807,15 @@ export const QuotationEngine: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Share Modal Dialog */}
+      <ShareModal
+        isOpen={!!shareQuote}
+        onClose={() => setShareQuote(null)}
+        docType="quote"
+        data={shareQuote}
+        profile={profile}
+      />
     </div>
   );
 };

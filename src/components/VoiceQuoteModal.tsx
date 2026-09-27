@@ -410,16 +410,28 @@ export const VoiceQuoteModal: React.FC<VoiceQuoteModalProps> = ({
       ? `https://wa.me/${cleanPhone.startsWith('0') ? '27' + cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(message)}`
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
 
-    // Try generating PDF
+    // Generate & download PDF directly
     try {
       const doc = buildJsPDFDocument('quote', savedQuote, profile);
       const blob = doc.output('blob');
-      await saveOrShareFile(blob, `${savedQuote.quoteNumber}_${savedQuote.clientName}.pdf`, 'application/pdf', `Quotation ${savedQuote.quoteNumber}`);
+      await saveOrShareFile(blob, `${savedQuote.quoteNumber}_${(savedQuote.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`, 'application/pdf', `Quotation ${savedQuote.quoteNumber}`, true);
     } catch (e) {
       console.warn('PDF export error:', e);
     }
 
-    window.open(waUrl, '_blank');
+    try {
+      const a = document.createElement('a');
+      a.href = waUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 1000);
+    } catch (e) {
+      window.location.href = waUrl;
+    }
     onClose();
   };
 

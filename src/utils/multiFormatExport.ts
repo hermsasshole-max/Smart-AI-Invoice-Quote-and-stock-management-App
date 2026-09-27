@@ -19,6 +19,23 @@ export interface ExportResult {
   method: 'share' | 'download' | 'open';
 }
 
+// Resilient helper to execute autoTable regardless of CJS/ESM bundling
+function applyAutoTable(doc: jsPDF, options: any) {
+  try {
+    if (typeof autoTable === 'function') {
+      autoTable(doc, options);
+    } else if ((autoTable as any)?.default && typeof (autoTable as any).default === 'function') {
+      (autoTable as any).default(doc, options);
+    } else if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(options);
+    } else {
+      console.warn('AutoTable plugin not detected, continuing with basic document layout');
+    }
+  } catch (err) {
+    console.error('applyAutoTable execution error:', err);
+  }
+}
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -28,24 +45,87 @@ export function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * Universal, infallible file downloader for web browsers, PWA, iframes, and Android WebViews
+ */
+export async function downloadBlob(blob: Blob, filename: string, mimeType: string): Promise<boolean> {
+  // 1. Android Native Bridge if running inside an Android WebView container
+  if (typeof window !== 'undefined' && window.AndroidInterface?.saveFile) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      window.AndroidInterface.saveFile(base64Data, filename, mimeType);
+      return true;
+    } catch (bridgeErr) {
+      console.warn('AndroidInterface.saveFile failed, proceeding to web download:', bridgeErr);
+    }
+  }
+
+  // 2. Standard Blob Object URL download
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.target = '_self';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    
+    // Revoke after 30 seconds to allow slow mobile devices to finish streaming
+    setTimeout(() => {
+      try {
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+        URL.revokeObjectURL(url);
+      } catch (e) {}
+    }, 30000);
+    return true;
+  } catch (blobErr) {
+    console.warn('Blob URL download failed, trying Base64 data URI:', blobErr);
+  }
+
+  // 3. Base64 Data URI fallback (works when blob: is restricted by sandboxed iframes)
+  try {
+    const dataUrl = await blobToBase64(blob);
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    a.target = '_self';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+      } catch (e) {}
+    }, 15000);
+    return true;
+  } catch (dataUrlErr) {
+    console.error('Data URL fallback also failed:', dataUrlErr);
+    return false;
+  }
+}
+
 export async function saveOrShareFile(
   blob: Blob,
   filename: string,
   mimeType: string,
   title: string,
-  forceDownloadOnly: boolean = false
+  forceDownloadOnly: boolean = true
 ): Promise<ExportResult> {
-  if (typeof window !== 'undefined' && window.AndroidInterface?.saveFile) {
-    try {
-      const base64Data = await blobToBase64(blob);
-      window.AndroidInterface.saveFile(base64Data, filename, mimeType);
-      return { filename, method: 'download' };
-    } catch (bridgeErr) {
-      console.warn('AndroidInterface.saveFile failed, falling back:', bridgeErr);
-    }
+  // If download is requested (default for all download and export buttons)
+  if (forceDownloadOnly) {
+    await downloadBlob(blob, filename, mimeType);
+    return { filename, method: 'download' };
   }
 
-  if (!forceDownloadOnly && typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+  // Optional: check Web Share API if explicitly requested and available
+  if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], filename, { type: mimeType });
       if (navigator.canShare({ files: [file] })) {
@@ -57,37 +137,15 @@ export async function saveOrShareFile(
         return { filename, method: 'share' };
       }
     } catch (shareErr: any) {
-      if (shareErr.name !== 'AbortError') {
-        console.warn('Navigator share error, falling back to download:', shareErr);
-      } else {
+      if (shareErr.name === 'AbortError') {
         return { filename, method: 'share' };
       }
+      console.warn('Navigator share error, falling back to download:', shareErr);
     }
   }
 
-  try {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (document.body.contains(a)) {
-        document.body.removeChild(a);
-      }
-      URL.revokeObjectURL(url);
-    }, 1000);
-    return { filename, method: 'download' };
-  } catch (downloadErr) {
-    const dataUrl = await blobToBase64(blob);
-    const win = window.open(dataUrl, '_blank');
-    if (!win) {
-      window.location.href = dataUrl;
-    }
-    return { filename, method: 'open' };
-  }
+  await downloadBlob(blob, filename, mimeType);
+  return { filename, method: 'download' };
 }
 
 export function buildJsPDFDocument(
@@ -213,7 +271,7 @@ export function buildJsPDFDocument(
   const splitScope = doc.splitTextToSize(data.scopeOfWork || 'On-site technical scope', 80);
   doc.text(splitScope.slice(0, 2), 110, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
 
-  autoTable(doc, {
+  applyAutoTable(doc, {
     startY: tableStartY,
     head: [['Item / Description', 'Qty', 'Unit Rate (ZAR)', 'Total (ZAR)']],
     body: tableRows,
@@ -238,7 +296,7 @@ export function buildJsPDFDocument(
     margin: { left: 14, right: 14 },
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY + (shouldCondenseSinglePage ? 4 : 6);
+  const finalY = ((doc as any).lastAutoTable?.finalY ?? (tableStartY + (tableRows.length * 8))) + (shouldCondenseSinglePage ? 4 : 6);
 
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(226, 232, 240);
@@ -374,13 +432,14 @@ export async function exportToPDF(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDownload: boolean = false
+  forceDownload: boolean = true
 ): Promise<ExportResult> {
   const doc = buildJsPDFDocument(docType, data, profile);
   const blob = doc.output('blob');
   const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber}`;
+  const clientClean = (data.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `${docType.toUpperCase()}_${docNumber || 'DOC'}_${clientClean}.pdf`;
+  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber || ''}`;
   return await saveOrShareFile(blob, filename, 'application/pdf', title, forceDownload);
 }
 
@@ -388,7 +447,7 @@ export async function exportToExcel(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDownload: boolean = false
+  forceDownload: boolean = true
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'Tax Invoice' : 'Quotation';
@@ -485,7 +544,7 @@ export async function exportToWord(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDownload: boolean = false
+  forceDownload: boolean = true
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'Tax Invoice' : 'Official Quotation';
@@ -594,7 +653,7 @@ export async function exportToPlainText(
   docType: 'quote' | 'invoice',
   data: Quotation | Invoice,
   profile: BusinessProfile,
-  forceDownload: boolean = false
+  forceDownload: boolean = true
 ): Promise<ExportResult> {
   const isInvoice = docType === 'invoice';
   const docTitle = isInvoice ? 'TAX INVOICE' : 'OFFICIAL QUOTATION';
@@ -1018,19 +1077,10 @@ export async function printHtmlDocument(
   // 1. Android Native Bridge with direct PDF stream to Android PrintManager
   if (typeof window !== 'undefined' && window.AndroidInterface?.printPdf) {
     try {
-      const doc = await buildJsPDFDocument(docType, data, profile);
+      const doc = buildJsPDFDocument(docType, data, profile);
       const pdfBlob = doc.output('blob');
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        try {
-          window.AndroidInterface?.printPdf?.(base64data, filename);
-        } catch (e) {
-          console.warn('AndroidInterface.printPdf call failed, trying standard print:', e);
-          window.AndroidInterface?.printDocument?.();
-        }
-      };
-      reader.readAsDataURL(pdfBlob);
+      const base64data = await blobToBase64(pdfBlob);
+      window.AndroidInterface.printPdf(base64data, filename);
       return;
     } catch (androidPdfErr) {
       console.warn('Direct PDF print bridge error:', androidPdfErr);
@@ -1047,43 +1097,57 @@ export async function printHtmlDocument(
     }
   }
 
-  // 3. In-Browser / Mobile / Tablet Print
+  // 3. In-Browser / Mobile / Tablet Print via isolated hidden iframe (prevents modal backdrop / CSS clipping)
   try {
-    // If a printable sheet is already active on the DOM (e.g. preview modal open)
-    const existingPrintable = document.querySelector('[data-printable="true"], .print-sheet');
-    if (existingPrintable) {
-      window.print();
-      return;
+    const htmlContent = generatePrintableHtml(docType, data, profile);
+    const existingFrame = document.getElementById('cortech-print-frame');
+    if (existingFrame && document.body.contains(existingFrame)) {
+      document.body.removeChild(existingFrame);
     }
 
-    // Otherwise, generate the isolated printable HTML and inject a print-root node
-    const htmlContent = generatePrintableHtml(docType, data, profile);
-    const printContainer = document.createElement('div');
-    printContainer.id = 'print-root';
-    printContainer.setAttribute('data-printable', 'true');
-    printContainer.innerHTML = htmlContent;
-    document.body.appendChild(printContainer);
+    const printIframe = document.createElement('iframe');
+    printIframe.id = 'cortech-print-frame';
+    printIframe.setAttribute('style', 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;z-index:-999;');
+    document.body.appendChild(printIframe);
 
-    const cleanup = () => {
-      if (document.body.contains(printContainer)) {
-        document.body.removeChild(printContainer);
-      }
-      window.removeEventListener('afterprint', cleanup);
-    };
+    const frameDoc = printIframe.contentDocument || printIframe.contentWindow?.document;
+    if (frameDoc && printIframe.contentWindow) {
+      frameDoc.open();
+      frameDoc.write(htmlContent);
+      frameDoc.close();
 
-    window.addEventListener('afterprint', cleanup);
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (err) {
-        console.warn('window.print() error, falling back to PDF download:', err);
-        exportToPDF(docType, data, profile, true);
-      }
-      setTimeout(cleanup, 2000);
-    }, 150);
+      setTimeout(() => {
+        try {
+          printIframe.contentWindow?.focus();
+          printIframe.contentWindow?.print();
+        } catch (iframeErr) {
+          console.warn('Iframe print failed, falling back to window.print():', iframeErr);
+          document.body.classList.add('printing-document');
+          window.print();
+          document.body.classList.remove('printing-document');
+        } finally {
+          setTimeout(() => {
+            if (document.body.contains(printIframe)) {
+              document.body.removeChild(printIframe);
+            }
+          }, 4000);
+        }
+      }, 350);
+      return;
+    }
   } catch (webPrintErr) {
-    console.warn('Web print failed, executing PDF download fallback:', webPrintErr);
-    // 4. Infallible fallback: Download/Save high-resolution vector PDF
+    console.warn('Isolated iframe print failed, trying main window print:', webPrintErr);
+  }
+
+  // 4. Fallback: Main window print with body clean class
+  try {
+    document.body.classList.add('printing-document');
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-document');
+    }, 1000);
+  } catch (fallbackPrintErr) {
+    console.warn('window.print failed completely, downloading vector PDF fallback:', fallbackPrintErr);
     await exportToPDF(docType, data, profile, true);
   }
 }
@@ -1098,20 +1162,20 @@ export async function shareDocumentDirectly(
   let filename: string;
   let mimeType: string;
   const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const sanitizedClient = data.clientName.replace(/[^a-zA-Z0-9]/g, '_');
-  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber}`;
+  const sanitizedClient = (data.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_');
+  const title = `${docType === 'invoice' ? 'Tax Invoice' : 'Quotation'} ${docNumber || ''}`;
 
   if (format === 'pdf') {
     const doc = buildJsPDFDocument(docType, data, profile);
     blob = doc.output('blob');
-    filename = `${docType.toUpperCase()}_${docNumber}_${sanitizedClient}.pdf`;
+    filename = `${docType.toUpperCase()}_${docNumber || 'DOC'}_${sanitizedClient}.pdf`;
     mimeType = 'application/pdf';
   } else if (format === 'excel') {
-    return await exportToExcel(docType, data, profile, false);
+    return await exportToExcel(docType, data, profile, true);
   } else if (format === 'word') {
-    return await exportToWord(docType, data, profile, false);
+    return await exportToWord(docType, data, profile, true);
   } else {
-    return await exportToPlainText(docType, data, profile, false);
+    return await exportToPlainText(docType, data, profile, true);
   }
 
   if (typeof window !== 'undefined' && window.AndroidInterface?.shareFile) {
@@ -1124,25 +1188,34 @@ export async function shareDocumentDirectly(
     }
   }
 
-  if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+  if (typeof navigator !== 'undefined' && navigator.share) {
     try {
       const file = new File([blob], filename, { type: mimeType });
-      if (navigator.canShare({ files: [file] })) {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: title,
           text: `${title} for ${data.clientName}`,
         });
         return { filename, method: 'share' };
+      } else {
+        // Fallback: Share text summary
+        await navigator.share({
+          title: title,
+          text: `${title} for ${data.clientName} (Total: R ${data.totalAmount})`,
+        });
+        return { filename, method: 'share' };
       }
     } catch (shareErr: any) {
-      if (shareErr.name !== 'AbortError') {
-        console.warn('Web Share failed:', shareErr);
+      if (shareErr.name === 'AbortError') {
+        return { filename, method: 'share' };
       }
+      console.warn('Navigator share error, downloading document instead:', shareErr);
     }
   }
 
-  return await saveOrShareFile(blob, filename, mimeType, title, true);
+  await downloadBlob(blob, filename, mimeType);
+  return { filename, method: 'download' };
 }
 
 export async function openPdfInNewTab(
@@ -1153,7 +1226,7 @@ export async function openPdfInNewTab(
   const doc = buildJsPDFDocument(docType, data, profile);
   const blob = doc.output('blob');
   const docNumber = docType === 'invoice' ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
-  const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const filename = `${docType.toUpperCase()}_${docNumber || 'DOC'}_${(data.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const base64Data = await blobToBase64(blob);
 
   if (typeof window !== 'undefined' && window.AndroidInterface?.openFile) {
@@ -1166,8 +1239,13 @@ export async function openPdfInNewTab(
   }
 
   const url = URL.createObjectURL(blob);
-  const newWin = window.open(url, '_blank');
-  if (!newWin) {
-    window.location.href = url;
+  try {
+    const newWin = window.open(url, '_blank');
+    if (!newWin) {
+      // If popup blocker blocked the new window, download the PDF safely without disrupting user's page
+      await downloadBlob(blob, filename, 'application/pdf');
+    }
+  } catch (e) {
+    await downloadBlob(blob, filename, 'application/pdf');
   }
 }

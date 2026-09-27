@@ -168,18 +168,28 @@
   }
 
   /* Modal backdrops & fixed overlays neutralization during print */
+  div[class*="fixed"][class*="inset-0"],
   .fixed.inset-0,
   .modal-container,
-  [role="dialog"] {
+  [role="dialog"],
+  .backdrop-blur-sm,
+  .backdrop-blur-md {
     position: static !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
     margin: 0 !important;
     max-height: none !important;
     overflow: visible !important;
+  }
+
+  /* When printing an isolated document via #print-root or body.printing-document */
+  body.printing-document #root > *:not(#print-root) {
+    display: none !important;
   }
 
   /* Force document visual sheet to full page width with white background */

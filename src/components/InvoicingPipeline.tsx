@@ -16,12 +16,14 @@ import {
   printHtmlDocument,
 } from '../utils/multiFormatExport';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { ShareModal } from './ShareModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import {
   FileText,
   MessageSquare,
   Printer,
   Download,
+  Share2,
   CreditCard,
   Plus,
   Eye,
@@ -65,6 +67,7 @@ export const InvoicingPipeline: React.FC = () => {
 
   // Modals & Active Edit States
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [shareInvoice, setShareInvoice] = useState<Invoice | null>(null);
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<Invoice | null>(null);
   const [revertModalInvoice, setRevertModalInvoice] = useState<Invoice | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
@@ -1477,6 +1480,15 @@ export const InvoicingPipeline: React.FC = () => {
                     <MessageSquare className="w-4 h-4" />
                   </a>
 
+                  {/* Share Button */}
+                  <button
+                    onClick={() => setShareInvoice(inv)}
+                    className="p-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20 cursor-pointer"
+                    title="Share Tax Invoice (WhatsApp, Email, PDF)"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+
                   {/* Preview Document */}
                   <button
                     onClick={() => setPreviewInvoice(inv)}
@@ -1497,7 +1509,7 @@ export const InvoicingPipeline: React.FC = () => {
                     </button>
 
                     {openExportMenuId === inv.id && (
-                      <div className="absolute right-0 mt-2 w-52 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
+                      <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#12141C] border border-[#334155] shadow-2xl py-1 z-30 text-xs">
                         {isPaid && (
                           <>
                             <button
@@ -1522,6 +1534,17 @@ export const InvoicingPipeline: React.FC = () => {
                             </button>
                           </>
                         )}
+
+                        <button
+                          onClick={() => {
+                            setShareInvoice(inv);
+                            setOpenExportMenuId(null);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-purple-300 font-semibold border-b border-[#334155] cursor-pointer"
+                        >
+                          <Share2 className="w-4 h-4 text-purple-400" />
+                          <span>Share (WhatsApp / Email / PDF)</span>
+                        </button>
 
                         <button
                           onClick={() => {
@@ -1559,7 +1582,7 @@ export const InvoicingPipeline: React.FC = () => {
 
                         <button
                           onClick={() => {
-                            exportToPDF('invoice', inv, profile);
+                            exportToPDF('invoice', inv, profile, true);
                             setOpenExportMenuId(null);
                           }}
                           className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200 cursor-pointer"
@@ -1570,7 +1593,7 @@ export const InvoicingPipeline: React.FC = () => {
 
                         <button
                           onClick={() => {
-                            exportToExcel('invoice', inv, profile);
+                            exportToExcel('invoice', inv, profile, true);
                             setOpenExportMenuId(null);
                           }}
                           className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200 cursor-pointer"
@@ -1581,7 +1604,7 @@ export const InvoicingPipeline: React.FC = () => {
 
                         <button
                           onClick={() => {
-                            exportToWord('invoice', inv, profile);
+                            exportToWord('invoice', inv, profile, true);
                             setOpenExportMenuId(null);
                           }}
                           className="w-full px-3 py-2 text-left hover:bg-[#1B1E28] flex items-center space-x-2 text-slate-200 cursor-pointer"
@@ -2032,6 +2055,15 @@ export const InvoicingPipeline: React.FC = () => {
         onClose={() => setPreviewInvoice(null)}
         docType="invoice"
         data={previewInvoice}
+      />
+
+      {/* Share Modal Dialog */}
+      <ShareModal
+        isOpen={!!shareInvoice}
+        onClose={() => setShareInvoice(null)}
+        docType="invoice"
+        data={shareInvoice}
+        profile={profile}
       />
     </div>
   );

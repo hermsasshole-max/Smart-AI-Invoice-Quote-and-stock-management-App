@@ -11,6 +11,7 @@ import {
   openPdfInNewTab,
   shareDocumentDirectly,
 } from '../utils/multiFormatExport';
+import { ShareModal } from './ShareModal';
 import {
   X,
   Printer,
@@ -42,6 +43,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   if (!isOpen || !data) return null;
 
@@ -63,45 +65,54 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const waLink = getWhatsAppShareLink(data.clientPhone, waSummary);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(waSummary);
-    setCopied(true);
-    showNotification('WhatsApp summary copied to clipboard!');
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(waSummary);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = waSummary;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      showNotification('WhatsApp summary copied to clipboard!');
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      showNotification('Could not copy to clipboard');
+    }
   };
 
   const handleExport = async (format: 'pdf' | 'excel' | 'word' | 'txt') => {
     setIsExporting(true);
     try {
       if (format === 'pdf') {
-        const res = await exportToPDF(docType, data, profile);
-        showNotification(isAndroidApp ? 'Saving PDF to Downloads folder...' : 'PDF generated!');
+        showNotification('Generating vector PDF...');
+        await exportToPDF(docType, data, profile, true);
+        showNotification(isAndroidApp ? 'Saving PDF to Downloads folder...' : 'PDF downloaded successfully!');
       } else if (format === 'excel') {
-        await exportToExcel(docType, data, profile);
-        showNotification('Excel spreadsheet generated!');
+        showNotification('Generating Excel sheet...');
+        await exportToExcel(docType, data, profile, true);
+        showNotification('Excel spreadsheet downloaded!');
       } else if (format === 'word') {
-        await exportToWord(docType, data, profile);
-        showNotification('Word document generated!');
+        showNotification('Generating Word document...');
+        await exportToWord(docType, data, profile, true);
+        showNotification('Word document downloaded!');
       } else if (format === 'txt') {
-        await exportToPlainText(docType, data, profile);
-        showNotification('Text export generated!');
+        await exportToPlainText(docType, data, profile, true);
+        showNotification('Text export downloaded!');
       }
     } catch (err) {
       console.error('Export error:', err);
+      showNotification('Export failed. Please try again.');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleShare = async () => {
-    setIsExporting(true);
-    try {
-      await shareDocumentDirectly(docType, data, profile, 'pdf');
-      showNotification('Opening share sheet...');
-    } catch (err) {
-      console.error('Share error:', err);
-    } finally {
-      setIsExporting(false);
-    }
+  const handleShare = () => {
+    setIsShareModalOpen(true);
   };
 
   return (
@@ -518,6 +529,15 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Share Modal Dialog */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        docType={docType}
+        data={data}
+        profile={profile}
+      />
     </div>
   );
 };
