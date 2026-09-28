@@ -193,40 +193,51 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         {/* Modal Scrollable Content: Document Visual Sheet */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#0F1118] print:p-0 print:bg-white">
           <div className="print-sheet invoice-container invoice-card print-area max-w-3xl mx-auto bg-white text-[#0F172A] rounded-xl shadow-xl overflow-hidden border border-slate-200" data-printable="true">
-            {/* Header Banner */}
-            <div className="invoice-header bg-[#1B1E28] text-white p-6 border-b-4 border-sky-500">
+            {/* Header Banner in Royal Blue with Yellow Accent Stripe */}
+            <div className="invoice-header bg-gradient-to-r from-blue-800 to-blue-900 text-white p-6 sm:p-7 border-b-[5px] border-yellow-400 shadow-sm">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl font-black tracking-wide text-white uppercase">
-                    {profile.companyName}
+                <div className="max-w-xl">
+                  <h3 className="text-xl sm:text-2xl font-black tracking-wide text-white uppercase drop-shadow-sm">
+                    {profile.companyName || "HARRY'S AIRCON ELECTRICAL & SOLAR SERVICES"}
                   </h3>
-                  <p className="text-xs text-sky-400 font-medium">
-                    {profile.tagline || "Electrical • Air Conditioning • Solar • Security"}
+                  <p className="text-xs sm:text-sm text-yellow-300 font-bold italic mt-0.5">
+                    {profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}
                   </p>
-                  <div className="mt-2 text-[11px] text-slate-300 font-mono space-y-0.5">
-                    <div>Reg: {profile.regNumber} | VAT: {profile.vatNumber}</div>
-                    <div>Tel: {profile.phone} | Email: {profile.email}</div>
-                    <div>Address: {profile.address}</div>
+                  <div className="mt-2.5 text-[11px] text-slate-100 font-mono space-y-0.5 leading-relaxed">
+                    <div>
+                      {[profile.regNumber ? `Reg: ${profile.regNumber}` : 'Reg: 2021/849201/07', profile.vatNumber ? `VAT: ${profile.vatNumber}` : 'VAT: 4820391823'].filter(Boolean).join(' | ')}
+                    </div>
+                    <div>
+                      {[profile.phone ? `Tel: ${profile.phone}` : 'Tel: +27 82 456 7890', profile.email ? `Email: ${profile.email}` : 'Email: info@harryselectrical.co.za'].filter(Boolean).join(' | ')}
+                    </div>
+                    <div>
+                      {[profile.address ? `Address: ${profile.address}` : 'Address: 14 Electron Avenue, Kya Sand Industrial, JHB', profile.website ? `Web: ${profile.website}` : 'Web: https://harryselectrical.co.za'].filter(Boolean).join(' | ')}
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-left sm:text-right font-mono">
-                  <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded text-xs font-black uppercase mb-1">
+                <div className="text-left sm:text-right font-mono self-start sm:self-center">
+                  <span className="inline-block px-4 py-1.5 bg-yellow-400 text-blue-900 border-2 border-yellow-500 rounded-lg text-xs sm:text-sm font-black uppercase shadow-sm tracking-wider mb-1.5">
                     {docTitle}
                   </span>
-                  <div className="text-xs text-slate-300 space-y-0.5">
-                    <div><span className="text-slate-400">Ref:</span> <strong>{docNumber}</strong></div>
-                    <div><span className="text-slate-400">Date:</span> {data.date}</div>
-                    <div><span className="text-slate-400">{isInvoice ? 'Due:' : 'Valid:'}</span> {docSecondaryDate}</div>
+                  <div className="text-xs text-slate-200 space-y-0.5">
+                    <div><span className="text-slate-300">Ref:</span> <strong className="text-white font-bold">{docNumber}</strong></div>
+                    <div><span className="text-slate-300">Date:</span> {data.date}</div>
+                    <div><span className="text-slate-300">{isInvoice ? 'Due:' : 'Valid:'}</span> {docSecondaryDate}</div>
+                    <div className="mt-1">
+                      <span className="inline-block px-2 py-0.5 bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 rounded text-[10px] font-bold uppercase">
+                        Status: {data.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Client & Scope Bar */}
-            <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* Client & Scope Bar in Dove Grey with Royal Blue left bar */}
+            <div className="p-6 bg-slate-50 border-b border-slate-200 border-l-4 border-l-blue-700 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 font-mono block mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 font-mono block mb-1">
                   {isInvoice ? 'Billed To & Site Location' : 'Client & Site Details'}
                 </span>
                 <div className="font-bold text-sm text-slate-900">{data.clientName}</div>
@@ -236,7 +247,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               </div>
 
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 font-mono block mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 font-mono block mb-1">
                   Job Specifications
                 </span>
                 <div className="font-semibold text-slate-800">Category: {data.serviceType}</div>
@@ -253,7 +264,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <div className="p-6">
               <table className="invoice-table w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-sky-600 text-white font-mono uppercase text-[10px]">
+                  <tr className="bg-blue-800 text-white font-mono uppercase text-[10px] border-b-2 border-yellow-400">
                     <th className="p-2.5 rounded-l">Item / Description</th>
                     <th className="p-2.5 text-center">Qty</th>
                     <th className="p-2.5 text-right">Rate (ZAR)</th>
@@ -352,18 +363,22 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </tbody>
               </table>
 
-              {/* Totals & Banking Details */}
+              {/* Totals & Banking Details in Dove Grey with Royal Blue & Yellow Accents */}
               <div className="invoice-totals mt-6 pt-4 border-t-2 border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <div className="p-3.5 bg-slate-100 border border-slate-200 rounded-lg font-mono text-xs text-slate-700">
-                  <div className="font-bold text-sky-600 uppercase mb-1 flex items-center space-x-1">
-                    <span>🏦 Banking Details (EFT)</span>
+                <div className="p-4 bg-slate-50 border border-slate-200 border-l-4 border-l-blue-700 rounded-xl font-mono text-xs text-slate-700">
+                  <div className="font-bold text-blue-800 uppercase mb-2 flex items-center justify-between">
+                    <span>🏦 Banking Details (EFT Settlement)</span>
+                    <span className="bg-yellow-400/30 text-yellow-800 border border-yellow-400 px-1.5 py-0.5 rounded text-[10px] font-bold">VERIFIED EFT</span>
                   </div>
-                  <div className="space-y-0.5 text-[11px]">
-                    <div>Bank: <strong>{profile.bankName || '—'}</strong></div>
-                    <div>Account Name: <strong>{profile.accountName || profile.companyName || '—'}</strong></div>
-                    <div>Account Number: <strong>{profile.accountNumber || '—'}</strong></div>
-                    <div>Branch Code: <strong>{profile.branchCode || '—'}</strong></div>
-                    <div>Reference: <strong className="text-sky-600">{docNumber}</strong></div>
+                  <div className="space-y-1 text-xs text-slate-800">
+                    <div>Bank: <strong>{profile.bankName || 'Tyme Bank Business'}</strong></div>
+                    <div>Account Name: <span>{profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'}</span></div>
+                    <div>Account Number: <strong className="font-mono text-sm tracking-wider text-slate-900">{profile.accountNumber || '53002734919'}</strong></div>
+                    <div>Branch Code: <strong>{profile.branchCode || '678910'}</strong> ({profile.accountType || 'Business Current Account'})</div>
+                    <div className="pt-1.5 border-t border-slate-200 mt-1.5 flex items-center gap-1.5">
+                      <span className="text-slate-600 font-semibold">Payment Ref:</span>
+                      <strong className="text-blue-900 bg-yellow-200 px-2 py-0.5 rounded text-xs">{docNumber}</strong>
+                    </div>
                   </div>
                 </div>
 
@@ -384,9 +399,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                       <span className="font-bold text-slate-900">{formatZAR(data.vatAmount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-300">
-                    <span>TOTAL:</span>
-                    <span className="text-sky-600">{formatZAR(data.totalAmount)}</span>
+                  <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t-2 border-slate-300">
+                    <span>TOTAL AMOUNT:</span>
+                    <span className="text-blue-800 font-black">{formatZAR(data.totalAmount)}</span>
                   </div>
                   {isInvoice ? (
                     ((data as Invoice).amountPaid > 0 || (data as Invoice).depositAmountPaid) && (

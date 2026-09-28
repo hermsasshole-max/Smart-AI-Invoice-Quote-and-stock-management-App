@@ -245,16 +245,20 @@ export function generateWhatsAppQuoteSummary(
 
   msg += `--------------------------------\n\n`;
   msg += `🏦 *Banking Details (EFT Settlement):*\n`;
-  msg += `• Bank: *${profile.bankName || '—'}*\n`;
-  msg += `• Account Name: *${profile.accountName || profile.companyName || '—'}*\n`;
-  msg += `• Account Number: *${profile.accountNumber || '—'}*\n`;
-  msg += `• Branch Code: *${profile.branchCode || '—'}*\n`;
-  msg += `• Reference: *${docNumber}*\n\n`;
+  msg += `• Bank: *${profile.bankName || 'Tyme Bank Business'}*\n`;
+  msg += `• Account Name: *${profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'}*\n`;
+  msg += `• Account Number: *${profile.accountNumber || '53002734919'}*\n`;
+  msg += `• Branch Code: *${profile.branchCode || '678910'}* (${profile.accountType || 'Business Current Account'})\n`;
+  msg += `• Payment Reference: *${docNumber}*\n\n`;
   if (profile.phone || profile.email) {
-    msg += `📞 Contact: ${[profile.phone, profile.email].filter(Boolean).join(' | ')}\n`;
+    msg += `📞 Contact: ${[profile.phone || '+27 82 456 7890', profile.email || 'info@harryselectrical.co.za'].filter(Boolean).join(' | ')}\n`;
+  }
+  if (profile.address || profile.website) {
+    msg += `📍 Address: ${profile.address || '14 Electron Avenue, Kya Sand Industrial, JHB'}\n`;
+    if (profile.website) msg += `🌐 Website: ${profile.website}\n`;
   }
   if (profile.sansComplianceNotice) {
-    msg += `_${profile.sansComplianceNotice}_`;
+    msg += `\n_${profile.sansComplianceNotice}_`;
   }
 
   return msg;

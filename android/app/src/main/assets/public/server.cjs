@@ -40,6 +40,7 @@ var import_express = __toESM(require("express"), 1);
 var import_cors = __toESM(require("cors"), 1);
 var import_genai2 = require("@google/genai");
 var import_path2 = __toESM(require("path"), 1);
+var import_fs2 = __toESM(require("fs"), 1);
 var import_vite = require("vite");
 
 // server/middleware/usageMeter.ts
@@ -939,6 +940,48 @@ async function startServer() {
       }
     });
   }
+  const manifestPath = import_path2.default.join(process.cwd(), "public", "manifest.json");
+  const swPath = import_path2.default.join(process.cwd(), "public", "sw.js");
+  const assetlinksPath = import_path2.default.join(process.cwd(), "public", ".well-known", "assetlinks.json");
+  const serveManifest = (_req, res) => {
+    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    if (import_fs2.default.existsSync(manifestPath)) {
+      return res.sendFile(manifestPath);
+    }
+    const distManifest = import_path2.default.join(process.cwd(), "dist", "manifest.json");
+    if (import_fs2.default.existsSync(distManifest)) {
+      return res.sendFile(distManifest);
+    }
+    res.status(404).send("Manifest not found");
+  };
+  app.get(["/manifest.json", "/manifest.webmanifest", "/site.webmanifest"], serveManifest);
+  app.get(["/sw.js", "/service-worker.js"], (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Service-Worker-Allowed", "/");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    if (import_fs2.default.existsSync(swPath)) {
+      return res.sendFile(swPath);
+    }
+    const distSw = import_path2.default.join(process.cwd(), "dist", "sw.js");
+    if (import_fs2.default.existsSync(distSw)) {
+      return res.sendFile(distSw);
+    }
+    res.status(404).send("Service worker not found");
+  });
+  app.get(["/.well-known/assetlinks.json", "/assetlinks.json"], (_req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    if (import_fs2.default.existsSync(assetlinksPath)) {
+      return res.sendFile(assetlinksPath);
+    }
+    res.status(404).send("Assetlinks not found");
+  });
   app.get(["/api/health", "/health"], (req, res) => {
     res.json({ status: "ok", time: (/* @__PURE__ */ new Date()).toISOString() });
   });

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import {
   usageStore,
@@ -536,6 +537,54 @@ async function startServer() {
       },
     });
   }
+
+  // Explicit routes for PWA Manifests and Service Worker (PWABuilder & Chromium compliant)
+  const manifestPath = path.join(process.cwd(), 'public', 'manifest.json');
+  const swPath = path.join(process.cwd(), 'public', 'sw.js');
+  const assetlinksPath = path.join(process.cwd(), 'public', '.well-known', 'assetlinks.json');
+
+  const serveManifest = (_req: express.Request, res: express.Response) => {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (fs.existsSync(manifestPath)) {
+      return res.sendFile(manifestPath);
+    }
+    const distManifest = path.join(process.cwd(), 'dist', 'manifest.json');
+    if (fs.existsSync(distManifest)) {
+      return res.sendFile(distManifest);
+    }
+    res.status(404).send('Manifest not found');
+  };
+
+  app.get(['/manifest.json', '/manifest.webmanifest', '/site.webmanifest'], serveManifest);
+
+  app.get(['/sw.js', '/service-worker.js'], (_req: express.Request, res: express.Response) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    if (fs.existsSync(swPath)) {
+      return res.sendFile(swPath);
+    }
+    const distSw = path.join(process.cwd(), 'dist', 'sw.js');
+    if (fs.existsSync(distSw)) {
+      return res.sendFile(distSw);
+    }
+    res.status(404).send('Service worker not found');
+  });
+
+  app.get(['/.well-known/assetlinks.json', '/assetlinks.json'], (_req: express.Request, res: express.Response) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    if (fs.existsSync(assetlinksPath)) {
+      return res.sendFile(assetlinksPath);
+    }
+    res.status(404).send('Assetlinks not found');
+  });
 
   // Health check API (supporting both /api/health and /health)
   app.get(['/api/health', '/health'], (req, res) => {

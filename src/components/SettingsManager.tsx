@@ -83,6 +83,27 @@ export const SettingsManager: React.FC = () => {
   const [vatEnabled, setVatEnabled] = useState(profile.vatEnabled);
   const [sansNotice, setSansNotice] = useState(profile.sansComplianceNotice);
 
+  React.useEffect(() => {
+    setCompanyName(profile.companyName);
+    setTagline(profile.tagline);
+    setRegNumber(profile.regNumber);
+    setVatNumber(profile.vatNumber);
+    setPhone(profile.phone);
+    setEmail(profile.email);
+    setAddress(profile.address);
+    setBankName(profile.bankName);
+    setAccountName(profile.accountName);
+    setAccountNumber(profile.accountNumber);
+    setBranchCode(profile.branchCode);
+    setAccountType(profile.accountType);
+    setDefaultCalloutFee(profile.defaultCalloutFee);
+    setDefaultLabourRate(profile.defaultLabourRate);
+    setDefaultTravelRate(profile.defaultTravelRate);
+    setDefaultMarkup(profile.defaultMarkup);
+    setVatEnabled(profile.vatEnabled);
+    setSansNotice(profile.sansComplianceNotice);
+  }, [profile]);
+
   // Document Sequence State
   const [nextQuoteNum, setNextQuoteNum] = useState<string>(() => getNextQuoteNumber());
   const [nextInvNum, setNextInvNum] = useState<string>(() => getNextInvoiceNumber());

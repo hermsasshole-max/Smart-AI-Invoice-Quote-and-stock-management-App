@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.cortech.businessmanager",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7C:0F:CD:CF:CE:7A:EB:EC:0C:5E:32:AE:87:68:16:07:7E:83:18:59:7E:11:DA:29:7B:69:07:11:77"
+      ]
+    }
+  }
+]

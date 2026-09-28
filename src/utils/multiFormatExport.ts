@@ -294,70 +294,99 @@ export function buildJsPDFDocument(
   const overflowRatio = estimatedUnscaledHeight / 297;
   const shouldCondenseSinglePage = overflowRatio > 0.95 && overflowRatio <= 1.25;
 
-  const headerHeight = shouldCondenseSinglePage ? 36 : 42;
-  const clientBoxY = shouldCondenseSinglePage ? 41 : 48;
+  const headerHeight = shouldCondenseSinglePage ? 38 : 44;
+  const clientBoxY = shouldCondenseSinglePage ? 43 : 50;
   const clientBoxHeight = shouldCondenseSinglePage ? 26 : 34;
-  const tableStartY = shouldCondenseSinglePage ? 70 : 86;
+  const tableStartY = shouldCondenseSinglePage ? 72 : 88;
   const tableFontSize = shouldCondenseSinglePage ? 7.5 : 8.5;
   const tableHeadFontSize = shouldCondenseSinglePage ? 8 : 9;
   const tableCellPadding = shouldCondenseSinglePage ? 1.8 : 3;
   const bankingBoxHeight = shouldCondenseSinglePage ? 28 : 36;
   const lineSpacing = shouldCondenseSinglePage ? 4.5 : 5.5;
 
-  doc.setFillColor(27, 30, 40);
+  // 1. Top Header Banner in Royal Blue with Golden Yellow accent stripe
+  doc.setFillColor(30, 64, 175); // Royal Blue (#1E40AF)
   doc.rect(0, 0, 210, headerHeight, 'F');
 
-  doc.setFillColor(56, 189, 248);
-  doc.rect(0, headerHeight, 210, 2, 'F');
+  doc.setFillColor(250, 204, 21); // Vibrant Yellow (#FACC15)
+  doc.rect(0, headerHeight, 210, 2.5, 'F');
 
+  // Company Name in high-contrast crisp white with graceful line wrapping
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(shouldCondenseSinglePage ? 14 : 16);
-  doc.text(profile.companyName.toUpperCase(), 14, shouldCondenseSinglePage ? 12 : 15);
+  doc.setFontSize(shouldCondenseSinglePage ? 13 : 15);
+  const companyLines = doc.splitTextToSize((profile.companyName || "HARRY'S AIRCON ELECTRICAL & SOLAR SERVICES").toUpperCase(), 122);
+  let compY = shouldCondenseSinglePage ? 9.5 : 12;
+  companyLines.forEach((cline: string) => {
+    doc.text(cline, 14, compY);
+    compY += (shouldCondenseSinglePage ? 4.8 : 5.5);
+  });
 
+  // Tagline in warm golden yellow
+  doc.setFont('helvetica', 'bolditalic');
+  doc.setFontSize(shouldCondenseSinglePage ? 7.8 : 8.5);
+  doc.setTextColor(254, 240, 138); // Yellow-200
+  doc.text(profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered", 14, compY);
+
+  // Company Details in Dove Grey / Soft White
+  compY += (shouldCondenseSinglePage ? 4.2 : 5);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(shouldCondenseSinglePage ? 8 : 9);
-  doc.setTextColor(56, 189, 248);
-  doc.text(profile.tagline || 'Electrical   Air Conditioning   Solar   Security', 14, shouldCondenseSinglePage ? 17 : 21);
-
-  doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(`Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}`, 14, shouldCondenseSinglePage ? 22 : 27);
-  doc.text(`Tel: ${profile.phone} | Email: ${profile.email}`, 14, shouldCondenseSinglePage ? 27 : 32);
+  doc.setFontSize(shouldCondenseSinglePage ? 7 : 7.8);
+  doc.setTextColor(241, 245, 249); // Dove White (#F1F5F9)
+  doc.text(`Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4820391823'}`, 14, compY);
+  compY += (shouldCondenseSinglePage ? 3.8 : 4.5);
+  doc.text(`Tel: ${profile.phone || '+27 82 456 7890'} | Email: ${profile.email || 'info@harryselectrical.co.za'}`, 14, compY);
   if (!shouldCondenseSinglePage) {
-    doc.text(`Address: ${profile.address}`, 14, 37);
+    compY += 4.5;
+    doc.text(`Address: ${profile.address || '14 Electron Avenue, Kya Sand Industrial, JHB'} | Web: ${profile.website || 'https://harryselectrical.co.za'}`, 14, compY);
   }
 
-  doc.setFillColor(245, 158, 11);
-  doc.roundedRect(140, shouldCondenseSinglePage ? 8 : 10, 56, shouldCondenseSinglePage ? 8.5 : 10, 2, 2, 'F');
-  doc.setTextColor(15, 23, 42);
+  // Right-side Document Badge in Golden Yellow with Royal Blue bold text
+  doc.setFillColor(250, 204, 21); // Vibrant Yellow
+  doc.roundedRect(138, shouldCondenseSinglePage ? 7.5 : 9.5, 58, shouldCondenseSinglePage ? 8.5 : 10, 2, 2, 'F');
+  doc.setTextColor(30, 58, 138); // Royal Blue Navy (#1E3A8A)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(shouldCondenseSinglePage ? 9.5 : 11);
-  doc.text(docTitle, 168, shouldCondenseSinglePage ? 13.5 : 16.5, { align: 'center' });
+  doc.text(docTitle, 167, shouldCondenseSinglePage ? 13 : 16, { align: 'center' });
 
+  // Document metadata in crisp white
   doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
   doc.setTextColor(255, 255, 255);
-  doc.text(`Ref #: ${docNumber}`, 140, shouldCondenseSinglePage ? 21 : 26);
-  doc.text(`Date: ${data.date}`, 140, shouldCondenseSinglePage ? 26 : 31);
-  doc.text(`${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`, 140, shouldCondenseSinglePage ? 31 : 36);
+  doc.text(`Ref #: ${docNumber}`, 140, shouldCondenseSinglePage ? 20.5 : 25.5);
+  doc.setTextColor(241, 245, 249);
+  doc.text(`Date: ${data.date}`, 140, shouldCondenseSinglePage ? 25 : 30.5);
+  doc.text(`${isInvoice ? 'Due Date' : 'Valid Until'}: ${docSecondaryDate}`, 140, shouldCondenseSinglePage ? 29.5 : 35.5);
 
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
+  // Status indicator
+  doc.setFillColor(254, 240, 138);
+  doc.setTextColor(30, 58, 138);
+  doc.setFontSize(shouldCondenseSinglePage ? 6.5 : 7.2);
+  doc.roundedRect(140, shouldCondenseSinglePage ? 32 : 38, 28, 4.5, 1, 1, 'F');
+  doc.text(`STATUS: ${(data.status || 'SENT').toUpperCase()}`, 154, shouldCondenseSinglePage ? 35.2 : 41.2, { align: 'center' });
+
+  // 2. Client & Site Details Box in Dove Grey with Royal Blue left accent bar
+  doc.setFillColor(248, 250, 252); // Light Dove Grey (#F8FAFC)
+  doc.setDrawColor(203, 213, 225); // Dove Grey border (#CBD5E1)
   doc.roundedRect(14, clientBoxY, 182, clientBoxHeight, 2, 2, 'FD');
-  doc.setTextColor(2, 132, 199);
+
+  // Left Royal Blue vertical accent bar
+  doc.setFillColor(30, 64, 175);
+  doc.rect(14, clientBoxY, 3, clientBoxHeight, 'F');
+
+  doc.setTextColor(30, 64, 175); // Royal Blue
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(shouldCondenseSinglePage ? 8 : 9);
-  doc.text(isInvoice ? 'BILLED TO & SITE LOCATION' : 'CLIENT & SITE DETAILS', 18, clientBoxY + (shouldCondenseSinglePage ? 5 : 7));
+  doc.text(isInvoice ? 'BILLED TO & SITE LOCATION' : 'CLIENT & SITE DETAILS', 20, clientBoxY + (shouldCondenseSinglePage ? 5 : 7));
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(shouldCondenseSinglePage ? 9 : 10);
-  doc.text(data.clientName, 18, clientBoxY + (shouldCondenseSinglePage ? 11 : 14));
+  doc.text(data.clientName, 20, clientBoxY + (shouldCondenseSinglePage ? 11 : 14));
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Phone: ${data.clientPhone} ${data.clientEmail ? '| Email: ' + data.clientEmail : ''}`, 18, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
-  doc.text(`Site Address: ${data.clientAddress}`, 18, clientBoxY + (shouldCondenseSinglePage ? 21 : 26));
+  doc.text(`Phone: ${data.clientPhone} ${data.clientEmail ? '| Email: ' + data.clientEmail : ''}`, 20, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
+  doc.text(`Site Address: ${data.clientAddress}`, 20, clientBoxY + (shouldCondenseSinglePage ? 21 : 26));
 
-  doc.setTextColor(2, 132, 199);
+  doc.setTextColor(30, 64, 175); // Royal Blue
   doc.setFont('helvetica', 'bold');
   doc.text('JOB SPECIFICATION', 110, clientBoxY + (shouldCondenseSinglePage ? 5 : 7));
   doc.setTextColor(15, 23, 42);
@@ -367,21 +396,27 @@ export function buildJsPDFDocument(
   const splitScope = doc.splitTextToSize(data.scopeOfWork || 'On-site technical scope', 80);
   doc.text(splitScope.slice(0, 2), 110, clientBoxY + (shouldCondenseSinglePage ? 16 : 20));
 
+  // 3. Items & Services Table with Royal Blue Head and Yellow accent
   applyAutoTable(doc, {
     startY: tableStartY,
     head: [['Item / Description', 'Qty', 'Unit Rate (ZAR)', 'Total (ZAR)']],
     body: tableRows,
     theme: 'grid',
     headStyles: {
-      fillColor: [2, 132, 199],
+      fillColor: [30, 64, 175], // Royal Blue
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: tableHeadFontSize,
+      cellPadding: tableCellPadding + 0.5,
     },
     styles: {
       fontSize: tableFontSize,
       textColor: [15, 23, 42],
       cellPadding: tableCellPadding,
+      lineColor: [226, 232, 240], // Dove Grey
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252], // Dove Grey tint
     },
     columnStyles: {
       0: { cellWidth: 100 },
@@ -394,23 +429,29 @@ export function buildJsPDFDocument(
 
   const finalY = ((doc as any).lastAutoTable?.finalY ?? (tableStartY + (tableRows.length * 8))) + (shouldCondenseSinglePage ? 4 : 6);
 
-  doc.setFillColor(241, 245, 249);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, finalY, 105, bankingBoxHeight, 2, 2, 'FD');
-  doc.setTextColor(2, 132, 199);
+  // 4. Banking Details Box in Dove Grey with Royal Blue left bar
+  doc.setFillColor(241, 245, 249); // Dove Grey (#F1F5F9)
+  doc.setDrawColor(203, 213, 225); // Dove Grey border (#CBD5E1)
+  doc.roundedRect(14, finalY, 108, bankingBoxHeight, 2, 2, 'FD');
+
+  // Left Royal Blue accent bar
+  doc.setFillColor(30, 64, 175);
+  doc.rect(14, finalY, 3.5, bankingBoxHeight, 'F');
+
+  doc.setTextColor(30, 64, 175); // Royal Blue
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
-  doc.text('BANKING DETAILS (EFT SETTLEMENT)', 18, finalY + (shouldCondenseSinglePage ? 5 : 6));
+  doc.text('BANKING DETAILS (EFT SETTLEMENT)', 20, finalY + (shouldCondenseSinglePage ? 5 : 6));
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(shouldCondenseSinglePage ? 7 : 8);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Bank: ${profile.bankName || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 10 : 12));
-  doc.text(`Account Name: ${profile.accountName || profile.companyName || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 14 : 17));
-  doc.text(`Account Number: ${profile.accountNumber || '—'}`, 18, finalY + (shouldCondenseSinglePage ? 18 : 22));
-  doc.text(`Branch Code: ${profile.branchCode || '—'}${profile.accountType ? ` (${profile.accountType})` : ''}`, 18, finalY + (shouldCondenseSinglePage ? 22 : 27));
+  doc.text(`Bank: ${profile.bankName || 'Tyme Bank Business'}`, 20, finalY + (shouldCondenseSinglePage ? 10 : 12));
+  doc.text(`Account Name: ${profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'}`, 20, finalY + (shouldCondenseSinglePage ? 14 : 17));
+  doc.text(`Account Number: ${profile.accountNumber || '53002734919'}`, 20, finalY + (shouldCondenseSinglePage ? 18 : 22));
+  doc.text(`Branch Code: ${profile.branchCode || '678910'} (${profile.accountType || 'Business Current Account'})`, 20, finalY + (shouldCondenseSinglePage ? 22 : 27));
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(2, 132, 199);
-  doc.text(`Reference: ${docNumber}`, 18, finalY + (shouldCondenseSinglePage ? 26 : 32));
+  doc.setTextColor(30, 64, 175);
+  doc.text(`Reference: ${docNumber}`, 20, finalY + (shouldCondenseSinglePage ? 26 : 32));
 
   let totalsY = finalY + (shouldCondenseSinglePage ? 3 : 4);
   doc.setFontSize(shouldCondenseSinglePage ? 7.5 : 8.5);
@@ -440,7 +481,7 @@ export function buildJsPDFDocument(
   doc.setFontSize(shouldCondenseSinglePage ? 9 : 10.5);
   doc.setTextColor(15, 23, 42);
   doc.text('TOTAL AMOUNT:', 130, totalsY + 2);
-  doc.setTextColor(2, 132, 199);
+  doc.setTextColor(30, 64, 175); // Royal Blue
   doc.text(formatZAR(data.totalAmount), 196, totalsY + 2, { align: 'right' });
 
   // Deposit and Balance Due calculation for PDF
@@ -733,7 +774,7 @@ export async function exportToWord(
               ]),
           new Paragraph({ text: '' }),
           new Paragraph({
-            text: `EFT Details: ${profile.bankName} | Acc: ${profile.accountNumber} | Branch: ${profile.branchCode} | Ref: ${docNumber}`,
+            text: `EFT Settlement: ${profile.bankName || 'Tyme Bank Business'} | Acc Name: ${profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'} | Acc: ${profile.accountNumber || '53002734919'} | Branch: ${profile.branchCode || '678910'} (${profile.accountType || 'Business Current Account'}) | Ref: ${docNumber}`,
           }),
         ],
       },
@@ -756,10 +797,12 @@ export async function exportToPlainText(
   const docNumber = isInvoice ? (data as Invoice).invoiceNumber : (data as Quotation).quoteNumber;
 
   let text = `=================================================\n`;
-  text += `${profile.companyName.toUpperCase()}\n`;
-  text += `${profile.tagline}\n`;
-  text += `Reg: ${profile.regNumber} | VAT: ${profile.vatNumber}\n`;
-  text += `Tel: ${profile.phone} | Email: ${profile.email}\n`;
+  text += `${(profile.companyName || "HARRY'S AIRCON ELECTRICAL & SOLAR SERVICES").toUpperCase()}\n`;
+  text += `${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}\n`;
+  text += `Reg: ${profile.regNumber || '2021/849201/07'} | VAT: ${profile.vatNumber || '4820391823'}\n`;
+  text += `Tel: ${profile.phone || '+27 82 456 7890'} | Email: ${profile.email || 'info@harryselectrical.co.za'}\n`;
+  text += `Address: ${profile.address || '14 Electron Avenue, Kya Sand Industrial, JHB'}\n`;
+  text += `Website: ${profile.website || 'https://harryselectrical.co.za'}\n`;
   text += `=================================================\n\n`;
   text += `${docTitle}: ${docNumber}\n`;
   text += `Date: ${data.date}\n`;
@@ -803,10 +846,11 @@ export async function exportToPlainText(
   }
   text += `\n`;
   text += `EFT Details:\n`;
-  text += `Bank: ${profile.bankName}\n`;
-  text += `Account: ${profile.accountNumber}\n`;
-  text += `Branch: ${profile.branchCode}\n`;
-  text += `Ref: ${docNumber}\n`;
+  text += `Bank: ${profile.bankName || 'Tyme Bank Business'}\n`;
+  text += `Account Name: ${profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'}\n`;
+  text += `Account: ${profile.accountNumber || '53002734919'}\n`;
+  text += `Branch: ${profile.branchCode || '678910'} (${profile.accountType || 'Business Current Account'})\n`;
+  text += `Payment Ref: ${docNumber}\n`;
 
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const filename = `${docType.toUpperCase()}_${docNumber}_${data.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
@@ -1009,38 +1053,40 @@ export function generatePrintableHtml(
     </span>
   </div>
   <div class="print-sheet invoice-card">
-    <div class="invoice-header" style="background: #1B1E28; color: #ffffff; padding: 24px; border-bottom: 4px solid #38BDF8;">
+    <div class="invoice-header" style="background: linear-gradient(135deg, #1E40AF 0%, #1E3A8A 100%); color: #ffffff; padding: 24px 28px; border-bottom: 5px solid #FACC15;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-        <div>
-          <h1 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
-            ${profile.companyName}
+        <div style="max-width: 65%;">
+          <h1 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #FFFFFF; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">
+            ${profile.companyName || "HARRY'S AIRCON ELECTRICAL & SOLAR SERVICES"}
           </h1>
-          <p style="margin: 0 0 12px 0; font-size: 12px; color: #38BDF8; font-weight: 500;">
-            ${profile.tagline || ''}
+          <p style="margin: 0 0 12px 0; font-size: 13px; color: #FEF08A; font-weight: 700; font-style: italic;">
+            ${profile.tagline || "From Electrical to Aircons, security to automation, we've got you covered"}
           </p>
-          <div style="font-size: 11px; color: #CBD5E1; line-height: 1.5; font-family: monospace;">
-            <div>${[profile.regNumber ? `Reg: ${profile.regNumber}` : '', profile.vatNumber ? `VAT: ${profile.vatNumber}` : ''].filter(Boolean).join(' | ')}</div>
-            <div>${[profile.phone ? `Tel: ${profile.phone}` : '', profile.email ? `Email: ${profile.email}` : ''].filter(Boolean).join(' | ')}</div>
-            <div>${[profile.address ? `Address: ${profile.address}` : '', profile.website ? `Web: ${profile.website}` : ''].filter(Boolean).join(' | ')}</div>
+          <div style="font-size: 11px; color: #F1F5F9; line-height: 1.6; font-family: monospace;">
+            <div>${[profile.regNumber ? `Reg: ${profile.regNumber}` : 'Reg: 2021/849201/07', profile.vatNumber ? `VAT: ${profile.vatNumber}` : 'VAT: 4820391823'].filter(Boolean).join(' | ')}</div>
+            <div>${[profile.phone ? `Tel: ${profile.phone}` : 'Tel: +27 82 456 7890', profile.email ? `Email: ${profile.email}` : 'Email: info@harryselectrical.co.za'].filter(Boolean).join(' | ')}</div>
+            <div>${[profile.address ? `Address: ${profile.address}` : 'Address: 14 Electron Avenue, Kya Sand Industrial, JHB', profile.website ? `Web: ${profile.website}` : 'Web: https://harryselectrical.co.za'].filter(Boolean).join(' | ')}</div>
           </div>
         </div>
         <div style="text-align: right; font-family: monospace;">
-          <div style="display: inline-block; padding: 6px 12px; background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; font-size: 14px; font-weight: 900; margin-bottom: 8px;">
+          <div style="display: inline-block; padding: 6px 16px; background: #FACC15; color: #1E3A8A; border: 2px solid #EAB308; border-radius: 8px; font-size: 15px; font-weight: 900; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 8px;">
             ${docTitle}
           </div>
-          <div style="font-size: 12px; color: #CBD5E1; line-height: 1.5;">
-            <div><span style="color: #94A3B8;">Ref #:</span> <strong style="color: #ffffff;">${docNumber}</strong></div>
-            <div><span style="color: #94A3B8;">Date:</span> ${data.date}</div>
-            <div><span style="color: #94A3B8;">${isInvoice ? 'Due Date:' : 'Valid Until:'}</span> ${docSecondaryDate}</div>
-            <div style="color: #38BDF8; font-weight: 700; text-transform: uppercase; margin-top: 4px;">Status: ${data.status}</div>
+          <div style="font-size: 12px; color: #F1F5F9; line-height: 1.6;">
+            <div><span style="color: #CBD5E1;">Ref #:</span> <strong style="color: #FFFFFF; font-size: 13px;">${docNumber}</strong></div>
+            <div><span style="color: #CBD5E1;">Date:</span> ${data.date}</div>
+            <div><span style="color: #CBD5E1;">${isInvoice ? 'Due Date:' : 'Valid Until:'}</span> ${docSecondaryDate}</div>
+            <div style="display: inline-block; padding: 2px 8px; background: rgba(250, 204, 21, 0.2); color: #FEF08A; border: 1px solid #FACC15; border-radius: 4px; font-weight: 800; font-size: 11px; text-transform: uppercase; margin-top: 4px;">
+              Status: ${data.status}
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <div style="padding: 20px 24px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0;">
+    <div style="padding: 20px 24px; background: #F8FAFC; border-bottom: 1px solid #CBD5E1; border-left: 5px solid #1E40AF;">
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
-          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #0284C7; font-family: monospace;">
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #1E40AF; font-family: monospace; font-weight: 800;">
             ${isInvoice ? 'Billed To / Site Location' : 'Client & Site Details'}
           </h4>
           <div style="font-size: 13px; line-height: 1.5; color: #334155;">
@@ -1051,7 +1097,7 @@ export function generatePrintableHtml(
           </div>
         </div>
         <div>
-          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #0284C7; font-family: monospace;">
+          <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #1E40AF; font-family: monospace; font-weight: 800;">
             Job Specifications
           </h4>
           <div style="font-size: 13px; line-height: 1.5; color: #334155;">
@@ -1071,7 +1117,7 @@ export function generatePrintableHtml(
     <div style="padding: 24px;">
       <table class="invoice-table" style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
         <thead>
-          <tr style="background: #0284C7; color: #ffffff; font-family: monospace; text-transform: uppercase; font-size: 11px;">
+          <tr style="background: #1E40AF; color: #ffffff; font-family: monospace; text-transform: uppercase; font-size: 11px; border-bottom: 3px solid #FACC15;">
             <th style="padding: 10px 12px; text-align: left; border-radius: 4px 0 0 4px;">Item / Description</th>
             <th style="padding: 10px 12px; text-align: center;">Qty</th>
             <th style="padding: 10px 12px; text-align: right;">Rate (ZAR)</th>
@@ -1088,16 +1134,19 @@ export function generatePrintableHtml(
         </tbody>
       </table>
       <div class="invoice-totals" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; padding-top: 16px; border-top: 2px solid #E2E8F0;">
-        <div style="background: #F1F5F9; padding: 14px; border-radius: 8px; border: 1px solid #E2E8F0; font-family: monospace; font-size: 11px;">
-          <div style="font-weight: 700; color: #0284C7; text-transform: uppercase; margin-bottom: 8px;">
-              Banking Details (EFT Settlement)
+        <div style="background: #F1F5F9; padding: 16px; border-radius: 8px; border: 1px solid #CBD5E1; border-left: 5px solid #1E40AF; font-family: monospace; font-size: 11px;">
+          <div style="font-weight: 800; color: #1E40AF; text-transform: uppercase; margin-bottom: 8px; font-size: 12px; display: flex; justify-content: space-between;">
+              <span>Banking Details (EFT Settlement)</span>
+              <span style="background: #FEF08A; color: #1E3A8A; padding: 1px 6px; border-radius: 4px; font-size: 10px;">VERIFIED EFT</span>
           </div>
-          <div style="line-height: 1.6; color: #334155;">
-            <div>Bank: <strong>${profile.bankName || '—'}</strong></div>
-            <div>Account Name: <strong>${profile.accountName || profile.companyName || '—'}</strong></div>
-            <div>Account Number: <strong>${profile.accountNumber || '—'}</strong></div>
-            <div>Branch Code: <strong>${profile.branchCode || '—'}</strong> (${profile.accountType || 'Current'})</div>
-            <div>Reference: <strong style="color: #0284C7;">${docNumber}</strong></div>
+          <div style="line-height: 1.7; color: #1E293B;">
+            <div>Bank: <strong>${profile.bankName || 'Tyme Bank Business'}</strong></div>
+            <div>Account Name: <strong>${profile.accountName || profile.companyName || 'Harrys Aircon and Electrical'}</strong></div>
+            <div>Account Number: <strong style="font-size: 12px; letter-spacing: 0.5px;">${profile.accountNumber || '53002734919'}</strong></div>
+            <div>Branch Code: <strong>${profile.branchCode || '678910'}</strong> (${profile.accountType || 'Business Current Account'})</div>
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #CBD5E1;">
+              Payment Ref: <strong style="color: #1E40AF; background: #FEF08A; padding: 2px 6px; border-radius: 4px;">${docNumber}</strong>
+            </div>
           </div>
         </div>
         <div style="font-family: monospace; font-size: 13px;">
@@ -1109,7 +1158,7 @@ export function generatePrintableHtml(
           ${vatHtml}
           <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; color: #0F172A; padding-top: 8px; border-top: 2px solid #CBD5E1; margin-top: 4px;">
             <span>TOTAL:</span>
-            <span style="color: #0284C7;">${formatZAR(data.totalAmount)}</span>
+            <span style="color: #1E40AF; font-size: 18px;">${formatZAR(data.totalAmount)}</span>
           </div>
           ${
             isInvoice

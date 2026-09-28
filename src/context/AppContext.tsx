@@ -212,17 +212,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (storedExpenses.length > 0) setExpenses(storedExpenses);
           if (storedFinRecords.length > 0) setFinancialRecords(storedFinRecords);
 
-          if (profileRecord?.profile) {
-            setProfile(profileRecord.profile);
-            if (profileRecord.profile.sunlightMode !== undefined) {
-              setSunlightMode(profileRecord.profile.sunlightMode);
+          if (profileRecord?.profile && profileRecord.profile.companyName) {
+            const merged = {
+              ...initialBusinessProfile,
+              ...profileRecord.profile,
+              bankName: profileRecord.profile.bankName || initialBusinessProfile.bankName,
+              accountName: profileRecord.profile.accountName || initialBusinessProfile.accountName,
+              accountNumber: profileRecord.profile.accountNumber || initialBusinessProfile.accountNumber,
+              branchCode: profileRecord.profile.branchCode || initialBusinessProfile.branchCode,
+              accountType: profileRecord.profile.accountType || initialBusinessProfile.accountType,
+              regNumber: profileRecord.profile.regNumber || initialBusinessProfile.regNumber,
+              vatNumber: profileRecord.profile.vatNumber || initialBusinessProfile.vatNumber,
+              website: profileRecord.profile.website || initialBusinessProfile.website,
+              address: profileRecord.profile.address || initialBusinessProfile.address,
+              phone: profileRecord.profile.phone || initialBusinessProfile.phone,
+              email: profileRecord.profile.email || initialBusinessProfile.email,
+              sansComplianceNotice: profileRecord.profile.sansComplianceNotice || initialBusinessProfile.sansComplianceNotice,
+            };
+            setProfile(merged);
+            if (merged.sunlightMode !== undefined) {
+              setSunlightMode(merged.sunlightMode);
             }
-            if (profileRecord.profile.nextQuoteNumber) {
-              setCustomNextQuoteNumber(profileRecord.profile.nextQuoteNumber);
+            if (merged.nextQuoteNumber) {
+              setCustomNextQuoteNumber(merged.nextQuoteNumber);
             }
-            if (profileRecord.profile.nextInvoiceNumber) {
-              setCustomNextInvoiceNumber(profileRecord.profile.nextInvoiceNumber);
+            if (merged.nextInvoiceNumber) {
+              setCustomNextInvoiceNumber(merged.nextInvoiceNumber);
             }
+            db.business_profile.put({
+              id: 'main',
+              profile: merged,
+              updatedAt: new Date().toISOString(),
+            }).catch(() => {});
+          } else {
+            setProfile(initialBusinessProfile);
+            db.business_profile.put({
+              id: 'main',
+              profile: initialBusinessProfile,
+              updatedAt: new Date().toISOString(),
+            }).catch(() => {});
           }
 
           setIsDbReady(true);
