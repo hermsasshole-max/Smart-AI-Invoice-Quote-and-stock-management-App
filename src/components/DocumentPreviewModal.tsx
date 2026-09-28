@@ -10,6 +10,7 @@ import {
   printHtmlDocument,
   openPdfInNewTab,
   shareDocumentDirectly,
+  openExternalUrl,
 } from '../utils/multiFormatExport';
 import { ShareModal } from './ShareModal';
 import {
@@ -467,15 +468,14 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         <div className="no-print action-buttons p-4 bg-[#151722] border-t border-[#282E3E] flex flex-wrap items-center justify-between gap-3">
           {/* WhatsApp & Copy */}
           <div className="flex items-center space-x-2">
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => openExternalUrl(waLink)}
               className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
             >
               <MessageSquare className="w-4 h-4" />
               <span>Send WhatsApp</span>
-            </a>
+            </button>
 
             <button
               onClick={copyToClipboard}

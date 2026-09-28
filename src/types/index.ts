@@ -336,12 +336,13 @@ export interface BusinessProfile {
 }
 
 export interface AndroidBridge {
-  saveFile?: (base64Data: string, filename: string, mimeType: string) => void;
-  openFile?: (base64Data: string, filename: string, mimeType: string) => void;
-  printDocument?: () => void;
-  printPdf?: (base64Data: string, filename: string) => void;
-  shareFile?: (base64Data: string, filename: string, mimeType: string, title?: string) => void;
+  saveFile?: (base64Data: string, filename: string, mimeType: string) => boolean | void;
+  openFile?: (base64Data: string, filename: string, mimeType: string) => boolean | void;
+  printDocument?: () => boolean | void;
+  printPdf?: (base64Data: string, filename: string) => boolean | void;
+  shareFile?: (base64Data: string, filename: string, mimeType: string, title?: string) => boolean | void;
   showToast?: (message: string) => void;
+  openUrl?: (url: string) => boolean | void;
   isAndroidApp?: () => boolean;
 }
 

@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Quotation, Invoice, BusinessProfile } from '../types';
 import { formatZAR, generateWhatsAppQuoteSummary, getWhatsAppShareLink } from '../utils/calculator';
-import { exportToPDF } from '../utils/multiFormatExport';
+import {
+  exportToPDF,
+  shareDocumentDirectly,
+  printHtmlDocument,
+  openExternalUrl,
+} from '../utils/multiFormatExport';
 import {
   X,
   MessageSquare,
@@ -12,6 +17,7 @@ import {
   Check,
   Smartphone,
   FileText,
+  Printer,
   ExternalLink,
 } from 'lucide-react';
 
@@ -34,6 +40,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const [customPhone, setCustomPhone] = useState<string>('');
   const [customEmail, setCustomEmail] = useState<string>('');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -89,9 +97,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     try {
-      showFeedback('Generating and downloading PDF...');
+      showFeedback('Saving PDF to your device...');
       await exportToPDF(docType, data, profile, true);
-      showFeedback('PDF downloaded successfully!');
+      showFeedback('PDF saved successfully to Downloads!');
     } catch (err) {
       console.error('PDF export error:', err);
       showFeedback('Failed to download PDF.');
@@ -100,26 +108,47 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  const handleNativeShare = async () => {
+  const handleNativeSharePdf = async () => {
+    setIsSharingPdf(true);
     try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({
-          title: `${docTitle} ${docNumber}`,
-          text: waSummary,
-        });
-        showFeedback('Shared successfully via system drawer!');
-      } else {
-        handleCopySummary();
-      }
+      showFeedback('Opening share sheet...');
+      await shareDocumentDirectly(docType, data, profile, 'pdf');
+      showFeedback('Share sheet opened successfully!');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.warn('Native share failed:', err);
         handleCopySummary();
       }
+    } finally {
+      setIsSharingPdf(false);
     }
   };
 
-  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+  const handlePrintOrSavePdf = async () => {
+    setIsPrinting(true);
+    try {
+      showFeedback('Opening Android print spooler / Save as PDF...');
+      await printHtmlDocument(docType, data, profile);
+      showFeedback('Print spooler opened!');
+    } catch (err) {
+      console.error('Print spooler error:', err);
+      showFeedback('Failed to open print spooler.');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleWhatsAppClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    showFeedback('Opening WhatsApp...');
+    openExternalUrl(waLink);
+  };
+
+  const handleEmailClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    showFeedback('Opening email app...');
+    openExternalUrl(mailtoLink);
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 no-print">
@@ -202,56 +231,80 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <p className="text-xs text-slate-300">
               Sends an itemized summary with deposit terms, totals, and EFT banking details directly to the client's WhatsApp.
             </p>
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => showFeedback('Opening WhatsApp...')}
+            <button
+              type="button"
+              onClick={handleWhatsAppClick}
               className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
             >
               <MessageSquare className="w-4 h-4" />
               <span>Send via WhatsApp {targetPhone ? `(${targetPhone})` : ''}</span>
               <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
-            </a>
+            </button>
           </div>
 
-          {/* Action 2: Email Dispatch */}
-          <div className="p-4 bg-blue-950/30 border border-blue-500/30 rounded-xl space-y-2">
+          {/* Action 2: Android Native Share Sheet (WhatsApp, Drive, Gmail, Bluetooth) */}
+          <div className="p-4 bg-purple-950/30 border border-purple-500/30 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-400 flex items-center space-x-1.5">
-                <Mail className="w-4 h-4" />
-                <span>Email Official Breakdown</span>
+              <span className="text-xs font-bold text-purple-400 flex items-center space-x-1.5">
+                <Smartphone className="w-4 h-4" />
+                <span>Share PDF File (Android Share Drawer)</span>
               </span>
-              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">
-                Email App
+              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-mono">
+                Native File Share
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              Opens your device's default mail client with the subject and line-by-line quote summary pre-populated.
+              Shares the actual PDF file directly via WhatsApp file attachment, Google Drive, Gmail, Nearby Share, or any installed app.
             </p>
-            <a
-              href={mailtoLink}
-              onClick={() => showFeedback('Opening default mail client...')}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer active:scale-95"
+            <button
+              type="button"
+              onClick={handleNativeSharePdf}
+              disabled={isSharingPdf}
+              className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-purple-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              <Mail className="w-4 h-4" />
-              <span>Send via Email {targetEmail ? `(${targetEmail})` : ''}</span>
-            </a>
+              <Share2 className="w-4 h-4" />
+              <span>{isSharingPdf ? 'Opening Share...' : 'Share PDF File to Apps'}</span>
+            </button>
           </div>
 
-          {/* Action 3: Download PDF Direct */}
+          {/* Action 3: Print / Save as PDF Spooler */}
+          <div className="p-4 bg-amber-950/30 border border-amber-500/30 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
+                <Printer className="w-4 h-4" />
+                <span>Print or Save to PDF (Android Spooler)</span>
+              </span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono">
+                System Print
+              </span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Opens the native Android print dialog to send to Wi-Fi printers or use "Save as PDF".
+            </p>
+            <button
+              type="button"
+              onClick={handlePrintOrSavePdf}
+              disabled={isPrinting}
+              className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-amber-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Printer className="w-4 h-4" />
+              <span>{isPrinting ? 'Opening Print Spooler...' : 'Print / Save as PDF'}</span>
+            </button>
+          </div>
+
+          {/* Action 4: Save / Download PDF Direct to Downloads */}
           <div className="p-4 bg-sky-950/30 border border-sky-500/30 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-sky-400 flex items-center space-x-1.5">
                 <FileText className="w-4 h-4" />
-                <span>Save / Download Vector PDF</span>
+                <span>Save to Device Downloads</span>
               </span>
               <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded font-mono">
-                A4 Vector (.pdf)
+                Downloads Folder
               </span>
             </div>
             <p className="text-xs text-slate-300">
-              Generates the clean A4 PDF file directly onto your phone or computer Downloads folder to attach anywhere.
+              Saves the vector PDF directly into your phone's internal storage Downloads/CorTech folder.
             </p>
             <button
               type="button"
@@ -260,12 +313,21 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-sky-600/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              <span>{isExportingPdf ? 'Generating PDF...' : 'Download PDF Document'}</span>
+              <span>{isExportingPdf ? 'Saving PDF...' : 'Download PDF to Device'}</span>
             </button>
           </div>
 
-          {/* Action 4 & 5: Copy Summary & Native Share Drawer */}
+          {/* Action 5 & 6: Email & Copy Summary */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleEmailClick}
+              className="py-2.5 px-3 bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Email App {targetEmail ? `(${targetEmail})` : ''}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleCopySummary}
@@ -274,17 +336,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               <span>{copied ? 'Copied to Clipboard!' : 'Copy Text Summary'}</span>
             </button>
-
-            {canNativeShare && (
-              <button
-                type="button"
-                onClick={handleNativeShare}
-                className="py-2.5 px-3 bg-purple-600/80 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-md shadow-purple-600/20"
-              >
-                <Smartphone className="w-4 h-4" />
-                <span>Device Share Drawer</span>
-              </button>
-            )}
           </div>
         </div>
 

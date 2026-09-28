@@ -11,12 +11,43 @@ import {
   WidthType,
   HeadingLevel,
 } from 'docx';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { BusinessProfile, Quotation, Invoice } from '../types';
 import { formatZAR } from './calculator';
 
 export interface ExportResult {
   filename: string;
   method: 'share' | 'download' | 'open';
+}
+
+/**
+ * Universal helper to open external links (WhatsApp, mailto, etc.) safely on Android, Capacitor and Web
+ */
+export function openExternalUrl(url: string): void {
+  if (typeof window !== 'undefined' && window.AndroidInterface?.openUrl) {
+    try {
+      window.AndroidInterface.openUrl(url);
+      return;
+    } catch (e) {
+      console.warn('AndroidInterface.openUrl failed, falling back:', e);
+    }
+  }
+
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 1000);
+  } catch (e) {
+    window.location.href = url;
+  }
 }
 
 // Resilient helper to execute autoTable regardless of CJS/ESM bundling
@@ -53,14 +84,43 @@ export async function downloadBlob(blob: Blob, filename: string, mimeType: strin
   if (typeof window !== 'undefined' && window.AndroidInterface?.saveFile) {
     try {
       const base64Data = await blobToBase64(blob);
-      window.AndroidInterface.saveFile(base64Data, filename, mimeType);
-      return true;
+      const res = window.AndroidInterface.saveFile(base64Data, filename, mimeType);
+      if (res !== false) return true;
     } catch (bridgeErr) {
-      console.warn('AndroidInterface.saveFile failed, proceeding to web download:', bridgeErr);
+      console.warn('AndroidInterface.saveFile failed, proceeding to Capacitor / Web download:', bridgeErr);
     }
   }
 
-  // 2. Standard Blob Object URL download
+  // 2. Capacitor Native Filesystem for installed Android apps
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const cleanData = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      
+      const saved = await Filesystem.writeFile({
+        path: filename,
+        data: cleanData,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+
+      // Prompt user with Share sheet to immediately save to Downloads, Google Drive, or view
+      try {
+        await Share.share({
+          title: `Saved: ${filename}`,
+          url: saved.uri,
+          dialogTitle: `Save or Open ${filename}`,
+        });
+      } catch (shareErr) {
+        // user dismissed sheet
+      }
+      return true;
+    } catch (capErr) {
+      console.warn('Capacitor Filesystem.writeFile error, falling back to Web API:', capErr);
+    }
+  }
+
+  // 3. Standard Blob Object URL download for Web & PWA
   try {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -86,7 +146,7 @@ export async function downloadBlob(blob: Blob, filename: string, mimeType: strin
     console.warn('Blob URL download failed, trying Base64 data URI:', blobErr);
   }
 
-  // 3. Base64 Data URI fallback (works when blob: is restricted by sandboxed iframes)
+  // 4. Base64 Data URI fallback (works when blob: is restricted by sandboxed iframes)
   try {
     const dataUrl = await blobToBase64(blob);
     const a = document.createElement('a');
@@ -124,7 +184,43 @@ export async function saveOrShareFile(
     return { filename, method: 'download' };
   }
 
-  // Optional: check Web Share API if explicitly requested and available
+  // 1. Android Native Bridge
+  if (typeof window !== 'undefined' && window.AndroidInterface?.shareFile) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const res = window.AndroidInterface.shareFile(base64Data, filename, mimeType, title);
+      if (res !== false) return { filename, method: 'share' };
+    } catch (err) {
+      console.warn('AndroidInterface.shareFile error:', err);
+    }
+  }
+
+  // 2. Capacitor Native Share
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const cleanData = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      const fileResult = await Filesystem.writeFile({
+        path: filename,
+        data: cleanData,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: title,
+        text: `${title} - ${filename}`,
+        url: fileResult.uri,
+        dialogTitle: title,
+      });
+      return { filename, method: 'share' };
+    } catch (capErr: any) {
+      if (capErr?.message?.includes('canceled') || capErr?.name === 'AbortError') {
+        return { filename, method: 'share' };
+      }
+      console.warn('Capacitor Share failed, trying web share:', capErr);
+    }
+  }
+
+  // 3. Web Share API
   if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], filename, { type: mimeType });
@@ -1080,8 +1176,8 @@ export async function printHtmlDocument(
       const doc = buildJsPDFDocument(docType, data, profile);
       const pdfBlob = doc.output('blob');
       const base64data = await blobToBase64(pdfBlob);
-      window.AndroidInterface.printPdf(base64data, filename);
-      return;
+      const res = window.AndroidInterface.printPdf(base64data, filename);
+      if (res !== false) return;
     } catch (androidPdfErr) {
       console.warn('Direct PDF print bridge error:', androidPdfErr);
     }
@@ -1090,14 +1186,37 @@ export async function printHtmlDocument(
   // 2. Android Bridge standard printDocument fallback
   if (typeof window !== 'undefined' && window.AndroidInterface?.printDocument) {
     try {
-      window.AndroidInterface.printDocument();
-      return;
+      const res = window.AndroidInterface.printDocument();
+      if (res !== false) return;
     } catch (printErr) {
       console.warn('AndroidInterface.printDocument error, using web print:', printErr);
     }
   }
 
-  // 3. In-Browser / Mobile / Tablet Print via isolated hidden iframe (prevents modal backdrop / CSS clipping)
+  // 3. Capacitor Native: generate PDF and invoke native Share Sheet for printing/saving
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const doc = buildJsPDFDocument(docType, data, profile);
+      const pdfBlob = doc.output('blob');
+      const base64data = await blobToBase64(pdfBlob);
+      const cleanData = base64data.includes(',') ? base64data.split(',')[1] : base64data;
+      const saved = await Filesystem.writeFile({
+        path: `${filename}.pdf`,
+        data: cleanData,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: `Print / Save as PDF: ${filename}`,
+        url: saved.uri,
+        dialogTitle: 'Select Print Service or Save PDF',
+      });
+      return;
+    } catch (capPrintErr) {
+      console.warn('Capacitor native print share fallback failed:', capPrintErr);
+    }
+  }
+
+  // 4. In-Browser / Mobile / Tablet Print via isolated hidden iframe (prevents modal backdrop / CSS clipping)
   try {
     const htmlContent = generatePrintableHtml(docType, data, profile);
     const existingFrame = document.getElementById('cortech-print-frame');
@@ -1139,7 +1258,7 @@ export async function printHtmlDocument(
     console.warn('Isolated iframe print failed, trying main window print:', webPrintErr);
   }
 
-  // 4. Fallback: Main window print with body clean class
+  // 5. Fallback: Main window print with body clean class
   try {
     document.body.classList.add('printing-document');
     window.print();
@@ -1178,16 +1297,43 @@ export async function shareDocumentDirectly(
     return await exportToPlainText(docType, data, profile, true);
   }
 
+  // 1. Android Native Bridge with direct FileProvider share intent
   if (typeof window !== 'undefined' && window.AndroidInterface?.shareFile) {
     try {
       const base64Data = await blobToBase64(blob);
-      window.AndroidInterface.shareFile(base64Data, filename, mimeType, title);
-      return { filename, method: 'share' };
+      const res = window.AndroidInterface.shareFile(base64Data, filename, mimeType, title);
+      if (res !== false) return { filename, method: 'share' };
     } catch (err) {
       console.warn('AndroidInterface.shareFile failed:', err);
     }
   }
 
+  // 2. Capacitor Native Share with attached file
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const cleanData = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      const fileResult = await Filesystem.writeFile({
+        path: filename,
+        data: cleanData,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: title,
+        text: `${title} - ${filename}`,
+        url: fileResult.uri,
+        dialogTitle: title,
+      });
+      return { filename, method: 'share' };
+    } catch (capErr: any) {
+      if (capErr?.message?.includes('canceled') || capErr?.name === 'AbortError') {
+        return { filename, method: 'share' };
+      }
+      console.warn('Capacitor Share failed, trying web share:', capErr);
+    }
+  }
+
+  // 3. Web Share API with File
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
       const file = new File([blob], filename, { type: mimeType });
@@ -1229,20 +1375,41 @@ export async function openPdfInNewTab(
   const filename = `${docType.toUpperCase()}_${docNumber || 'DOC'}_${(data.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const base64Data = await blobToBase64(blob);
 
+  // 1. Android Native Bridge
   if (typeof window !== 'undefined' && window.AndroidInterface?.openFile) {
     try {
-      window.AndroidInterface.openFile(base64Data, filename, 'application/pdf');
-      return;
+      const res = window.AndroidInterface.openFile(base64Data, filename, 'application/pdf');
+      if (res !== false) return;
     } catch (err) {
-      console.warn('Android openFile failed, opening in browser tab:', err);
+      console.warn('Android openFile failed, falling back:', err);
     }
   }
 
+  // 2. Capacitor Native
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const cleanData = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      const saved = await Filesystem.writeFile({
+        path: filename,
+        data: cleanData,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: filename,
+        url: saved.uri,
+        dialogTitle: 'Open Document',
+      });
+      return;
+    } catch (capErr) {
+      console.warn('Capacitor open fallback error:', capErr);
+    }
+  }
+
+  // 3. Browser
   const url = URL.createObjectURL(blob);
   try {
     const newWin = window.open(url, '_blank');
     if (!newWin) {
-      // If popup blocker blocked the new window, download the PDF safely without disrupting user's page
       await downloadBlob(blob, filename, 'application/pdf');
     }
   } catch (e) {

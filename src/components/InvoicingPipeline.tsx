@@ -14,6 +14,7 @@ import {
   exportToExcel,
   exportToWord,
   printHtmlDocument,
+  openExternalUrl,
 } from '../utils/multiFormatExport';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { ShareModal } from './ShareModal';
@@ -1470,15 +1471,14 @@ export const InvoicingPipeline: React.FC = () => {
                   </button>
 
                   {/* WhatsApp */}
-                  <a
-                    href={waLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(waLink)}
                     className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 cursor-pointer"
                     title="Send Tax Invoice via WhatsApp"
                   >
                     <MessageSquare className="w-4 h-4" />
-                  </a>
+                  </button>
 
                   {/* Share Button */}
                   <button
