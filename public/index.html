@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1B1E28" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>CorTech AI Business Manager</title>
+    <meta name="description" content="Field service management, smart supplier invoice OCR scanner, fast on-site quotation engine, and inventory tracking for electrical, HVAC, and solar contractors." />
+    <meta property="og:title" content="CorTech AI Business Manager" />
+    <meta property="og:description" content="Field service management, smart supplier invoice OCR scanner, fast on-site quotation engine, and inventory tracking for electrical, HVAC, and solar contractors." />
+    <style>
+      @media print {
+        html, body, #root, .app-container, .invoice-container, .print-area {
+          background-color: #ffffff !important;
+          background: #ffffff !important;
+          color: #111827 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        
+        .invoice-header, .invoice-table th, .invoice-card {
+          background-color: #f3f4f6 !important;
+          color: #111827 !important;
+          border-color: #e5e7eb !important;
+        }
+
+        .invoice-table tr, .invoice-totals {
+          page-break-inside: avoid !important;
+        }
+
+        .no-print, .debug-panel, nav, button, .action-buttons {
+          display: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-[#12141C] text-[#F8FAFC] min-h-screen selection:bg-[#0284C7] selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Service Worker Registration for PWABuilder & Chromium browsers
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => {
+              console.log('[Service Worker] Registered with scope:', reg.scope);
+            })
+            .catch(err => {
+              // Try fallback worker if sw.js fails
+              navigator.serviceWorker.register('/service-worker.js')
+                .then(r => console.log('[Service Worker Fallback] Registered:', r.scope))
+                .catch(e => console.error('[Service Worker] Failed:', e));
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
